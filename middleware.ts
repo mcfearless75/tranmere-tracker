@@ -34,12 +34,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // Guard admin routes
-  if (path.startsWith('/admin')) {
+  // Guard admin routes — only reachable if user is authenticated (checked above)
+  if (user && path.startsWith('/admin')) {
     const { data: profile } = await supabase
       .from('users')
       .select('role')
-      .eq('id', user!.id)
+      .eq('id', user.id)
       .single()
 
     if (!profile || !['admin', 'coach'].includes(profile.role)) {
