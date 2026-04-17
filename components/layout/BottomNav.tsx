@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, BookOpen, Apple, Dumbbell, Trophy } from 'lucide-react'
+import { Home, BookOpen, Apple, Dumbbell, Trophy, User } from 'lucide-react'
 
 const nav = [
   { href: '/dashboard', label: 'Home', icon: Home },
@@ -10,6 +10,7 @@ const nav = [
   { href: '/nutrition', label: 'Food', icon: Apple },
   { href: '/training', label: 'Training', icon: Dumbbell },
   { href: '/matches', label: 'Matches', icon: Trophy },
+  { href: '/profile', label: 'Profile', icon: User },
 ]
 
 export function BottomNav() {
@@ -24,7 +25,7 @@ export function BottomNav() {
             href={href}
             className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${active ? 'text-tranmere-blue' : 'text-gray-400'}`}
           >
-            <Icon size={22} strokeWidth={active ? 2.5 : 1.5} />
+            <Icon size={20} strokeWidth={active ? 2.5 : 1.5} />
             <span className="text-[10px] font-medium">{label}</span>
           </Link>
         )
