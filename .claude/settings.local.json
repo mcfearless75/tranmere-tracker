@@ -4,7 +4,22 @@
       "Bash(npx create-next-app@14 . --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --yes)",
       "Bash(npm install *)",
       "Bash(npx shadcn-ui@latest init --defaults)",
-      "Bash(npx shadcn@latest init --defaults)"
+      "Bash(npx shadcn@latest init --defaults)",
+      "Bash(npx shadcn@latest add card input label badge progress select textarea dialog table --yes)",
+      "Bash(npx jest *)",
+      "Bash(timeout 20 npm run dev)",
+      "Bash(git -C \"C:/Users/LAPTOP80/Desktop/_Apps_Code/ALL APPS/tranmeretracker\" log --oneline)",
+      "Bash(node -e \"const p = require\\('C:/Users/LAPTOP80/Desktop/_Apps_Code/ALL APPS/tranmeretracker/package.json'\\); const all = {...p.dependencies, ...p.devDependencies}; const required = ['@supabase/supabase-js','@supabase/ssr','next-pwa','html5-qrcode','web-push','@types/web-push','jest','jest-environment-jsdom','@testing-library/react','@testing-library/jest-dom','@testing-library/user-event','ts-jest']; required.forEach\\(r => console.log\\(r + ': ' + \\(all[r] || 'MISSING'\\)\\)\\)\")",
+      "Bash(gh repo *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('scripts:', list\\(d.get\\('scripts',{}\\).keys\\(\\)\\)\\)\")",
+      "Bash(node -e \"const p = require\\('./package.json'\\); const keys = Object.keys\\(p.dependencies\\).concat\\(Object.keys\\(p.devDependencies\\)\\); console.log\\(keys.join\\('\\\\n'\\)\\)\")",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('jest:', p.devDependencies.jest\\); console.log\\('jest-env:', p.devDependencies['jest-environment-jsdom']\\); console.log\\('ts-jest:', p.devDependencies['ts-jest']\\)\")",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('test script:', p.scripts.test || 'MISSING'\\)\")",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('next-pwa version:', p.dependencies['next-pwa']\\)\")",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('@base-ui/react:', p.dependencies['@base-ui/react']\\); console.log\\('shadcn \\(runtime\\):', p.dependencies['shadcn']\\); console.log\\('tw-animate-css:', p.dependencies['tw-animate-css']\\)\")",
+      "Bash(npm test *)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); const deps = {...p.dependencies,...p.devDependencies}; ['@supabase/ssr','@supabase/supabase-js'].forEach\\(d => console.log\\(d, deps[d] || 'MISSING'\\)\\)\")",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts, null, 2\\)\\)\")"
     ]
   }
 }
