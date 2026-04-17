@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Image from 'next/image'
 import Link from 'next/link'
+import { PushOptIn } from '@/components/PushOptIn'
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -115,6 +116,8 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <PushOptIn />
     </div>
   )
 }
