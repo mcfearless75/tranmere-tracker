@@ -134,6 +134,9 @@ alter table nutrition_logs enable row level security;
 alter table training_logs enable row level security;
 alter table match_logs enable row level security;
 alter table push_subscriptions enable row level security;
+alter table courses enable row level security;
+alter table btec_units enable row level security;
+alter table assignments enable row level security;
 
 -- Users: read own row; admin/coach read all
 create policy "users_select_own" on public.users for select using (auth.uid() = id);
@@ -158,9 +161,13 @@ create policy "nutrition_goals_read" on nutrition_goals for select using (
   auth.uid() = student_id or
   exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin','coach'))
 );
-create policy "nutrition_goals_write" on nutrition_goals for all using (
-  exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin','coach'))
-);
+create policy "nutrition_goals_write" on nutrition_goals for all
+  using (
+    exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin','coach'))
+  )
+  with check (
+    exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin','coach'))
+  );
 
 -- Training/match: student owns, coach reads
 create policy "training_own" on training_logs for all using (auth.uid() = student_id);
@@ -175,12 +182,38 @@ create policy "match_coach" on match_logs for select using (
 -- Push subscriptions: own only
 create policy "push_own" on push_subscriptions for all using (auth.uid() = user_id);
 
+-- Courses + units: any authenticated user can read
+create policy "courses_auth_read" on courses for select
+  using (auth.role() = 'authenticated');
+
+create policy "btec_units_auth_read" on btec_units for select
+  using (auth.role() = 'authenticated');
+
+-- Assignments: authenticated users read, coaches/admin write
+create policy "assignments_auth_read" on assignments for select
+  using (auth.role() = 'authenticated');
+
+create policy "assignments_admin_write" on assignments for insert
+  with check (
+    exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin','coach'))
+  );
+
+create policy "assignments_admin_update" on assignments for update
+  using (
+    exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin','coach'))
+  );
+
+create policy "assignments_admin_delete" on assignments for delete
+  using (
+    exists (select 1 from public.users u where u.id = auth.uid() and u.role in ('admin','coach'))
+  );
+
 -- Trigger: auto-create public.users row on auth signup
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
   insert into public.users (id, email, name, role)
-  values (new.id, new.email, coalesce(new.raw_user_meta_data->>'name', split_part(new.email,'@',1)), coalesce(new.raw_user_meta_data->>'role','student'));
+  values (new.id, coalesce(new.email, ''), coalesce(new.raw_user_meta_data->>'name', split_part(coalesce(new.email,'unknown@unknown.com'),'@',1)), coalesce(new.raw_user_meta_data->>'role','student'));
   return new;
 end;
 $$ language plpgsql security definer;
