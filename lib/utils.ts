@@ -26,3 +26,17 @@ export function getStatusColor(status: SubmissionStatus): string {
   }
   return map[status]
 }
+
+type MacroEntry = { calories: number; protein_g: number; carbs_g: number; fat_g: number }
+
+export function sumMacros(logs: MacroEntry[]) {
+  return logs.reduce(
+    (acc, l) => ({
+      calories: acc.calories + l.calories,
+      protein_g: acc.protein_g + Number(l.protein_g),
+      carbs_g: acc.carbs_g + Number(l.carbs_g),
+      fat_g: acc.fat_g + Number(l.fat_g),
+    }),
+    { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 }
+  )
+}
