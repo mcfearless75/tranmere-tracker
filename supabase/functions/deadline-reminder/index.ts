@@ -34,10 +34,13 @@ Deno.serve(async () => {
 
       if (pendingStudentIds.length === 0) continue
 
-      // Call our app's push/send API
+      // Call our app's push/send API using shared cron secret
       await fetch(`${APP_URL}/api/push/send`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-cron-secret': Deno.env.get('CRON_SECRET') ?? '',
+        },
         body: JSON.stringify({
           title: `Assignment due ${label}!`,
           body: assignment.title,
