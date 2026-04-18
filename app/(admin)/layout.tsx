@@ -1,5 +1,6 @@
 import { AdminSidebar } from '@/components/layout/AdminSidebar'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -7,13 +8,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
+  // Use service client — bypasses RLS so role lookup is reliable
+  const adminClient = createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+  const { data: profile } = await adminClient
     .from('users')
     .select('role')
     .eq('id', user.id)
     .single()
 
-  if (!profile || !['admin', 'coach'].includes(profile.role)) {
+  if (!profile || !['admin', 'coach', 'teacher'].includes(profile.role)) {
     redirect('/dashboard')
   }
 
