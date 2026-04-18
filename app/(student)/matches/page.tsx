@@ -1,15 +1,28 @@
 import { createClient } from '@/lib/supabase/server'
 import { MatchLogForm } from '@/components/matches/MatchLogForm'
+import { MatchInvitations } from './MatchInvitations'
+
+export const dynamic = 'force-dynamic'
 
 export default async function MatchesPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: matches } = await supabase
-    .from('match_logs')
-    .select('*')
-    .eq('student_id', user!.id)
-    .order('match_date', { ascending: false })
+  const [{ data: matches }, { data: invitations }] = await Promise.all([
+    supabase
+      .from('match_logs')
+      .select('*')
+      .eq('student_id', user!.id)
+      .order('match_date', { ascending: false }),
+    supabase
+      .from('match_squads')
+      .select(`
+        id, status, coach_rating, position,
+        match_events (id, match_date, opponent, location, status)
+      `)
+      .eq('player_id', user!.id)
+      .order('created_at', { ascending: false }),
+  ])
 
   const totalGoals = matches?.reduce((s, m) => s + m.goals, 0) ?? 0
   const totalAssists = matches?.reduce((s, m) => s + m.assists, 0) ?? 0
@@ -20,6 +33,10 @@ export default async function MatchesPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold text-tranmere-blue">Matches</h1>
+
+      {invitations && invitations.length > 0 && (
+        <MatchInvitations invitations={invitations as any} />
+      )}
 
       {matches && matches.length > 0 && (
         <div className="grid grid-cols-3 gap-2">

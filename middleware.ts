@@ -24,7 +24,7 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const path = request.nextUrl.pathname
 
-  const publicPaths = ['/login', '/signup', '/setup', '/api/setup', '/admin-login']
+  const publicPaths = ['/login', '/signup', '/setup', '/api/setup', '/admin-login', '/staff-login']
   const isPublic = publicPaths.some(p => path.startsWith(p))
 
   // Redirect unauthenticated users to login
@@ -33,7 +33,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Redirect authenticated users away from auth pages (but not admin-login → let admin-login handle redirect)
-  if (user && isPublic && !path.startsWith('/admin-login')) {
+  if (user && isPublic && !path.startsWith('/admin-login') && !path.startsWith('/staff-login')) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
