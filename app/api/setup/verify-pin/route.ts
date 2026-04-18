@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: Request) {
   const { pin } = await request.json()
   const correct = process.env.SETUP_PIN
-  if (!correct) return NextResponse.json({ ok: false })
+  // If no PIN configured, skip gate entirely
+  if (!correct) return NextResponse.json({ ok: true })
   return NextResponse.json({ ok: pin === correct })
 }
