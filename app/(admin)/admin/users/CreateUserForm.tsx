@@ -8,19 +8,28 @@ import { Input } from '@/components/ui/input'
 type Course = { id: string; name: string }
 type Props = { courses: Course[] }
 
+function toUsername(name: string) {
+  return name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').slice(0, 20)
+}
+
 export function CreateUserForm({ courses }: Props) {
   const router = useRouter()
-  const [email, setEmail] = useState('')
   const [name, setName] = useState('')
-  const [password, setPassword] = useState('')
+  const [username, setUsername] = useState('')
+  const [pin, setPin] = useState('')
   const [role, setRole] = useState<'student' | 'coach' | 'teacher' | 'admin'>('student')
   const [courseId, setCourseId] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null)
 
+  function handleNameChange(v: string) {
+    setName(v)
+    setUsername(toUsername(v))
+  }
+
   async function handleCreate() {
-    if (password.length < 8) {
-      setMessage({ text: 'Password must be at least 8 characters', ok: false })
+    if (pin.length < 5 || !/^\d+$/.test(pin)) {
+      setMessage({ text: 'PIN must be 5 or 6 digits', ok: false })
       return
     }
     setSaving(true)
@@ -28,17 +37,14 @@ export function CreateUserForm({ courses }: Props) {
     const res = await fetch('/api/admin/create-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, name, role, courseId: courseId || null, password }),
+      body: JSON.stringify({ username, name, role, courseId: courseId || null, pin }),
     })
     const data = await res.json()
     if (data.error) {
       setMessage({ text: data.error, ok: false })
     } else {
-      setMessage({ text: `Account created for ${name} — they can log in immediately`, ok: true })
-      setEmail('')
-      setName('')
-      setPassword('')
-      setCourseId('')
+      setMessage({ text: `Account created — ${name} logs in at /staff-login with username "${username}" and their PIN`, ok: true })
+      setName(''); setUsername(''); setPin(''); setCourseId('')
       router.refresh()
     }
     setSaving(false)
@@ -48,9 +54,28 @@ export function CreateUserForm({ courses }: Props) {
     <div className="bg-white rounded-xl border p-4 space-y-3 max-w-2xl">
       <h2 className="font-semibold text-sm">Create New User</h2>
       <div className="grid grid-cols-2 gap-2">
-        <Input placeholder="Full name" value={name} onChange={e => setName(e.target.value)} className="text-sm" />
-        <Input type="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} className="text-sm" />
-        <Input type="password" placeholder="Set a password (min 8 chars)" value={password} onChange={e => setPassword(e.target.value)} className="text-sm" />
+        <Input
+          placeholder="Full name"
+          value={name}
+          onChange={e => handleNameChange(e.target.value)}
+          className="text-sm"
+        />
+        <div className="flex items-center gap-1">
+          <Input
+            placeholder="Username (auto-generated)"
+            value={username}
+            onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+            className="text-sm"
+          />
+        </div>
+        <Input
+          type="password"
+          inputMode="numeric"
+          placeholder="PIN (5-6 digits)"
+          value={pin}
+          onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          className="text-sm tracking-widest"
+        />
         <select
           value={role}
           onChange={e => setRole(e.target.value as any)}
@@ -74,9 +99,12 @@ export function CreateUserForm({ courses }: Props) {
           ))}
         </select>
       )}
+      <p className="text-xs text-muted-foreground">
+        Staff &amp; students log in at <span className="font-mono">/staff-login</span> with their username + PIN.
+      </p>
       <Button
         onClick={handleCreate}
-        disabled={saving || !email || !name || !password}
+        disabled={saving || !username || !name || pin.length < 5}
         className="bg-tranmere-blue text-white"
       >
         {saving ? 'Creating…' : 'Create Account'}

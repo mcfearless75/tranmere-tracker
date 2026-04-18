@@ -19,31 +19,42 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { email, name, role, courseId, password } = await request.json()
+  const { username, name, role, courseId, pin } = await request.json()
 
-  if (!email || !name || !role || !password) {
-    return NextResponse.json({ error: 'email, name, role and password are required' }, { status: 400 })
+  if (!username || !name || !role || !pin) {
+    return NextResponse.json({ error: 'username, name, role and pin are required' }, { status: 400 })
   }
+  if (!/^\d{5,6}$/.test(pin)) {
+    return NextResponse.json({ error: 'PIN must be 5 or 6 digits' }, { status: 400 })
+  }
+  if (!/^[a-z0-9_]+$/.test(username)) {
+    return NextResponse.json({ error: 'Username can only contain lowercase letters, numbers and underscores' }, { status: 400 })
+  }
+
+  const internalEmail = `${username}@tranmeretracker.internal`
 
   const adminClient = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Create auth user with password
+  // Check username not already taken
+  const { data: existingUsers } = await adminClient.auth.admin.listUsers()
+  const taken = existingUsers?.users?.find(u => u.email === internalEmail)
+  if (taken) return NextResponse.json({ error: `Username "${username}" is already taken` }, { status: 409 })
+
   const { data: created, error: authError } = await adminClient.auth.admin.createUser({
-    email,
-    password,
+    email: internalEmail,
+    password: pin,
     email_confirm: true,
     user_metadata: { full_name: name },
   })
 
   if (authError) return NextResponse.json({ error: authError.message })
 
-  // Upsert profile row
   await adminClient.from('users').upsert({
     id: created.user.id,
-    email,
+    email: internalEmail,
     name,
     role,
     course_id: courseId || null,
