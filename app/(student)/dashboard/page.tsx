@@ -1,21 +1,43 @@
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Image from 'next/image'
 import Link from 'next/link'
 import { PushOptIn } from '@/components/PushOptIn'
 
+export const dynamic = 'force-dynamic'
+
 export default async function DashboardPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: profile } = await supabase
+  let { data: profile } = await supabase
     .from('users')
-    .select('name, course_id, courses(name)')
+    .select('name, course_id, avatar_url, courses(name)')
     .eq('id', user!.id)
     .single()
 
-  // Upcoming assignments due in next 14 days — we can't filter by course easily without join
-  // so fetch all upcoming and note the student filters on their coursework page
+  // If profile missing, auto-create it from auth metadata
+  if (!profile) {
+    const adminClient = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    const displayName = (user!.user_metadata as any)?.full_name ?? user!.email?.split('@')[0] ?? 'Player'
+    await adminClient.from('users').upsert({
+      id: user!.id,
+      email: user!.email ?? '',
+      name: displayName,
+      role: 'student',
+    })
+    const retry = await supabase
+      .from('users')
+      .select('name, course_id, avatar_url, courses(name)')
+      .eq('id', user!.id)
+      .single()
+    profile = retry.data
+  }
+
   const today = new Date().toISOString().split('T')[0]
   const in14 = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]
 
@@ -27,7 +49,6 @@ export default async function DashboardPage() {
     .order('due_date')
     .limit(3)
 
-  // Today's nutrition total
   const { data: todayFood } = await supabase
     .from('nutrition_logs')
     .select('calories')
@@ -36,7 +57,6 @@ export default async function DashboardPage() {
 
   const totalCalories = todayFood?.reduce((sum, r) => sum + r.calories, 0) ?? 0
 
-  // Latest training session
   const { data: lastTraining } = await supabase
     .from('training_logs')
     .select('session_type, session_date, duration_mins')
@@ -45,24 +65,40 @@ export default async function DashboardPage() {
     .limit(1)
     .maybeSingle()
 
-  const firstName = profile?.name?.split(' ')[0] ?? 'Athlete'
+  const firstName = profile?.name?.split(' ')[0] ?? 'Player'
   const courseName = (profile?.courses as any)?.name ?? ''
+  const avatarUrl = profile?.avatar_url
+  const initials = profile?.name
+    ? profile.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'P'
 
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* Header with user avatar */}
       <div className="flex items-center gap-3 py-2">
-        <Image
-          src="https://upload.wikimedia.org/wikipedia/en/thumb/5/55/Tranmere_Rovers_FC_crest.svg/960px-Tranmere_Rovers_FC_crest.svg.png"
-          alt="Tranmere Rovers"
-          width={40}
-          height={40}
-          className="rounded-full"
-        />
-        <div>
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={avatarUrl}
+            alt={profile?.name ?? 'You'}
+            className="w-12 h-12 rounded-full object-cover ring-2 ring-tranmere-blue shadow"
+          />
+        ) : (
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 flex items-center justify-center ring-2 ring-tranmere-blue shadow">
+            <span className="text-white font-bold text-sm">{initials}</span>
+          </div>
+        )}
+        <div className="flex-1">
           <h1 className="text-lg font-bold text-tranmere-blue">Hi, {firstName}</h1>
           {courseName && <p className="text-xs text-muted-foreground">{courseName}</p>}
         </div>
+        <Image
+          src="https://upload.wikimedia.org/wikipedia/en/thumb/5/55/Tranmere_Rovers_FC_crest.svg/960px-Tranmere_Rovers_FC_crest.svg.png"
+          alt="Tranmere Rovers"
+          width={32}
+          height={32}
+          className="opacity-80"
+        />
       </div>
 
       {/* Upcoming Deadlines */}

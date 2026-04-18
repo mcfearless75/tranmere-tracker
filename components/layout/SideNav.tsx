@@ -15,8 +15,14 @@ const nav = [
   { href: '/profile', label: 'Profile', icon: User },
 ]
 
-export function SideNav() {
+export function SideNav({ userName, avatarUrl, role }: {
+  userName: string
+  avatarUrl: string | null
+  role: string
+}) {
   const pathname = usePathname()
+  const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+
   return (
     <aside className="w-56 bg-tranmere-blue flex flex-col min-h-[100dvh] shrink-0">
       {/* Logo */}
@@ -30,6 +36,22 @@ export function SideNav() {
         <div>
           <p className="text-white font-bold text-sm leading-tight">Tranmere</p>
           <p className="text-white/60 text-xs">Tracker</p>
+        </div>
+      </div>
+
+      {/* Logged-in user card */}
+      <div className="mx-3 mt-4 flex items-center gap-2.5 rounded-xl bg-white/10 p-2.5">
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatarUrl} alt={userName} className="w-10 h-10 rounded-full object-cover ring-2 ring-white/20" />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold ring-2 ring-white/20">
+            {initials}
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-white text-sm font-semibold truncate">{userName}</p>
+          <p className="text-white/60 text-xs capitalize">{role}</p>
         </div>
       </div>
 

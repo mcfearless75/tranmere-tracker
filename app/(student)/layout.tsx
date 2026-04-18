@@ -8,6 +8,12 @@ export default async function StudentLayout({ children }: { children: React.Reac
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { data: profile } = await supabase
+    .from('users')
+    .select('name, avatar_url, role')
+    .eq('id', user.id)
+    .single()
+
   return (
     <div className="min-h-[100dvh] bg-gray-50 relative overflow-hidden">
       {/* Watermark */}
@@ -21,7 +27,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
 
       {/* Desktop: sidebar + content */}
       <div className="hidden md:flex min-h-[100dvh]">
-        <SideNav />
+        <SideNav userName={profile?.name ?? 'Player'} avatarUrl={profile?.avatar_url ?? null} role={profile?.role ?? 'student'} />
         <main className="flex-1 max-w-3xl mx-auto px-8 py-6 relative z-10">{children}</main>
       </div>
 
