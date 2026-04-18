@@ -17,25 +17,30 @@ export default async function DashboardPage() {
     .eq('id', user!.id)
     .single()
 
-  // If profile missing, auto-create it from auth metadata
+  // If profile missing, try via service client (RLS might be hiding it)
   if (!profile) {
     const adminClient = createServiceClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
-    const displayName = (user!.user_metadata as any)?.full_name ?? user!.email?.split('@')[0] ?? 'Player'
-    await adminClient.from('users').upsert({
-      id: user!.id,
-      email: user!.email ?? '',
-      name: displayName,
-      role: 'student',
-    })
-    const retry = await supabase
+    const { data: existing } = await adminClient
       .from('users')
-      .select('name, course_id, avatar_url, courses(name)')
+      .select('name, course_id, avatar_url, role')
       .eq('id', user!.id)
       .single()
-    profile = retry.data
+    if (existing) {
+      profile = existing as any
+    } else {
+      // Truly missing — INSERT (never upsert/overwrite existing roles)
+      const displayName = (user!.user_metadata as any)?.full_name ?? user!.email?.split('@')[0] ?? 'Player'
+      await adminClient.from('users').insert({
+        id: user!.id,
+        email: user!.email ?? '',
+        name: displayName,
+        role: 'student',
+      })
+      profile = { name: displayName, course_id: null, avatar_url: null, courses: null } as any
+    }
   }
 
   const today = new Date().toISOString().split('T')[0]

@@ -36,7 +36,7 @@ export function AdminPinForm() {
       setPin('')
       setLoading(false)
     } else {
-      router.push('/admin')
+      router.push('/admin/gps-dashboard')
       router.refresh()
     }
   }
