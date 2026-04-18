@@ -2,12 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, BookOpen, Apple, Dumbbell, Trophy, User } from 'lucide-react'
+import { Home, BookOpen, Activity, Dumbbell, Trophy, User } from 'lucide-react'
 
 const nav = [
   { href: '/dashboard', label: 'Home', icon: Home },
   { href: '/coursework', label: 'BTEC', icon: BookOpen },
-  { href: '/nutrition', label: 'Food', icon: Apple },
+  { href: '/gps', label: 'GPS', icon: Activity },
   { href: '/training', label: 'Training', icon: Dumbbell },
   { href: '/matches', label: 'Matches', icon: Trophy },
   { href: '/profile', label: 'Profile', icon: User },

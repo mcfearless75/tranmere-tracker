@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, BookOpen, Apple, Dumbbell, Trophy, User, LogOut } from 'lucide-react'
+import { Home, BookOpen, Apple, Dumbbell, Trophy, User, LogOut, Activity } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
 
@@ -9,6 +9,7 @@ const nav = [
   { href: '/dashboard', label: 'Home', icon: Home },
   { href: '/coursework', label: 'BTEC Coursework', icon: BookOpen },
   { href: '/nutrition', label: 'Nutrition', icon: Apple },
+  { href: '/gps', label: 'GPS Dashboard', icon: Activity },
   { href: '/training', label: 'Training', icon: Dumbbell },
   { href: '/matches', label: 'Matches', icon: Trophy },
   { href: '/profile', label: 'Profile', icon: User },

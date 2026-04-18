@@ -23,6 +23,11 @@ const COLUMN_MAP: Record<string, string[]> = {
   hr_avg:            ['avg hr', 'average heart rate', 'hr avg', 'mean hr', 'avg heart rate'],
   hr_max:            ['max hr', 'max heart rate', 'hr max', 'peak hr'],
   duration_mins:     ['duration (min)', 'duration (mins)', 'duration', 'time (min)', 'time (mins)', 'elapsed time (mins)'],
+  zone1_m:           ['distance zone 1 (m)', 'zone 1 distance (m)', 'zone 1 (m)', 'velocity band 1 distance (m)'],
+  zone2_m:           ['distance zone 2 (m)', 'zone 2 distance (m)', 'zone 2 (m)', 'velocity band 2 distance (m)'],
+  zone3_m:           ['distance zone 3 (m)', 'zone 3 distance (m)', 'zone 3 (m)', 'velocity band 3 distance (m)'],
+  zone4_m:           ['distance zone 4 (m)', 'zone 4 distance (m)', 'zone 4 (m)', 'velocity band 4 distance (m)'],
+  zone5_m:           ['distance zone 5 (m)', 'zone 5 distance (m)', 'zone 5 (m)', 'velocity band 5 distance (m)', 'velocity band 6 distance (m)'],
 }
 
 function mapHeader(raw: string): string | null {
@@ -121,6 +126,11 @@ export async function POST(request: Request) {
       hr_avg:            parseNum(row.hr_avg),
       hr_max:            parseNum(row.hr_max),
       duration_mins:     parseNum(row.duration_mins),
+      zone1_m:           parseNum(row.zone1_m),
+      zone2_m:           parseNum(row.zone2_m),
+      zone3_m:           parseNum(row.zone3_m),
+      zone4_m:           parseNum(row.zone4_m),
+      zone5_m:           parseNum(row.zone5_m),
       imported_by:       user.id,
     })
     inserted.push(row.player_name)
