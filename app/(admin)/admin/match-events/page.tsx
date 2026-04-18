@@ -1,12 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { CreateMatchForm } from './CreateMatchForm'
 import { MatchEventList } from './MatchEventList'
 
 export const dynamic = 'force-dynamic'
 
 export default async function MatchEventsPage() {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const auth = createClient()
+  const { data: { user } } = await auth.auth.getUser()
+  const supabase = createAdminClient()
 
   const [{ data: students }, { data: matches }] = await Promise.all([
     supabase

@@ -1,10 +1,10 @@
 import { GpsImportForm } from './GpsImportForm'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
 
 export default async function GpsImportPage() {
-  const supabase = createClient()
+  const supabase = createAdminClient()
   const { data: sessions } = await supabase
     .from('gps_sessions')
     .select('id, session_date, session_label, source, total_distance_m, max_speed_kmh, sprint_count, users:player_id (name)')

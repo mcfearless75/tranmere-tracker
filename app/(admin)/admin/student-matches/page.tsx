@@ -1,8 +1,10 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { StudentMatchForm } from './StudentMatchForm'
 
+export const dynamic = 'force-dynamic'
+
 export default async function StudentMatchesPage() {
-  const supabase = createClient()
+  const supabase = createAdminClient()
   const { data: students } = await supabase
     .from('users')
     .select('id, name, courses(name)')

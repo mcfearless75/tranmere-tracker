@@ -1,8 +1,10 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { AddUnitForm } from './AddUnitForm'
 
+export const dynamic = 'force-dynamic'
+
 export default async function CoursesPage() {
-  const supabase = createClient()
+  const supabase = createAdminClient()
   const { data: courses } = await supabase
     .from('courses')
     .select('id, name, btec_units(id, unit_number, unit_name)')
