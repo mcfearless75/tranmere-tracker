@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, BookOpen, Bell, BarChart2, GraduationCap, LogOut } from 'lucide-react'
+import { Users, BookOpen, Bell, BarChart2, GraduationCap, Trophy, LogOut } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
 
@@ -12,6 +12,7 @@ const nav = [
   { href: '/admin/assignments', label: 'Assignments', icon: BookOpen },
   { href: '/admin/notifications', label: 'Notifications', icon: Bell },
   { href: '/admin/reports', label: 'Reports', icon: BarChart2 },
+  { href: '/admin/student-matches', label: 'Match Entry', icon: Trophy },
 ]
 
 export function AdminSidebar() {

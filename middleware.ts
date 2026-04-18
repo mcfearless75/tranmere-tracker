@@ -45,7 +45,7 @@ export async function middleware(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    if (!profile || !['admin', 'coach'].includes(profile.role)) {
+    if (!profile || !['admin', 'coach', 'teacher'].includes(profile.role)) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
   }
