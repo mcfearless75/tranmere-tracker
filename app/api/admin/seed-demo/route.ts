@@ -32,13 +32,16 @@ export async function POST() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
-  if (!profile || profile.role !== 'admin') return NextResponse.json({ error: 'Admin only' }, { status: 403 })
-
   const adminClient = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+
+  // Role check via service client — bypasses RLS
+  const { data: profile } = await adminClient.from('users').select('role').eq('id', user.id).single()
+  if (!profile || profile.role !== 'admin') {
+    return NextResponse.json({ error: 'Admin only' }, { status: 403 })
+  }
 
   const { data: courses } = await adminClient.from('courses').select('id').limit(1)
   const courseId = courses?.[0]?.id
