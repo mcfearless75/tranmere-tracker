@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
@@ -27,16 +28,20 @@ export async function middleware(request: NextRequest) {
   const publicPaths = ['/login', '/signup', '/setup', '/api/setup', '/admin-login', '/staff-login']
   const isPublic = publicPaths.some(p => path.startsWith(p))
 
-  // Redirect unauthenticated users to login
+  // Unauthenticated → login
   if (!user && !isPublic) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Fetch role once for role-based routing (uses anon client which respects RLS,
-  // but the self-read policy from migration 005 allows the user to see their own row)
+  // Authenticated users only — use service client to reliably read role (bypasses RLS)
   let role: string | null = null
   if (user) {
-    const { data: profile } = await supabase
+    const admin = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } }
+    )
+    const { data: profile } = await admin
       .from('users')
       .select('role')
       .eq('id', user.id)
