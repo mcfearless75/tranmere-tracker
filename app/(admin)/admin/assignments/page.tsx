@@ -1,8 +1,10 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { CreateAssignmentForm } from './CreateAssignmentForm'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AssignmentsPage() {
-  const supabase = createClient()
+  const supabase = createAdminClient()
 
   const [{ data: assignments }, { data: units }] = await Promise.all([
     supabase

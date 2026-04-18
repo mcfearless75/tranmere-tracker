@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { TeamLeaderboard } from '@/components/gps/TeamLeaderboard'
 import { SeedDemoButton } from '@/components/gps/SeedDemoButton'
 import { Trophy, Route, Zap, Gauge, Activity } from 'lucide-react'
@@ -16,7 +16,7 @@ type Sess = {
 }
 
 export default async function GpsDashboardPage() {
-  const supabase = createClient()
+  const supabase = createAdminClient()
 
   // Last 7 days of sessions
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10)
