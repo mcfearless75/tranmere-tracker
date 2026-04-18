@@ -9,7 +9,13 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase
+  const adminClient = createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  // Role check via service client — bypasses RLS
+  const { data: profile } = await adminClient
     .from('users')
     .select('role')
     .eq('id', user.id)
@@ -32,11 +38,6 @@ export async function POST(request: Request) {
   }
 
   const internalEmail = `${username}@tranmeretracker.internal`
-
-  const adminClient = createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
 
   // Check username not already taken
   const { data: existingUsers } = await adminClient.auth.admin.listUsers()
