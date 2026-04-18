@@ -93,7 +93,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-2 gap-3">
         <Card>
           <CardContent className="pt-4 pb-4">
-            <p className="text-xs text-muted-foreground mb-1">Today's calories</p>
+            <p className="text-xs text-muted-foreground mb-1">Today&apos;s calories</p>
             <p className="text-2xl font-bold text-tranmere-blue">{totalCalories.toLocaleString()}</p>
             <Link href="/nutrition" className="text-xs text-tranmere-blue underline underline-offset-2 mt-1 inline-block">
               Log food →

@@ -37,7 +37,6 @@ export function MealLogForm({ studentId, onLogged }: Props) {
   async function handleSave() {
     if (!selected) return
     setSaving(true)
-    const g = Math.max(1, Number(grams) || 100)
     await supabase.from('nutrition_logs').insert({
       student_id: studentId,
       logged_date: new Date().toISOString().split('T')[0],

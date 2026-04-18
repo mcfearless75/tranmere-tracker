@@ -29,7 +29,7 @@ export default function NotificationsPage() {
         setTitle('')
         setBody('')
       }
-    } catch (err) {
+    } catch (_err) {
       setResult('Error: network failure')
     } finally {
       setSending(false)

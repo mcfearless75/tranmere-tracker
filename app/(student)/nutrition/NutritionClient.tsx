@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { MealLogForm } from '@/components/nutrition/MealLogForm'
 
@@ -20,7 +19,7 @@ const MEAL_ORDER: Log['meal_type'][] = ['breakfast', 'lunch', 'dinner', 'snack']
 
 export function NutritionClient({ studentId, logs: initialLogs }: Props) {
   const router = useRouter()
-  const [logs, setLogs] = useState(initialLogs)
+  const logs = initialLogs
 
   function handleLogged() {
     router.refresh()

@@ -73,7 +73,7 @@ export function AssignmentCard({
           <p className="text-xs font-medium text-green-700">Grade: {grade}</p>
         )}
         {feedback && (
-          <p className="text-xs text-muted-foreground italic border-l-2 border-gray-200 pl-2">"{feedback}"</p>
+          <p className="text-xs text-muted-foreground italic border-l-2 border-gray-200 pl-2">&quot;{feedback}&quot;</p>
         )}
 
         {currentStatus !== 'graded' && (
