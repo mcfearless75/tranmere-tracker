@@ -32,22 +32,34 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Redirect authenticated users away from auth pages (but not admin-login → let admin-login handle redirect)
-  if (user && isPublic && !path.startsWith('/admin-login') && !path.startsWith('/staff-login')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
-  }
-
-  // Guard admin routes — only reachable if user is authenticated (checked above)
-  if (user && path.startsWith('/admin')) {
+  // Fetch role once for role-based routing (uses anon client which respects RLS,
+  // but the self-read policy from migration 005 allows the user to see their own row)
+  let role: string | null = null
+  if (user) {
     const { data: profile } = await supabase
       .from('users')
       .select('role')
       .eq('id', user.id)
       .single()
+    role = profile?.role ?? null
+  }
 
-    if (!profile || !['admin', 'coach', 'teacher'].includes(profile.role)) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
-    }
+  const isStaff = role === 'admin' || role === 'coach' || role === 'teacher'
+
+  // Authenticated on a public/auth page → bounce to role-appropriate home
+  if (user && isPublic && !path.startsWith('/admin-login') && !path.startsWith('/staff-login')) {
+    return NextResponse.redirect(new URL(isStaff ? '/admin/gps-dashboard' : '/dashboard', request.url))
+  }
+
+  // Staff should never see student pages
+  const studentOnlyPrefixes = ['/dashboard', '/coursework', '/nutrition', '/training', '/matches', '/profile', '/gps']
+  if (user && isStaff && studentOnlyPrefixes.some(p => path === p || path.startsWith(p + '/'))) {
+    return NextResponse.redirect(new URL('/admin/gps-dashboard', request.url))
+  }
+
+  // Students should never see admin pages
+  if (user && !isStaff && path.startsWith('/admin')) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   return supabaseResponse
