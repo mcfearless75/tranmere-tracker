@@ -1,4 +1,5 @@
 import { BottomNav } from '@/components/layout/BottomNav'
+import { SideNav } from '@/components/layout/SideNav'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
@@ -8,9 +9,27 @@ export default async function StudentLayout({ children }: { children: React.Reac
   if (!user) redirect('/login')
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50">
-      <div className="max-w-lg mx-auto relative min-h-[100dvh]">
-        <main className="pb-20 px-4 pt-4">{children}</main>
+    <div className="min-h-[100dvh] bg-gray-50 relative overflow-hidden">
+      {/* Watermark */}
+      <div className="pointer-events-none fixed inset-0 flex items-center justify-center z-0 opacity-[0.04]">
+        <img
+          src="https://upload.wikimedia.org/wikipedia/en/thumb/5/55/Tranmere_Rovers_FC_crest.svg/960px-Tranmere_Rovers_FC_crest.svg.png"
+          alt=""
+          className="w-96 h-96 object-contain select-none"
+        />
+      </div>
+
+      {/* Desktop: sidebar + content */}
+      <div className="hidden md:flex min-h-[100dvh]">
+        <SideNav />
+        <main className="flex-1 max-w-3xl mx-auto px-8 py-6 relative z-10">{children}</main>
+      </div>
+
+      {/* Mobile: bottom nav */}
+      <div className="md:hidden min-h-[100dvh] relative z-10">
+        <div className="max-w-lg mx-auto">
+          <main className="pb-20 px-4 pt-4">{children}</main>
+        </div>
         <BottomNav />
       </div>
     </div>
