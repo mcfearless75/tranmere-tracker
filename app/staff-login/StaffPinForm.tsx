@@ -38,7 +38,8 @@ export function StaffPinForm() {
       setPin('')
       setLoading(false)
     } else {
-      router.push('/dashboard')
+      // Root page will redirect to /admin/* or /dashboard based on role
+      router.push('/')
       router.refresh()
     }
   }

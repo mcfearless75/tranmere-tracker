@@ -1,6 +1,7 @@
 import { BottomNav } from '@/components/layout/BottomNav'
 import { SideNav } from '@/components/layout/SideNav'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 
 export default async function StudentLayout({ children }: { children: React.ReactNode }) {
@@ -8,11 +9,21 @@ export default async function StudentLayout({ children }: { children: React.Reac
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
+  // Use service client to bypass RLS and reliably get role
+  const adminClient = createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+  const { data: profile } = await adminClient
     .from('users')
     .select('name, avatar_url, role')
     .eq('id', user.id)
     .single()
+
+  // Admin/coach/teacher should never see student pages — send them to admin
+  if (profile && ['admin', 'coach', 'teacher'].includes(profile.role)) {
+    redirect('/admin/gps-dashboard')
+  }
 
   return (
     <div className="min-h-[100dvh] bg-gray-50 relative overflow-hidden">
