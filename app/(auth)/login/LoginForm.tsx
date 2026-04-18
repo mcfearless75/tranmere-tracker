@@ -49,6 +49,13 @@ export function LoginForm() {
         />
       </div>
       <SubmitButton />
+
+      <p className="text-center text-sm text-muted-foreground">
+        Don&apos;t have an account?{' '}
+        <a href="/signup" className="text-tranmere-blue font-medium underline underline-offset-2">
+          Sign up
+        </a>
+      </p>
     </form>
   )
 }
