@@ -1,6 +1,6 @@
 'use client'
 
-import { Trophy, Zap, Gauge, Route, Activity } from 'lucide-react'
+import { Zap, Gauge, Route, Activity } from 'lucide-react'
 
 type Row = { name: string; value: number; display: string }
 

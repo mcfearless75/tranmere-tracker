@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, BookOpen, Bell, BarChart2, GraduationCap, Trophy, LogOut, Calendar, Star, Wifi, Activity } from 'lucide-react'
+import { Users, BookOpen, Bell, BarChart2, GraduationCap, LogOut, Calendar, Star, Wifi, Activity } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
 

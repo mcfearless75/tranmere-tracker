@@ -24,7 +24,7 @@ export default async function GradeSubmissionsPage() {
         <h1 className="text-2xl font-bold text-tranmere-blue">Grade Submissions</h1>
         <p className="text-sm text-muted-foreground mt-1">Review student work and assign grades</p>
       </div>
-      <GradeSubmissionsClient assignments={assignments ?? []} />
+      <GradeSubmissionsClient assignments={(assignments ?? []) as any} />
     </div>
   )
 }

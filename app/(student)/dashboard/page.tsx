@@ -69,7 +69,7 @@ export default async function DashboardPage() {
   const courseName = (profile?.courses as any)?.name ?? ''
   const avatarUrl = profile?.avatar_url
   const initials = profile?.name
-    ? profile.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    ? profile.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
     : 'P'
 
   return (

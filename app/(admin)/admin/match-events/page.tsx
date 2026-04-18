@@ -33,7 +33,7 @@ export default async function MatchEventsPage() {
         <p className="text-sm text-muted-foreground mt-1">Create matches and assign players to squads</p>
       </div>
       <CreateMatchForm students={students ?? []} coachId={user!.id} />
-      <MatchEventList matches={matches ?? []} />
+      <MatchEventList matches={(matches ?? []) as any} />
     </div>
   )
 }

@@ -26,7 +26,7 @@ export default async function GpsImportPage() {
           <li>Open the STATSports app or web platform</li>
           <li>Go to the session you want → tap Export / Download</li>
           <li>Choose <strong>CSV</strong> format (not PDF)</li>
-          <li>Make sure player names match exactly what's in this app</li>
+          <li>Make sure player names match exactly what&apos;s in this app</li>
           <li>Upload the CSV below</li>
         </ol>
       </div>
