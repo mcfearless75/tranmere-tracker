@@ -20,9 +20,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Setup already complete' }, { status: 403 })
   }
 
-  const { name, email, password } = await request.json()
+  const { name, email, password, pin } = await request.json()
   if (!name || !email || !password) {
     return NextResponse.json({ error: 'All fields required' }, { status: 400 })
+  }
+
+  if (!process.env.SETUP_PIN || pin !== process.env.SETUP_PIN) {
+    return NextResponse.json({ error: 'Invalid PIN' }, { status: 403 })
   }
 
   const { data: created, error: authError } = await adminClient.auth.admin.createUser({
