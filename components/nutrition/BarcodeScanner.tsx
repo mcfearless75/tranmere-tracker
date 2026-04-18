@@ -13,7 +13,7 @@ export function BarcodeScanner({ onResult, onClose }: Props) {
     if (started.current) return
     started.current = true
 
-    let scanner: any
+    let scanner: { clear: () => void; render: (success: (code: string) => Promise<void>, error: () => void) => void } | undefined
     import('html5-qrcode').then(({ Html5QrcodeScanner }) => {
       scanner = new Html5QrcodeScanner(
         'barcode-reader',
@@ -22,7 +22,7 @@ export function BarcodeScanner({ onResult, onClose }: Props) {
       )
       scanner.render(async (barcode: string) => {
         try {
-          await scanner.clear()
+          await scanner?.clear()
         } catch {}
         const res = await fetch(`/api/food/search?barcode=${encodeURIComponent(barcode)}`)
         const products = await res.json()
@@ -36,7 +36,7 @@ export function BarcodeScanner({ onResult, onClose }: Props) {
     })
 
     return () => {
-      if (scanner) scanner.clear().catch(() => {})
+      if (scanner) { try { scanner.clear() } catch {} }
     }
   }, [onResult, onClose])
 
