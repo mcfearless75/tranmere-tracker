@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+// Fixed internal email for the superuser — never shown to the user
+const SUPERUSER_EMAIL = 'superuser@tranmeretracker.internal'
+
 export async function POST(request: Request) {
   const adminClient = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,14 +23,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Setup already complete' }, { status: 403 })
   }
 
-  const { name, email, password } = await request.json()
-  if (!name || !email || !password) {
-    return NextResponse.json({ error: 'All fields required' }, { status: 400 })
+  const { name, pin } = await request.json()
+  if (!name || !pin) {
+    return NextResponse.json({ error: 'Name and PIN required' }, { status: 400 })
+  }
+  if (!/^\d{5,6}$/.test(pin)) {
+    return NextResponse.json({ error: 'PIN must be 5 or 6 digits' }, { status: 400 })
   }
 
+  // Delete any existing superuser auth entry so re-setup works cleanly
+  const { data: existing_auth } = await adminClient.auth.admin.listUsers()
+  const prev = existing_auth?.users?.find(u => u.email === SUPERUSER_EMAIL)
+  if (prev) await adminClient.auth.admin.deleteUser(prev.id)
+
   const { data: created, error: authError } = await adminClient.auth.admin.createUser({
-    email,
-    password,
+    email: SUPERUSER_EMAIL,
+    password: pin,
     email_confirm: true,
     user_metadata: { full_name: name },
   })
@@ -36,7 +47,7 @@ export async function POST(request: Request) {
 
   await adminClient.from('users').upsert({
     id: created.user.id,
-    email,
+    email: SUPERUSER_EMAIL,
     name,
     role: 'admin',
   })
