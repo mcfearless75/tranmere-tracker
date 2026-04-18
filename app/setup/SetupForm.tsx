@@ -8,27 +8,29 @@ import { Button } from '@/components/ui/button'
 export function SetupForm() {
   const router = useRouter()
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [pin, setPin] = useState('')
+  const [confirm, setConfirm] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (password.length < 8) { setError('Password must be at least 8 characters'); return }
+    if (pin.length < 5 || pin.length > 6) { setError('PIN must be 5 or 6 digits'); return }
+    if (!/^\d+$/.test(pin)) { setError('PIN must be numbers only'); return }
+    if (pin !== confirm) { setError('PINs do not match'); return }
     setSaving(true)
     setError('')
     const res = await fetch('/api/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, pin }),
     })
     const data = await res.json()
     if (data.error) {
       setError(data.error)
       setSaving(false)
     } else {
-      router.push('/login')
+      router.push('/admin-login')
     }
   }
 
@@ -38,19 +40,35 @@ export function SetupForm() {
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">{error}</div>
       )}
       <div className="space-y-1">
-        <label className="text-sm font-medium">Full Name</label>
+        <label className="text-sm font-medium">Your Name</label>
         <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Paul McWilliam" required />
       </div>
       <div className="space-y-1">
-        <label className="text-sm font-medium">Email</label>
-        <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+        <label className="text-sm font-medium">Admin PIN (5 or 6 digits)</label>
+        <Input
+          type="password"
+          inputMode="numeric"
+          value={pin}
+          onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          placeholder="Choose your PIN"
+          required
+          className="tracking-widest text-center text-lg"
+        />
       </div>
       <div className="space-y-1">
-        <label className="text-sm font-medium">Password</label>
-        <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 8 characters" required />
+        <label className="text-sm font-medium">Confirm PIN</label>
+        <Input
+          type="password"
+          inputMode="numeric"
+          value={confirm}
+          onChange={e => setConfirm(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          placeholder="Repeat your PIN"
+          required
+          className="tracking-widest text-center text-lg"
+        />
       </div>
-      <Button type="submit" disabled={saving || !name || !email || !password} className="w-full bg-tranmere-blue hover:bg-blue-900 text-white">
-        {saving ? 'Creating superuser…' : 'Create Superuser Account'}
+      <Button type="submit" disabled={saving || !name || pin.length < 5} className="w-full bg-tranmere-blue hover:bg-blue-900 text-white">
+        {saving ? 'Creating account…' : 'Create Superuser Account'}
       </Button>
     </form>
   )
