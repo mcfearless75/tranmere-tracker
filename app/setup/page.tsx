@@ -18,8 +18,6 @@ export default async function SetupPage() {
 
   if (admins && admins.length > 0) redirect('/login')
 
-  const requiresPin = !!process.env.SETUP_PIN
-
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-tranmere-blue p-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-8 space-y-6">
@@ -36,7 +34,7 @@ export default async function SetupPage() {
             Create the superuser account. This page locks once an admin exists.
           </p>
         </div>
-        <SetupForm requiresPin={requiresPin} />
+        <SetupForm />
       </div>
     </div>
   )
