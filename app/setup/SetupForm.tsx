@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
-export function SetupForm() {
+export function SetupForm({ requiresPin = true }: { requiresPin?: boolean }) {
   const router = useRouter()
   const [pin, setPin] = useState('')
-  const [pinOk, setPinOk] = useState(false)
+  const [pinOk, setPinOk] = useState(!requiresPin)
   const [pinError, setPinError] = useState('')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -21,7 +21,7 @@ export function SetupForm() {
     const res = await fetch('/api/setup/verify-pin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin }),
+      body: JSON.stringify({ pin: pin || '' }),
     })
     const data = await res.json()
     if (data.ok) {
