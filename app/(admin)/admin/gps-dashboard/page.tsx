@@ -20,11 +20,33 @@ export default async function GpsDashboardPage() {
 
   // Last 7 days of sessions
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10)
-  const { data: sessions } = await supabase
+  const { data: sessions, error: sessErr } = await supabase
     .from('gps_sessions')
     .select('player_id, total_distance_m, max_speed_kmh, sprint_count, player_load, session_date, users:player_id(name)')
     .gte('session_date', weekAgo)
     .order('session_date', { ascending: false })
+
+  // Migration not run yet
+  if (sessErr?.message?.includes('gps_sessions') || sessErr?.message?.includes('does not exist')) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-bold text-tranmere-blue">Squad GPS Dashboard</h1>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+          <p className="font-semibold text-amber-800">⚠️ Database migration needed</p>
+          <p className="text-sm text-amber-700 mt-2">
+            Run these migrations in the Supabase SQL Editor (in order):
+          </p>
+          <ol className="text-sm text-amber-700 mt-2 list-decimal list-inside space-y-1">
+            <li><code className="bg-amber-100 px-1.5 py-0.5 rounded">supabase/migrations/003_gps_sessions.sql</code></li>
+            <li><code className="bg-amber-100 px-1.5 py-0.5 rounded">supabase/migrations/004_gps_zones.sql</code></li>
+          </ol>
+          <p className="text-xs text-amber-600 mt-3">
+            Open Supabase → SQL Editor → paste each file → Run. Then refresh this page.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   const s = (sessions ?? []) as unknown as Sess[]
 
