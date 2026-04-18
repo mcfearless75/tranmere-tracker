@@ -34,7 +34,7 @@ export function MatchEventList({ matches }: { matches: Match[] }) {
   const [positions, setPositions] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState<string | null>(null)
 
-  async function saveRating(squadId: string, matchId: string) {
+  async function saveRating(squadId: string) {
     setSaving(squadId)
     const supabase = createClient()
     await supabase.from('match_squads').update({
@@ -130,7 +130,7 @@ export function MatchEventList({ matches }: { matches: Match[] }) {
                   {m.status === 'completed' && (
                     <td className="py-1.5">
                       <button
-                        onClick={() => saveRating(sq.id, m.id)}
+                        onClick={() => saveRating(sq.id)}
                         disabled={saving === sq.id}
                         className="text-xs text-tranmere-blue underline disabled:opacity-50"
                       >

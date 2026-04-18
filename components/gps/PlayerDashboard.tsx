@@ -5,7 +5,7 @@ import { AnimatedCounter } from './AnimatedCounter'
 import { PlayerRadar, RadarData } from './PlayerRadar'
 import { TrendChart, TrendPoint } from './TrendChart'
 import { ZoneBars, ZoneRow } from './ZoneBars'
-import { Flame, Zap, Gauge, Route, Activity, TrendingUp } from 'lucide-react'
+import { Flame, Zap, Gauge, Route, Activity, TrendingUp as TrendIcon } from 'lucide-react'
 
 export type Session = {
   id: string
@@ -42,7 +42,7 @@ export function PlayerDashboard({ sessions, playerName }: { sessions: Session[];
         </div>
         <p className="font-semibold text-tranmere-blue">No GPS data yet</p>
         <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-          Your coach will upload STATSports data after your next session. It'll appear here automatically.
+          Your coach will upload STATSports data after your next session. It&apos;ll appear here automatically.
         </p>
       </div>
     )
@@ -177,7 +177,7 @@ export function PlayerDashboard({ sessions, playerName }: { sessions: Session[];
         <div className="mb-3 flex items-center justify-between">
           <div>
             <h3 className="font-semibold flex items-center gap-1.5">
-              <TrendingUp size={16} className="text-tranmere-blue" />
+              <TrendIcon size={16} className="text-tranmere-blue" />
               Trends
             </h3>
             <p className="text-xs text-muted-foreground">Last {Math.min(sessions.length, 12)} sessions</p>

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { TeamLeaderboard } from '@/components/gps/TeamLeaderboard'
 import { SeedDemoButton } from '@/components/gps/SeedDemoButton'
-import { Trophy, Users, Route, Zap, Gauge, Activity } from 'lucide-react'
+import { Trophy, Route, Zap, Gauge, Activity } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
