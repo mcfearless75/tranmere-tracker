@@ -3,6 +3,8 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { sendPushNotification } from '@/lib/webpush'
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: Request) {
   // Allow automated cron/edge function calls via shared secret
   const cronSecret = request.headers.get('x-cron-secret')
