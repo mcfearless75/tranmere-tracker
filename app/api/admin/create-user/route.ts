@@ -2,6 +2,8 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: Request) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -13,14 +15,14 @@ export async function POST(request: Request) {
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden — admin only' }, { status: 403 })
+  if (!profile || !['admin', 'coach', 'teacher'].includes(profile.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { email, name, role, courseId } = await request.json()
+  const { email, name, role, courseId, password } = await request.json()
 
-  if (!email || !name || !role) {
-    return NextResponse.json({ error: 'email, name and role are required' }, { status: 400 })
+  if (!email || !name || !role || !password) {
+    return NextResponse.json({ error: 'email, name, role and password are required' }, { status: 400 })
   }
 
   const adminClient = createServiceClient(
@@ -28,10 +30,24 @@ export async function POST(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { error } = await adminClient.auth.admin.inviteUserByEmail(email, {
-    data: { name, role, course_id: courseId ?? null },
+  // Create auth user with password
+  const { data: created, error: authError } = await adminClient.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name: name },
   })
 
-  if (error) return NextResponse.json({ error: error.message })
+  if (authError) return NextResponse.json({ error: authError.message })
+
+  // Upsert profile row
+  await adminClient.from('users').upsert({
+    id: created.user.id,
+    email,
+    name,
+    role,
+    course_id: courseId || null,
+  })
+
   return NextResponse.json({ success: true })
 }
