@@ -7,9 +7,6 @@ import { ChevronRight, BookOpen, Users, CheckCircle2, Clock } from 'lucide-react
 export const dynamic = 'force-dynamic'
 
 type Unit = { id: string; unit_number: string; unit_name: string; course_id: string }
-type Assignment = { id: string; unit_id: string; due_date: string }
-type Submission = { assignment_id: string; status: string }
-type Student = { id: string; course_id: string | null }
 
 export default async function CoursesPage() {
   const supabase = createAdminClient()
@@ -35,19 +32,10 @@ export default async function CoursesPage() {
     const unitStudents = (students ?? []).filter(s => s.course_id === unit.course_id)
     const totalExpected = unitAssignments.length * unitStudents.length
 
-    let submitted = 0, pending = 0, overdue = 0
-    for (const a of unitAssignments) {
-      for (const s of unitStudents) {
-        const sub = (submissions ?? []).find(sb => sb.assignment_id === a.id && (sb as any).student_id === s.id)
-        // Note: submissions selection doesn't include student_id above; re-fetching below
-      }
-    }
-
-    // Simpler counts using submissions table directly
     const unitSubs = (submissions ?? []).filter(sub => unitAssignments.some(a => a.id === sub.assignment_id))
-    submitted = unitSubs.filter(s => ['submitted', 'graded'].includes(s.status)).length
-    pending = totalExpected - submitted
-    overdue = unitAssignments.filter(a => a.due_date < today).length
+    const submitted = unitSubs.filter(s => ['submitted', 'graded'].includes(s.status)).length
+    const pending = Math.max(0, totalExpected - submitted)
+    const overdue = unitAssignments.filter(a => a.due_date < today).length
 
     return {
       assignments: unitAssignments.length,

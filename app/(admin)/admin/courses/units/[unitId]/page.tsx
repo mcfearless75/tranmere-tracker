@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Calendar, Target } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { UnitStudentGrid } from './UnitStudentGrid'
 
 export const dynamic = 'force-dynamic'
