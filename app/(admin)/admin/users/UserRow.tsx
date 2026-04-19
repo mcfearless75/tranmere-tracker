@@ -23,17 +23,13 @@ export function UserRow({ user, courses }: Props) {
   return (
     <tr className="border-b last:border-0 hover:bg-gray-50">
       <td className="px-4 py-3">
-        {user.role === 'student' ? (
-          <Link
-            href={`/admin/students/${user.id}`}
-            className="font-medium text-tranmere-blue hover:underline inline-flex items-center gap-1.5"
-          >
-            {user.name}
-            <Eye size={12} className="opacity-60" />
-          </Link>
-        ) : (
-          <span className="font-medium">{user.name}</span>
-        )}
+        <Link
+          href={`/admin/students/${user.id}`}
+          className="font-medium text-tranmere-blue hover:underline inline-flex items-center gap-1.5"
+        >
+          {user.name}
+          <Eye size={12} className="opacity-60" />
+        </Link>
       </td>
       <td className="px-4 py-3 text-muted-foreground text-sm">{user.email}</td>
       <td className="px-4 py-3">
