@@ -76,7 +76,7 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
     ? Math.round((submitted / totalCourseAssignments) * 100)
     : 0
 
-  const initials = student.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) ?? 'S'
+  const initials = student.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) ?? 'S'
   const courseName = (student.courses as any)?.name ?? 'No course assigned'
 
   return (
