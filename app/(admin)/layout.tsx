@@ -1,6 +1,6 @@
 import { AdminSidebar } from '@/components/layout/AdminSidebar'
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -8,14 +8,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Use service client — bypasses RLS so role lookup is reliable
-  const adminClient = createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const adminClient = createAdminClient()
   const { data: profile } = await adminClient
     .from('users')
-    .select('role')
+    .select('role, name, avatar_url')
     .eq('id', user.id)
     .single()
 
@@ -25,7 +21,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="flex min-h-screen">
-      <AdminSidebar />
+      <AdminSidebar
+        userName={profile.name ?? 'Admin'}
+        avatarUrl={profile.avatar_url ?? null}
+        role={profile.role}
+      />
       <main className="flex-1 p-6 bg-gray-50 overflow-auto">{children}</main>
     </div>
   )

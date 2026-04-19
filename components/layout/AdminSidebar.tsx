@@ -18,10 +18,15 @@ const nav = [
   { href: '/admin/reports', label: 'Reports', icon: BarChart2 },
 ]
 
-export function AdminSidebar() {
+type Props = { userName: string; avatarUrl: string | null; role: string }
+
+export function AdminSidebar({ userName, avatarUrl, role }: Props) {
   const pathname = usePathname()
+  const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+
   return (
     <aside className="w-56 min-h-screen bg-tranmere-blue text-white flex flex-col shrink-0">
+      {/* Top brand */}
       <div className="flex items-center gap-2 p-4 border-b border-blue-800">
         <Image
           src="https://upload.wikimedia.org/wikipedia/en/thumb/5/55/Tranmere_Rovers_FC_crest.svg/960px-Tranmere_Rovers_FC_crest.svg.png"
@@ -34,7 +39,9 @@ export function AdminSidebar() {
           <p className="text-xs text-blue-200 leading-tight">Admin Panel</p>
         </div>
       </div>
-      <nav className="flex-1 p-3 space-y-1">
+
+      {/* Nav */}
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {nav.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
@@ -50,6 +57,24 @@ export function AdminSidebar() {
           </Link>
         ))}
       </nav>
+
+      {/* Logged-in user card */}
+      <div className="mx-3 mb-2 flex items-center gap-2.5 rounded-xl bg-white/10 p-2.5">
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatarUrl} alt={userName} className="w-10 h-10 rounded-full object-cover ring-2 ring-white/20" />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold ring-2 ring-white/20">
+            {initials}
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-white text-sm font-semibold truncate">{userName}</p>
+          <p className="text-white/60 text-xs capitalize">{role}</p>
+        </div>
+      </div>
+
+      {/* Sign out */}
       <div className="p-3 border-t border-blue-800">
         <form action={signOut}>
           <button
