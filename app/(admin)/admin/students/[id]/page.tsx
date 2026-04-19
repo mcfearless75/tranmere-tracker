@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ArrowLeft, Route, Gauge, Zap, Trophy } from 'lucide-react'
 import { UnitProgress } from './UnitProgress'
 import { AdminActions } from './AdminActions'
+import { AiInsights } from './AiInsights'
 
 export const dynamic = 'force-dynamic'
 
@@ -100,6 +101,9 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
           <p className="text-xs sm:text-sm text-muted-foreground truncate">{courseName} · <span className="capitalize">{student.role}</span></p>
         </div>
       </div>
+
+      {/* AI Insights */}
+      <AiInsights studentId={student.id} studentName={student.name ?? 'Student'} />
 
       {/* Progress summary */}
       <div className="rounded-2xl border bg-white p-5 space-y-3">

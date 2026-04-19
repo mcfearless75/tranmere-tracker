@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { MealLogForm } from '@/components/nutrition/MealLogForm'
+import { AiMealPhoto } from '@/components/nutrition/AiMealPhoto'
 
 type Log = {
   id: string
@@ -29,6 +30,8 @@ export function NutritionClient({ studentId, logs: initialLogs }: Props) {
 
   return (
     <div className="space-y-4">
+      <AiMealPhoto studentId={studentId} />
+
       <MealLogForm studentId={studentId} onLogged={handleLogged} />
 
       {MEAL_ORDER.map(meal => {
