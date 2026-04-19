@@ -1,4 +1,4 @@
--- Run in Supabase SQL Editor
+-- Run in Supabase SQL Editor — safe to re-run any time
 -- Lets students attach evidence (photos, files, Google Doc links) to their
 -- BTEC submissions, and exchange messages with teachers per assignment.
 
@@ -17,6 +17,9 @@ create index if not exists submission_evidence_sub on submission_evidence(submis
 create index if not exists submission_evidence_student on submission_evidence(student_id);
 
 alter table submission_evidence enable row level security;
+
+drop policy if exists "students manage own evidence" on submission_evidence;
+drop policy if exists "staff read all evidence" on submission_evidence;
 
 create policy "students manage own evidence"
   on submission_evidence for all
@@ -41,7 +44,11 @@ create index if not exists assignment_messages_thread on assignment_messages(ass
 
 alter table assignment_messages enable row level security;
 
--- Student can read/write their own messages on their own assignments
+drop policy if exists "students read own messages" on assignment_messages;
+drop policy if exists "students insert own messages" on assignment_messages;
+drop policy if exists "staff read all messages" on assignment_messages;
+drop policy if exists "staff insert messages" on assignment_messages;
+
 create policy "students read own messages"
   on assignment_messages for select
   using (student_id = auth.uid());
@@ -50,7 +57,6 @@ create policy "students insert own messages"
   on assignment_messages for insert
   with check (student_id = auth.uid() and sender_id = auth.uid() and sender_role = 'student');
 
--- Staff see everything and can post as staff
 create policy "staff read all messages"
   on assignment_messages for select
   using (public.is_staff());
