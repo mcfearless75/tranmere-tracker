@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle, XCircle, Clock } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, ExternalLink } from 'lucide-react'
+import Link from 'next/link'
 
 type Squad = {
   id: string
@@ -60,7 +61,10 @@ export function MatchEventList({ matches }: { matches: Match[] }) {
         <div key={m.id} className="bg-white rounded-xl border p-4 space-y-3">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="font-semibold">vs {m.opponent}</p>
+              <Link href={`/admin/match-events/${m.id}`} className="font-semibold text-tranmere-blue hover:underline inline-flex items-center gap-1">
+                vs {m.opponent}
+                <ExternalLink size={12} className="opacity-60" />
+              </Link>
               <p className="text-sm text-muted-foreground">
                 {new Date(m.match_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                 {m.location && ` · ${m.location}`}
