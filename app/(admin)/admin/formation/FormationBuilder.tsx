@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { FootballPitch } from '@/components/pitch/FootballPitch'
 import { FORMATIONS, FORMATION_NAMES, Slot } from '@/components/pitch/formations'
 import { createClient } from '@/lib/supabase/client'
-import { RotateCcw, Save, X, Check, Users } from 'lucide-react'
+import { RotateCcw, Save, Check, Users } from 'lucide-react'
 
 type Student = { id: string; name: string; avatar_url: string | null }
 type Match = { id: string; match_date: string; opponent: string; status: string }
