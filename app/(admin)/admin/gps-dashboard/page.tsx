@@ -84,10 +84,10 @@ export default async function GpsDashboardPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-tranmere-blue">Squad GPS Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Last 7 days · {entries.length} player{entries.length === 1 ? '' : 's'} with data</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-tranmere-blue">Squad GPS Dashboard</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">Last 7 days · {entries.length} player{entries.length === 1 ? '' : 's'} with data</p>
         </div>
         <SeedDemoButton />
       </div>

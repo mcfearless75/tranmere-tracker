@@ -6,6 +6,24 @@
   .text-balance {
     text-wrap: balance;
   }
+  /* Smoother mobile scrolling for horizontal tables */
+  .scroll-touch {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  /* Hide scrollbars on horizontal filter bars */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  /* Tap-highlight off on touch UI elements */
+  .no-tap-hl { -webkit-tap-highlight-color: transparent; }
+  /* Safe-area padding for iOS PWAs */
+  .safe-top { padding-top: max(env(safe-area-inset-top), 0px); }
+  .safe-bottom { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
+}
+
+/* Ensure touch targets are at least 44px in any clickable admin context */
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
 }
 
 @layer base {

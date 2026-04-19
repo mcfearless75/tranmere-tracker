@@ -194,7 +194,7 @@ export function NotificationsClient({ users, courses }: { users: User[]; courses
       </div>
 
       {/* RIGHT — audience */}
-      <div className="rounded-2xl border bg-white p-5 space-y-4 h-fit sticky top-6">
+      <div className="rounded-2xl border bg-white p-5 space-y-4 h-fit lg:sticky lg:top-6">
         <div>
           <p className="font-semibold flex items-center gap-1.5 mb-3">
             <Users size={16} className="text-tranmere-blue" /> Audience

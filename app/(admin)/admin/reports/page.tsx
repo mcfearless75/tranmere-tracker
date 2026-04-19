@@ -63,15 +63,15 @@ export default async function ReportsHubPage() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h1 className="text-3xl font-bold text-tranmere-blue">Reports</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-tranmere-blue">Reports</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Deep insights across coursework, GPS, matches, and engagement.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {tiles.map(t => (
           <Link
             key={t.href}

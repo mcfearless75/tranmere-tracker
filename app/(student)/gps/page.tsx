@@ -20,8 +20,8 @@ export default async function StudentGpsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-tranmere-blue">GPS Dashboard</h1>
-        <p className="text-sm text-muted-foreground">STATSports performance data</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-tranmere-blue">GPS Dashboard</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground">STATSports performance data</p>
       </div>
       <PlayerDashboard sessions={sessions ?? []} playerName={profile?.name ?? 'Player'} />
     </div>
