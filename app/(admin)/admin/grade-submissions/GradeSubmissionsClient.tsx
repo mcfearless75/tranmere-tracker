@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
 
 type Submission = {
   id: string
@@ -34,6 +34,31 @@ export function GradeSubmissionsClient({ assignments }: { assignments: Assignmen
   const [grades, setGrades] = useState<Record<string, string>>({})
   const [feedbacks, setFeedbacks] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState<string | null>(null)
+  const [aiBusy, setAiBusy] = useState<string | null>(null)
+
+  async function aiRewrite(sub: Submission, assignment: Assignment) {
+    const rough = feedbacks[sub.id] ?? sub.feedback ?? ''
+    if (!rough.trim()) {
+      alert('Type some rough notes first — Claude will polish them into professional feedback.')
+      return
+    }
+    setAiBusy(sub.id)
+    const res = await fetch('/api/ai/feedback-helper', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        assignmentTitle: assignment.title,
+        roughNotes: rough,
+        grade: grades[sub.id] ?? sub.grade,
+        gradeTarget: assignment.grade_target,
+        studentName: sub.users?.name,
+      }),
+    })
+    const data = await res.json()
+    setAiBusy(null)
+    if (data.error) alert(`AI error: ${data.error}`)
+    else setFeedbacks(f => ({ ...f, [sub.id]: data.feedback }))
+  }
 
   const submitted = (a: Assignment) => a.submissions.filter(s => s.status === 'submitted').length
 
@@ -110,12 +135,22 @@ export function GradeSubmissionsClient({ assignments }: { assignments: Assignmen
                       </select>
                     </div>
                     <div className="col-span-2">
-                      <label className="text-xs text-muted-foreground">Feedback</label>
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-xs text-muted-foreground">Feedback</label>
+                        <button
+                          onClick={() => aiRewrite(sub, a)}
+                          disabled={aiBusy === sub.id}
+                          className="inline-flex items-center gap-1 rounded-md bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-2 py-0.5 text-[10px] font-semibold shadow hover:shadow-lg disabled:opacity-50"
+                        >
+                          <Sparkles size={10} className={aiBusy === sub.id ? 'animate-spin' : ''} />
+                          {aiBusy === sub.id ? 'Polishing…' : 'AI Polish'}
+                        </button>
+                      </div>
                       <textarea
                         className="w-full border rounded-lg px-2 py-1.5 text-sm mt-0.5 resize-none"
-                        rows={2}
-                        placeholder="Add feedback for the student…"
-                        defaultValue={sub.feedback ?? ''}
+                        rows={4}
+                        placeholder="Rough notes OK — tap AI Polish to rewrite professionally"
+                        value={feedbacks[sub.id] ?? sub.feedback ?? ''}
                         onChange={e => setFeedbacks(f => ({ ...f, [sub.id]: e.target.value }))}
                       />
                     </div>

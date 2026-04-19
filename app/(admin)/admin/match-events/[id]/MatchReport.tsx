@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Crown, CheckCircle2, XCircle, Clock, Save, Bell, Check, Target, Shield } from 'lucide-react'
+import { Crown, CheckCircle2, XCircle, Clock, Save, Bell, Check, Target, Shield, Sparkles } from 'lucide-react'
 
 type Match = {
   id: string
@@ -59,6 +59,33 @@ export function MatchReport({ match, squad }: { match: Match; squad: SquadRow[] 
   type RowState = Partial<SquadRow>
   const [rowEdits, setRowEdits] = useState<Record<string, RowState>>({})
   const [rowSaving, setRowSaving] = useState<string | null>(null)
+  const [aiWriting, setAiWriting] = useState(false)
+
+  async function aiWriteReport() {
+    setAiWriting(true)
+    setSaveMsg(null)
+    // Save current state first so the AI has up-to-date data
+    await supabase.from('match_events').update({
+      home_score: homeScore === '' ? null : Number(homeScore),
+      away_score: awayScore === '' ? null : Number(awayScore),
+      status,
+    }).eq('id', match.id)
+
+    const res = await fetch('/api/ai/match-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matchId: match.id, coachNotes: reportText }),
+    })
+    const data = await res.json()
+    setAiWriting(false)
+    if (data.error) {
+      setSaveMsg(`AI error: ${data.error}`)
+    } else {
+      setReportText(data.report)
+      setSaveMsg('✨ AI report generated — review and save')
+    }
+    setTimeout(() => setSaveMsg(null), 5000)
+  }
 
   const accepted = squad.filter(s => s.status === 'accepted')
   const declined = squad.filter(s => s.status === 'declined')
@@ -401,17 +428,27 @@ export function MatchReport({ match, squad }: { match: Match; squad: SquadRow[] 
 
       {/* MATCH REPORT — narrative + lessons */}
       <div className="rounded-2xl border bg-white p-4 sm:p-5 space-y-4">
-        <h2 className="font-semibold flex items-center gap-1.5">
-          <Target size={16} className="text-tranmere-blue" />
-          Coach&apos;s Match Report
-        </h2>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h2 className="font-semibold flex items-center gap-1.5">
+            <Target size={16} className="text-tranmere-blue" />
+            Coach&apos;s Match Report
+          </h2>
+          <button
+            onClick={aiWriteReport}
+            disabled={aiWriting}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-3 py-1.5 text-xs font-semibold shadow hover:shadow-lg disabled:opacity-50"
+          >
+            <Sparkles size={12} className={aiWriting ? 'animate-spin' : ''} />
+            {aiWriting ? 'Writing…' : 'AI Write Report'}
+          </button>
+        </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Match report / narrative</label>
           <textarea
             value={reportText}
             onChange={e => setReportText(e.target.value)}
-            rows={6}
-            placeholder="How did the match unfold? Key moments, tactical observations, what worked, what didn't…"
+            rows={8}
+            placeholder="Type bullet points of key moments then tap AI Write Report, or write the full report yourself…"
             className="w-full text-sm border rounded-lg px-3 py-2 resize-none"
           />
         </div>
