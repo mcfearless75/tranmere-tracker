@@ -1,7 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import Link from 'next/link'
-import { ArrowLeft, User, Route, Gauge, Zap, Trophy } from 'lucide-react'
+import { ArrowLeft, Route, Gauge, Zap, Trophy } from 'lucide-react'
 import { UnitProgress } from './UnitProgress'
+import { AdminActions } from './AdminActions'
 
 export const dynamic = 'force-dynamic'
 
@@ -131,6 +132,9 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
           submissions={submissions ?? []}
         />
       </div>
+
+      {/* Admin actions */}
+      <AdminActions userId={student.id} userName={student.name ?? 'User'} email={student.email ?? ''} />
 
       {/* Bottom row — GPS & Matches */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
