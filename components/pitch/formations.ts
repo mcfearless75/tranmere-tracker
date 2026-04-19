@@ -1,0 +1,88 @@
+// Formation slot positions in a 100x150 portrait pitch.
+// Our team defends the BOTTOM (y=150), attacks the TOP (y=0).
+// So GK near y=140, strikers near y=15.
+
+export type Slot = { id: string; x: number; y: number; role: string }
+
+export const FORMATIONS: Record<string, Slot[]> = {
+  '4-4-2': [
+    { id: 'gk',  x: 50, y: 138, role: 'GK' },
+    { id: 'rb',  x: 15, y: 110, role: 'RB' },
+    { id: 'rcb', x: 38, y: 115, role: 'CB' },
+    { id: 'lcb', x: 62, y: 115, role: 'CB' },
+    { id: 'lb',  x: 85, y: 110, role: 'LB' },
+    { id: 'rm',  x: 15, y: 70,  role: 'RM' },
+    { id: 'rcm', x: 38, y: 75,  role: 'CM' },
+    { id: 'lcm', x: 62, y: 75,  role: 'CM' },
+    { id: 'lm',  x: 85, y: 70,  role: 'LM' },
+    { id: 'rst', x: 38, y: 25,  role: 'ST' },
+    { id: 'lst', x: 62, y: 25,  role: 'ST' },
+  ],
+  '4-3-3': [
+    { id: 'gk',  x: 50, y: 138, role: 'GK' },
+    { id: 'rb',  x: 15, y: 110, role: 'RB' },
+    { id: 'rcb', x: 38, y: 115, role: 'CB' },
+    { id: 'lcb', x: 62, y: 115, role: 'CB' },
+    { id: 'lb',  x: 85, y: 110, role: 'LB' },
+    { id: 'cdm', x: 50, y: 85,  role: 'CDM' },
+    { id: 'rcm', x: 30, y: 65,  role: 'CM' },
+    { id: 'lcm', x: 70, y: 65,  role: 'CM' },
+    { id: 'rw',  x: 18, y: 30,  role: 'RW' },
+    { id: 'st',  x: 50, y: 20,  role: 'ST' },
+    { id: 'lw',  x: 82, y: 30,  role: 'LW' },
+  ],
+  '4-2-3-1': [
+    { id: 'gk',  x: 50, y: 138, role: 'GK' },
+    { id: 'rb',  x: 15, y: 110, role: 'RB' },
+    { id: 'rcb', x: 38, y: 115, role: 'CB' },
+    { id: 'lcb', x: 62, y: 115, role: 'CB' },
+    { id: 'lb',  x: 85, y: 110, role: 'LB' },
+    { id: 'rdm', x: 35, y: 85,  role: 'DM' },
+    { id: 'ldm', x: 65, y: 85,  role: 'DM' },
+    { id: 'ram', x: 22, y: 50,  role: 'RW' },
+    { id: 'cam', x: 50, y: 45,  role: 'CAM' },
+    { id: 'lam', x: 78, y: 50,  role: 'LW' },
+    { id: 'st',  x: 50, y: 18,  role: 'ST' },
+  ],
+  '3-5-2': [
+    { id: 'gk',  x: 50, y: 138, role: 'GK' },
+    { id: 'rcb', x: 30, y: 115, role: 'CB' },
+    { id: 'cb',  x: 50, y: 120, role: 'CB' },
+    { id: 'lcb', x: 70, y: 115, role: 'CB' },
+    { id: 'rwb', x: 12, y: 80,  role: 'RWB' },
+    { id: 'rcm', x: 35, y: 75,  role: 'CM' },
+    { id: 'cm',  x: 50, y: 70,  role: 'CM' },
+    { id: 'lcm', x: 65, y: 75,  role: 'CM' },
+    { id: 'lwb', x: 88, y: 80,  role: 'LWB' },
+    { id: 'rst', x: 38, y: 25,  role: 'ST' },
+    { id: 'lst', x: 62, y: 25,  role: 'ST' },
+  ],
+  '5-3-2': [
+    { id: 'gk',  x: 50, y: 138, role: 'GK' },
+    { id: 'rwb', x: 12, y: 105, role: 'RWB' },
+    { id: 'rcb', x: 30, y: 118, role: 'CB' },
+    { id: 'cb',  x: 50, y: 122, role: 'CB' },
+    { id: 'lcb', x: 70, y: 118, role: 'CB' },
+    { id: 'lwb', x: 88, y: 105, role: 'LWB' },
+    { id: 'rcm', x: 30, y: 75,  role: 'CM' },
+    { id: 'cm',  x: 50, y: 70,  role: 'CM' },
+    { id: 'lcm', x: 70, y: 75,  role: 'CM' },
+    { id: 'rst', x: 38, y: 25,  role: 'ST' },
+    { id: 'lst', x: 62, y: 25,  role: 'ST' },
+  ],
+  '4-5-1': [
+    { id: 'gk',  x: 50, y: 138, role: 'GK' },
+    { id: 'rb',  x: 15, y: 110, role: 'RB' },
+    { id: 'rcb', x: 38, y: 115, role: 'CB' },
+    { id: 'lcb', x: 62, y: 115, role: 'CB' },
+    { id: 'lb',  x: 85, y: 110, role: 'LB' },
+    { id: 'rm',  x: 14, y: 70,  role: 'RM' },
+    { id: 'rcm', x: 33, y: 75,  role: 'CM' },
+    { id: 'cm',  x: 50, y: 70,  role: 'CM' },
+    { id: 'lcm', x: 67, y: 75,  role: 'CM' },
+    { id: 'lm',  x: 86, y: 70,  role: 'LM' },
+    { id: 'st',  x: 50, y: 20,  role: 'ST' },
+  ],
+}
+
+export const FORMATION_NAMES = Object.keys(FORMATIONS)
