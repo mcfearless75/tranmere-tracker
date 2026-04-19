@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { AddUnitForm } from './AddUnitForm'
+import { PopulateUnitsButton } from './PopulateUnitsButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,10 +13,15 @@ export default async function CoursesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Courses & Units</h1>
-      <p className="text-sm text-muted-foreground">
-        The three BTEC courses are pre-seeded. Add units to each course below.
-      </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold">Courses &amp; Units</h1>
+          <p className="text-sm text-muted-foreground">
+            The three BTEC courses are pre-seeded. Add units manually below, or populate official BTEC unit lists in one click.
+          </p>
+        </div>
+        <PopulateUnitsButton />
+      </div>
 
       {courses?.map(course => (
         <div key={course.id} className="bg-white rounded-xl border p-4 space-y-3">
