@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Trophy, Crown, CheckCircle2, XCircle, Clock, Save, Bell, Check, Target, Shield } from 'lucide-react'
+import { Crown, CheckCircle2, XCircle, Clock, Save, Bell, Check, Target, Shield } from 'lucide-react'
 
 type Match = {
   id: string
