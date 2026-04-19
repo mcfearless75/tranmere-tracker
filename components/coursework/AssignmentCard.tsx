@@ -166,8 +166,6 @@ export function AssignmentCard({
     setSending(false)
   }
 
-  const StatusIcon = STATUS_CONFIG[currentStatus].icon
-
   return (
     <div className={`rounded-2xl border bg-white overflow-hidden ${overdue ? 'border-red-300 ring-1 ring-red-200' : ''}`}>
       {/* HEADER */}
