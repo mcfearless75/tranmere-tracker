@@ -86,18 +86,18 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
       </Link>
 
       {/* Header */}
-      <div className="rounded-2xl border bg-white p-5 flex items-center gap-4">
+      <div className="rounded-2xl border bg-white p-4 sm:p-5 flex items-center gap-3 sm:gap-4">
         {student.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={student.avatar_url} alt={student.name ?? ''} className="w-20 h-20 rounded-full object-cover ring-4 ring-blue-50" />
+          <img src={student.avatar_url} alt={student.name ?? ''} className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover ring-4 ring-blue-50" />
         ) : (
-          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 flex items-center justify-center text-white text-2xl font-bold ring-4 ring-blue-50">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 flex items-center justify-center text-white text-xl sm:text-2xl font-bold ring-4 ring-blue-50">
             {initials}
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold text-tranmere-blue">{student.name}</h1>
-          <p className="text-sm text-muted-foreground">{courseName} · <span className="capitalize">{student.role}</span></p>
+          <h1 className="text-xl sm:text-2xl font-bold text-tranmere-blue truncate">{student.name}</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground truncate">{courseName} · <span className="capitalize">{student.role}</span></p>
         </div>
       </div>
 

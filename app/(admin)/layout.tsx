@@ -1,4 +1,5 @@
 import { AdminSidebar } from '@/components/layout/AdminSidebar'
+import { MobileAdminBar } from '@/components/layout/MobileAdminBar'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
@@ -19,14 +20,23 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect('/dashboard')
   }
 
+  const userName = profile.name ?? 'Admin'
+  const avatarUrl = profile.avatar_url ?? null
+
   return (
-    <div className="flex min-h-screen">
-      <AdminSidebar
-        userName={profile.name ?? 'Admin'}
-        avatarUrl={profile.avatar_url ?? null}
-        role={profile.role}
-      />
-      <main className="flex-1 p-6 bg-gray-50 overflow-auto">{children}</main>
+    <div className="min-h-[100dvh] bg-gray-50">
+      {/* Mobile top bar + drawer */}
+      <MobileAdminBar userName={userName} avatarUrl={avatarUrl} role={profile.role} />
+
+      {/* Desktop layout */}
+      <div className="md:flex md:min-h-screen">
+        <div className="hidden md:block">
+          <AdminSidebar userName={userName} avatarUrl={avatarUrl} role={profile.role} />
+        </div>
+        <main className="flex-1 p-4 md:p-6 max-w-full overflow-x-hidden">
+          {children}
+        </main>
+      </div>
     </div>
   )
 }

@@ -185,7 +185,7 @@ export function ProgressReportClient({ students, courses, units, assignments, su
           <LegendCell label="In Progress" classes={gradeBg.in_progress} />
           <LegendCell label="Not Started" classes={gradeBg.not_started} />
         </div>
-        <div className="overflow-auto">
+        <div className="overflow-auto scroll-touch">
           <table className="text-sm">
             <thead className="sticky top-0 bg-white">
               <tr>

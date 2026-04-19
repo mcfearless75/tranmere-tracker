@@ -16,21 +16,21 @@ export default async function UsersPage() {
   ])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Users</h1>
+        <h1 className="text-xl sm:text-2xl font-bold">Users</h1>
         <p className="text-sm text-muted-foreground">{users?.length ?? 0} total</p>
       </div>
 
       <CreateUserForm courses={courses ?? []} />
 
       <div className="bg-white rounded-xl border overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto -webkit-overflow-scrolling-touch">
           <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-gray-50 border-b">
               <tr>
                 {['Name', 'Email', 'Role', 'Course', 'Joined'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 font-semibold text-muted-foreground">{h}</th>
+                  <th key={h} className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>

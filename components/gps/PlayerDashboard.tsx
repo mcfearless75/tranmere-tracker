@@ -98,7 +98,7 @@ export function PlayerDashboard({ sessions, playerName }: { sessions: Session[];
   return (
     <div className="space-y-5">
       {/* HERO */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-tranmere-blue via-blue-800 to-indigo-900 p-6 text-white shadow-xl">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-tranmere-blue via-blue-800 to-indigo-900 p-4 sm:p-6 text-white shadow-xl">
         <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
         <div className="absolute -bottom-10 -left-10 h-44 w-44 rounded-full bg-orange-500/20 blur-3xl" />
         <div className="relative space-y-1">
