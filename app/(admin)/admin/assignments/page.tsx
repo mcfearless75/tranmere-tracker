@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CreateAssignmentForm } from './CreateAssignmentForm'
+import { PopulateAssignmentsButton } from './PopulateAssignmentsButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +27,10 @@ export default async function AssignmentsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Assignments</h1>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <h1 className="text-2xl font-bold">Assignments</h1>
+        <PopulateAssignmentsButton />
+      </div>
 
       <CreateAssignmentForm units={formUnits} />
 
