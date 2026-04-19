@@ -14,7 +14,6 @@ export async function POST(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Role check via service client — bypasses RLS
   const { data: profile } = await adminClient
     .from('users')
     .select('role')
@@ -39,11 +38,47 @@ export async function POST(request: Request) {
 
   const internalEmail = `${username}@tranmeretracker.internal`
 
-  // Check username not already taken
+  // Check if the auth user already exists
   const { data: existingUsers } = await adminClient.auth.admin.listUsers()
-  const taken = existingUsers?.users?.find(u => u.email === internalEmail)
-  if (taken) return NextResponse.json({ error: `Username "${username}" is already taken` }, { status: 409 })
+  const existingAuth = existingUsers?.users?.find(u => u.email === internalEmail)
 
+  if (existingAuth) {
+    // Is there a profile row already?
+    const { data: existingProfile } = await adminClient
+      .from('users')
+      .select('id')
+      .eq('id', existingAuth.id)
+      .maybeSingle()
+
+    if (existingProfile) {
+      // Fully exists — genuine conflict
+      return NextResponse.json({ error: `Username "${username}" is already taken` }, { status: 409 })
+    }
+
+    // Orphaned auth user — no profile row. Recover by creating the profile
+    // and resetting the password to the new PIN.
+    await adminClient.auth.admin.updateUserById(existingAuth.id, {
+      password: pin,
+      user_metadata: { full_name: name },
+    })
+
+    const { error: upsertError } = await adminClient.from('users').upsert({
+      id: existingAuth.id,
+      email: internalEmail,
+      name,
+      role,
+      course_id: courseId || null,
+    })
+    if (upsertError) return NextResponse.json({ error: `Recovery failed: ${upsertError.message}` })
+
+    return NextResponse.json({
+      success: true,
+      recovered: true,
+      message: `Recovered existing account for "${username}" and set new PIN.`,
+    })
+  }
+
+  // Fresh create
   const { data: created, error: authError } = await adminClient.auth.admin.createUser({
     email: internalEmail,
     password: pin,
@@ -53,13 +88,19 @@ export async function POST(request: Request) {
 
   if (authError) return NextResponse.json({ error: authError.message })
 
-  await adminClient.from('users').upsert({
+  const { error: upsertError } = await adminClient.from('users').upsert({
     id: created.user.id,
     email: internalEmail,
     name,
     role,
     course_id: courseId || null,
   })
+
+  if (upsertError) {
+    // Profile save failed — roll back the auth user so we don't leave an orphan
+    await adminClient.auth.admin.deleteUser(created.user.id)
+    return NextResponse.json({ error: `Profile save failed: ${upsertError.message}` })
+  }
 
   return NextResponse.json({ success: true })
 }
