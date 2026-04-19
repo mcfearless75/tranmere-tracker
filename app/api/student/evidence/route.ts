@@ -25,7 +25,6 @@ export async function POST(request: Request) {
   // Ensure bucket exists (idempotent)
   await admin.storage.createBucket('coursework', { public: true, fileSizeLimit: 20 * 1024 * 1024 }).catch(() => {})
 
-  const ext = (file.name.split('.').pop() || 'bin').toLowerCase()
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80)
   const path = `${user.id}/${assignmentId}-${Date.now()}-${safeName}`
   const bytes = await file.arrayBuffer()
