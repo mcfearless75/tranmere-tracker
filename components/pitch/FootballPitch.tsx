@@ -21,7 +21,7 @@ export function FootballPitch({ slots, placements, selectedSlot, onSlotClick, on
   const byPlayerSlot = Object.fromEntries(placements.map(p => [p.slotId, p]))
 
   return (
-    <div className="relative w-full max-w-md mx-auto aspect-[2/3]">
+    <div className="relative w-full max-w-xl mx-auto aspect-[2/3] no-tap-hl">
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="w-full h-full rounded-2xl shadow-lg"
@@ -83,8 +83,10 @@ export function FootballPitch({ slots, placements, selectedSlot, onSlotClick, on
                 style={{ cursor: onPlacementClick ? 'pointer' : 'default' }}
               >
                 {/* Chip */}
+                {/* Invisible larger hit target */}
+                <circle cx={cx} cy={cy} r="8" fill="transparent" />
                 <circle
-                  cx={cx} cy={cy} r="5"
+                  cx={cx} cy={cy} r="6"
                   fill={selected ? '#f97316' : '#003087'}
                   stroke="white"
                   strokeWidth="0.6"
@@ -129,8 +131,10 @@ export function FootballPitch({ slots, placements, selectedSlot, onSlotClick, on
 
           return (
             <g key={slot.id} onClick={() => onSlotClick(slot.id)} style={{ cursor: 'pointer' }}>
+              {/* Invisible larger hit target for fingers */}
+              <circle cx={cx} cy={cy} r="8" fill="transparent" />
               <circle
-                cx={cx} cy={cy} r="5"
+                cx={cx} cy={cy} r="6"
                 fill={selected ? 'rgba(249,115,22,0.9)' : 'rgba(255,255,255,0.18)'}
                 stroke={selected ? 'white' : 'rgba(255,255,255,0.6)'}
                 strokeWidth="0.5"
