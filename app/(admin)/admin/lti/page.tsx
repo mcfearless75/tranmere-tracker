@@ -7,15 +7,41 @@ export const dynamic = 'force-dynamic'
 
 export default async function LtiSetupPage() {
   const supabase = createAdminClient()
-  // Ensure keypair exists before showing the page
-  const keypair = await getOrCreateKeypair()
 
   const h = headers()
   const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'localhost:3000'
   const proto = h.get('x-forwarded-proto') ?? 'https'
   const base = `${proto}://${host}`
 
-  const { data: platforms } = await supabase.from('lti_platforms').select('*').order('created_at')
+  let keypair: { kid: string } | null = null
+  let platforms: any[] = []
+  let migrationNeeded = false
+  try {
+    keypair = await getOrCreateKeypair()
+    const { data } = await supabase.from('lti_platforms').select('*').order('created_at')
+    platforms = data ?? []
+  } catch (err: any) {
+    const msg = String(err?.message ?? err)
+    if (msg.includes('does not exist') || msg.includes('relation') || msg.includes('schema cache')) {
+      migrationNeeded = true
+    } else {
+      throw err
+    }
+  }
+
+  if (migrationNeeded || !keypair) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-xl sm:text-2xl font-bold text-tranmere-blue">Moodle / LTI 1.3 Setup</h1>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 space-y-3">
+          <p className="font-semibold text-amber-800">⚠️ Database migration needed</p>
+          <p className="text-sm text-amber-700">Run this in your Supabase SQL Editor:</p>
+          <code className="block text-xs bg-amber-100 p-2 rounded font-mono">supabase/migrations/010_lti_platforms.sql</code>
+          <p className="text-xs text-amber-600">Creates <code>lti_platforms</code>, <code>lti_user_links</code>, and <code>lti_keypair</code> tables, then refresh this page.</p>
+        </div>
+      </div>
+    )
+  }
 
   const urls = {
     initiateLogin: `${base}/api/lti/login`,
