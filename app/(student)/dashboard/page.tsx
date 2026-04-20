@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Image from 'next/image'
 import Link from 'next/link'
 import { PushOptIn } from '@/components/PushOptIn'
+import { Trophy } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,6 +62,15 @@ export default async function DashboardPage() {
     .eq('logged_date', today)
 
   const totalCalories = todayFood?.reduce((sum, r) => sum + r.calories, 0) ?? 0
+
+  // Upcoming matches this student is in the squad for
+  const { data: mySquadEntries } = await supabase
+    .from('match_squads')
+    .select('match_id, status, match_events(id, opponent, match_date, location)')
+    .eq('player_id', user!.id)
+    .gte('match_events(match_date)', today)
+    .order('match_events(match_date)')
+    .limit(3)
 
   const { data: lastTraining } = await supabase
     .from('training_logs')
@@ -129,6 +139,37 @@ export default async function DashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Upcoming matches */}
+      {mySquadEntries && mySquadEntries.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2 pt-4">
+            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+              <Trophy size={13} /> Upcoming Matches
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 pb-4">
+            {mySquadEntries.map((entry: any) => {
+              const match = entry.match_events
+              if (!match) return null
+              const daysLeft = Math.ceil((new Date(match.match_date).getTime() - Date.now()) / 86400000)
+              const statusColour = entry.status === 'accepted' ? 'text-green-600' : entry.status === 'declined' ? 'text-red-500' : 'text-amber-500'
+              return (
+                <Link key={entry.match_id} href="/matches" className="flex justify-between items-center text-sm py-1">
+                  <div>
+                    <span className="font-medium">vs {match.opponent}</span>
+                    {match.location && <span className="text-xs text-muted-foreground ml-1.5">· {match.location}</span>}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs text-muted-foreground">{daysLeft === 0 ? 'Today' : daysLeft === 1 ? 'Tomorrow' : `${daysLeft}d`}</p>
+                    <p className={`text-[10px] font-medium capitalize ${statusColour}`}>{entry.status ?? 'pending'}</p>
+                  </div>
+                </Link>
+              )
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3">

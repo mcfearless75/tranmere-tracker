@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, BookOpen, Bell, BarChart2, GraduationCap, LogOut, Calendar, Star, Wifi, Activity, LayoutGrid, Plug, MessageSquare, Megaphone } from 'lucide-react'
+import { Users, BookOpen, Bell, BarChart2, GraduationCap, LogOut, Calendar, Star, Wifi, Activity, LayoutGrid, Plug, MessageSquare, Megaphone, Home } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
 
 const nav = [
+  { href: '/admin/dashboard', label: 'Dashboard', icon: Home },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/courses', label: 'Courses', icon: GraduationCap },
   { href: '/admin/assignments', label: 'Assignments', icon: BookOpen },
