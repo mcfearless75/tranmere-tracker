@@ -57,7 +57,7 @@ export default async function StaffDashboardPage() {
 
     if (overdueAssignments?.length) {
       const { data: allSubmissions } = await admin
-        .from('assignment_submissions')
+        .from('submissions')
         .select('assignment_id, student_id')
         .in('assignment_id', overdueAssignments.map(a => a.id))
 
@@ -90,7 +90,7 @@ export default async function StaffDashboardPage() {
     const [{ data: assignmentData }, { data: studentCount }, { data: subData }] = await Promise.all([
       admin.from('assignments').select('id, title, due_date, unit_id').order('due_date', { ascending: false }).limit(20),
       admin.from('users').select('id', { count: 'exact' }).eq('role', 'student'),
-      admin.from('assignment_submissions').select('assignment_id'),
+      admin.from('submissions').select('assignment_id'),
     ])
     assignments = assignmentData ?? []
     totalStudents = (studentCount as any)?.length ?? 0
