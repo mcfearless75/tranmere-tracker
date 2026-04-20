@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
-import { KeyRound, Trash2, Shield, Bell } from 'lucide-react'
+import { KeyRound, Trash2, Shield, Bell, MessageSquare } from 'lucide-react'
+import { getOrCreateDM } from '@/app/chat/actions'
 
 type Props = {
   userId: string
@@ -105,6 +106,18 @@ export function AdminActions({ userId, userName, email }: Props) {
           Username: <span className="font-mono bg-white px-1.5 py-0.5 rounded">{username}</span>
         </p>
       </div>
+
+      {/* Message button */}
+      <button
+        onClick={async () => {
+          const res = await getOrCreateDM(userId)
+          if (typeof res === 'string') router.push(`/chat/${res}`)
+          else alert(`Error: ${res.error}`)
+        }}
+        className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-tranmere-blue text-white px-4 py-2.5 text-sm font-semibold hover:bg-blue-900"
+      >
+        <MessageSquare size={14} /> Message {userName.split(' ')[0]}
+      </button>
 
       {/* Reset PIN */}
       <div className="space-y-2">
