@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { MessageSquare, Users, Crown, Trophy, Plus } from 'lucide-react'
 import { NewDmPicker } from './NewDmPicker'
+import { AiCoachButton } from './AiCoachButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -106,6 +107,7 @@ export default async function ChatHubPage() {
         </h1>
       </div>
 
+      <AiCoachButton />
       <NewDmPicker directory={directory ?? []} />
 
       {rooms.length === 0 && (

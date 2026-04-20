@@ -45,6 +45,41 @@ export async function getOrCreateDM(otherUserId: string): Promise<string | { err
   return room.id
 }
 
+const BOT_USER_ID = '00000000-0000-0000-0000-000000000099'
+
+/** Find or create the user's personal AI Coach bot room */
+export async function getOrCreateBotRoom(): Promise<string | { error: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const admin = createAdminClient()
+
+  // Find existing bot room for this user
+  const { data: existing } = await admin
+    .from('chat_members')
+    .select('room_id, chat_rooms!inner(kind)')
+    .eq('user_id', user.id)
+  const botRoom = (existing ?? []).find((r: any) => r.chat_rooms?.kind === 'bot')
+  if (botRoom) return botRoom.room_id
+
+  // Create new bot room
+  const { data: room, error } = await admin
+    .from('chat_rooms')
+    .insert({ kind: 'bot', name: 'AI Coach', created_by: user.id })
+    .select('id')
+    .single()
+  if (error || !room) return { error: error?.message ?? 'Could not create bot room' }
+
+  await admin.from('chat_members').insert([
+    { room_id: room.id, user_id: user.id,    role: 'member' },
+    { room_id: room.id, user_id: BOT_USER_ID, role: 'member' },
+  ])
+
+  revalidatePath('/chat')
+  return room.id
+}
+
 /** Mark the room as read for the current user */
 export async function markRead(roomId: string) {
   const supabase = createClient()
