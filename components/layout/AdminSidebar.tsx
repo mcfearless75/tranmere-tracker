@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, BookOpen, Bell, BarChart2, GraduationCap, LogOut, Calendar, Star, Wifi, Activity, LayoutGrid, Plug } from 'lucide-react'
+import { Users, BookOpen, Bell, BarChart2, GraduationCap, LogOut, Calendar, Star, Wifi, Activity, LayoutGrid, Plug, MessageSquare } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
 
@@ -15,6 +15,7 @@ const nav = [
   { href: '/admin/grade-submissions', label: 'Grade Work', icon: Star },
   { href: '/admin/gps-dashboard', label: 'Squad GPS', icon: Activity },
   { href: '/admin/gps-import', label: 'GPS Import', icon: Wifi },
+  { href: '/chat', label: 'Chat', icon: MessageSquare },
   { href: '/admin/notifications', label: 'Notifications', icon: Bell },
   { href: '/admin/reports', label: 'Reports', icon: BarChart2 },
   { href: '/admin/lti', label: 'Moodle / LTI', icon: Plug },
