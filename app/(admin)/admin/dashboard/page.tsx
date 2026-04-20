@@ -117,7 +117,7 @@ export default async function StaffDashboardPage() {
           <img src={profile.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover ring-2 ring-tranmere-blue shadow" />
         ) : (
           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 flex items-center justify-center ring-2 ring-tranmere-blue shadow">
-            <span className="text-white font-bold text-sm">{profile.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}</span>
+            <span className="text-white font-bold text-sm">{(profile.name ?? 'ST').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}</span>
           </div>
         )}
         <div className="flex-1">
