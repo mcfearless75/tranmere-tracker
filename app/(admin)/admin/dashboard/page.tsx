@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Calendar, Users, AlertTriangle, BookOpen, CheckCircle, Clock, MessageSquare } from 'lucide-react'
+import { Calendar, AlertTriangle, BookOpen, CheckCircle, Clock, MessageSquare } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,7 +83,7 @@ export default async function StaffDashboardPage() {
 
   // ── TEACHER: Coursework overview ──────────────────────────────────────
   let assignments: any[] = []
-  let submissionsByAssignment: Record<string, number> = {}
+  const submissionsByAssignment: Record<string, number> = {}
   let totalStudents = 0
 
   if (isTeacher) {
