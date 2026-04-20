@@ -18,16 +18,24 @@ type Sess = {
 export default async function GpsDashboardPage() {
   const supabase = createAdminClient()
 
-  // Last 7 days of sessions
+  // Last 7 days of sessions — wrapped so any failure shows the migration prompt
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10)
-  const { data: sessions, error: sessErr } = await supabase
-    .from('gps_sessions')
-    .select('player_id, total_distance_m, max_speed_kmh, sprint_count, player_load, session_date, users:player_id(name)')
-    .gte('session_date', weekAgo)
-    .order('session_date', { ascending: false })
+  let sessions: any[] | null = null
+  let sessErr: { message?: string } | null = null
+  try {
+    const res = await supabase
+      .from('gps_sessions')
+      .select('player_id, total_distance_m, max_speed_kmh, sprint_count, player_load, session_date, users:player_id(name)')
+      .gte('session_date', weekAgo)
+      .order('session_date', { ascending: false })
+    sessions = res.data
+    sessErr = res.error as any
+  } catch (err: any) {
+    sessErr = { message: String(err?.message ?? err) }
+  }
 
-  // Migration not run yet
-  if (sessErr?.message?.includes('gps_sessions') || sessErr?.message?.includes('does not exist')) {
+  // Migration not run yet (or any DB failure)
+  if (sessErr || !sessions) {
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-bold text-tranmere-blue">Squad GPS Dashboard</h1>
