@@ -39,13 +39,17 @@ async function handle(req: NextRequest) {
   const nonce = randomBytes(16).toString('hex')
 
   // Redirect to the platform's auth endpoint
+  // redirect_uri must always be our launch endpoint — Moodle will POST the id_token there.
+  // target_link_uri is where the user lands AFTER successful launch, not the OAuth redirect.
+  const launchUrl = `${req.nextUrl.origin}/api/lti/launch`
+
   const authUrl = new URL(platform.auth_login_url)
   authUrl.searchParams.set('scope', 'openid')
   authUrl.searchParams.set('response_type', 'id_token')
   authUrl.searchParams.set('response_mode', 'form_post')
   authUrl.searchParams.set('prompt', 'none')
   authUrl.searchParams.set('client_id', platform.client_id)
-  authUrl.searchParams.set('redirect_uri', targetLinkUri)
+  authUrl.searchParams.set('redirect_uri', launchUrl)
   authUrl.searchParams.set('login_hint', loginHint)
   authUrl.searchParams.set('state', state)
   authUrl.searchParams.set('nonce', nonce)

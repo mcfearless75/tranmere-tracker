@@ -115,16 +115,24 @@ export async function POST(req: NextRequest) {
   }
 
   // Issue a magic-link-style session by signing in as the LTI user via admin client.
-  // Generate a one-time session link; the browser follows it to establish a Supabase session.
+  const { data: userRow } = await supabase.from('users').select('email').eq('id', userId).single()
+  const userEmail = userRow?.email ?? ''
+  if (!userEmail) return bad('Could not resolve user email for session')
+
+  // Where to land after auth — prefer dashboard over the raw launch URL
+  const dest = isStaffRole ? '/admin/dashboard' : '/dashboard'
+
+  // Derive site URL from request so it works on any Vercel preview or custom domain
+  const siteUrl = req.nextUrl.origin
+
   const { data: session, error: sessErr } = await supabase.auth.admin.generateLink({
     type: 'magiclink',
-    email: (await supabase.from('users').select('email').eq('id', userId).single()).data?.email ?? '',
+    email: userEmail,
+    options: { redirectTo: `${siteUrl}${dest}` },
   })
   if (sessErr || !session) return bad(`Could not create session: ${sessErr?.message}`)
 
-  const dest = targetLinkUri || (isStaffRole ? '/admin/gps-dashboard' : '/dashboard')
-  // The magic link URL puts the session in the URL fragment; point the user there, then our app redirects to dest
-  const redirect = NextResponse.redirect(`${session.properties.action_link}&next=${encodeURIComponent(dest)}`, 302)
+  const redirect = NextResponse.redirect(session.properties.action_link, 302)
   redirect.cookies.set('lti_launch_new', isNew ? '1' : '0', { maxAge: 60, path: '/' })
   return redirect
 }
