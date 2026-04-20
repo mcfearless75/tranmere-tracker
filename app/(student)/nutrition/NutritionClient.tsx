@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { MealLogForm } from '@/components/nutrition/MealLogForm'
 import { AiMealPhoto } from '@/components/nutrition/AiMealPhoto'
+import { UkFoodSearch } from '@/components/nutrition/UkFoodSearch'
 
 type Log = {
   id: string
@@ -30,6 +31,8 @@ export function NutritionClient({ studentId, logs: initialLogs }: Props) {
 
   return (
     <div className="space-y-4">
+      <UkFoodSearch studentId={studentId} />
+
       <AiMealPhoto studentId={studentId} />
 
       <MealLogForm studentId={studentId} onLogged={handleLogged} />
