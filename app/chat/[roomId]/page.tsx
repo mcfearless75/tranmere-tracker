@@ -23,6 +23,8 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
     .eq('room_id', params.roomId)
 
   const me = (members ?? []).find((m: any) => m.user_id === user.id)
+  const isStaff = me && ['admin', 'coach', 'teacher'].includes((me as any).users?.role ?? '')
+  const canSend = room.kind !== 'broadcast' || !!isStaff
   if (!me) {
     return (
       <div className="p-6 text-center">
@@ -49,7 +51,7 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
   }
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-gray-50">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] bg-gray-50">
       <header className="sticky top-0 z-10 bg-white border-b px-4 py-3 flex items-center gap-3 shrink-0">
         <Link href="/chat" className="p-2 -ml-2 rounded-lg active:bg-gray-100">
           <ArrowLeft size={18} />
@@ -64,9 +66,11 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
 
       <ChatThread
         roomId={params.roomId}
+        roomKind={room.kind}
         currentUserId={user.id}
         initialMessages={(messages ?? []) as any}
         members={(members ?? []) as any}
+        canSend={canSend}
       />
     </div>
   )
