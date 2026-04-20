@@ -33,7 +33,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="hidden md:block">
           <AdminSidebar userName={userName} avatarUrl={avatarUrl} role={profile.role} />
         </div>
-        <main className="flex-1 p-4 md:p-6 max-w-full overflow-x-hidden">
+        <main className="flex-1 p-4 md:p-6 max-w-full overflow-x-hidden pb-20 md:pb-6">
           {children}
         </main>
       </div>

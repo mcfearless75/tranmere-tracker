@@ -20,9 +20,8 @@ export default async function RootPage() {
     .eq('id', user.id)
     .single()
 
-  if (profile && ['admin', 'coach', 'teacher'].includes(profile.role)) {
-    redirect('/admin/gps-dashboard')
-  }
+  if (profile?.role === 'admin') redirect('/admin/gps-dashboard')
+  if (profile?.role === 'coach' || profile?.role === 'teacher') redirect('/admin/dashboard')
 
   redirect('/dashboard')
 }
