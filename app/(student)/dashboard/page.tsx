@@ -63,14 +63,16 @@ export default async function DashboardPage() {
 
   const totalCalories = todayFood?.reduce((sum, r) => sum + r.calories, 0) ?? 0
 
-  // Upcoming matches this student is in the squad for
-  const { data: mySquadEntries } = await supabase
+  // Upcoming matches this student is in the squad for (fetch recent, filter client-side)
+  const { data: squadRaw } = await supabase
     .from('match_squads')
     .select('match_id, status, match_events(id, opponent, match_date, location)')
     .eq('player_id', user!.id)
-    .gte('match_events(match_date)', today)
-    .order('match_events(match_date)')
-    .limit(3)
+    .limit(20)
+  const mySquadEntries = (squadRaw ?? [])
+    .filter((e: any) => e.match_events?.match_date >= today)
+    .sort((a: any, b: any) => new Date(a.match_events.match_date).getTime() - new Date(b.match_events.match_date).getTime())
+    .slice(0, 3)
 
   const { data: lastTraining } = await supabase
     .from('training_logs')
