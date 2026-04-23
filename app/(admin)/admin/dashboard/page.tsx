@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Calendar, AlertTriangle, BookOpen, CheckCircle, Clock, MessageSquare } from 'lucide-react'
+import { Calendar, CheckCircle, Clock, MessageSquare, Activity, LayoutGrid, Star, Users, AlertCircle } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,8 +17,7 @@ export default async function StaffDashboardPage() {
   if (!profile || !['coach', 'teacher', 'admin'].includes(profile.role)) redirect('/dashboard')
 
   const today = new Date().toISOString().split('T')[0]
-  const in14 = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]
-  const firstName = profile.name?.split(' ')[0] ?? 'Coach'
+const firstName = profile.name?.split(' ')[0] ?? 'Coach'
   const isTeacher = profile.role === 'teacher'
 
   // ── SHARED: Upcoming matches ──────────────────────────────────────────
@@ -31,7 +30,7 @@ export default async function StaffDashboardPage() {
 
   // ── COACH: Squad responses for next match ─────────────────────────────
   let squadSummary: { accepted: number; declined: number; pending: number } | null = null
-  let missedCoursework: any[] = []
+  let totalStudents = 0
 
   if (!isTeacher && upcomingMatches?.length) {
     const nextMatchId = upcomingMatches[0].id
@@ -47,44 +46,13 @@ export default async function StaffDashboardPage() {
       else squadSummary.pending++
     }
 
-    // Students with overdue assignments and no submission
-    const { data: overdueAssignments } = await admin
-      .from('assignments')
-      .select('id, title, due_date')
-      .lt('due_date', today)
-      .order('due_date', { ascending: false })
-      .limit(10)
-
-    if (overdueAssignments?.length) {
-      const { data: allSubmissions } = await admin
-        .from('submissions')
-        .select('assignment_id, student_id')
-        .in('assignment_id', overdueAssignments.map(a => a.id))
-
-      const { data: students } = await admin
-        .from('users')
-        .select('id, name')
-        .eq('role', 'student')
-
-      const submittedSet = new Set((allSubmissions ?? []).map(s => `${s.assignment_id}:${s.student_id}`))
-      const alerts: { student: string; assignment: string; daysLate: number }[] = []
-
-      for (const a of overdueAssignments.slice(0, 3)) {
-        const daysLate = Math.floor((Date.now() - new Date(a.due_date).getTime()) / 86400000)
-        for (const s of students ?? []) {
-          if (!submittedSet.has(`${a.id}:${s.id}`)) {
-            alerts.push({ student: s.name, assignment: a.title, daysLate })
-          }
-        }
-      }
-      missedCoursework = alerts.slice(0, 8)
-    }
+    const { data: studentCount } = await admin.from('users').select('id', { count: 'exact' }).eq('role', 'student')
+    totalStudents = (studentCount as any)?.length ?? 0
   }
 
   // ── TEACHER: Coursework overview ──────────────────────────────────────
   let assignments: any[] = []
   const submissionsByAssignment: Record<string, number> = {}
-  let totalStudents = 0
 
   if (isTeacher) {
     const [{ data: assignmentData }, { data: studentCount }, { data: subData }] = await Promise.all([
@@ -98,15 +66,6 @@ export default async function StaffDashboardPage() {
       submissionsByAssignment[s.assignment_id] = (submissionsByAssignment[s.assignment_id] ?? 0) + 1
     }
   }
-
-  // ── Upcoming assignments (for coach too) ──────────────────────────────
-  const { data: upcomingAssignments } = !isTeacher ? await admin
-    .from('assignments')
-    .select('id, title, due_date')
-    .gte('due_date', today)
-    .lte('due_date', in14)
-    .order('due_date')
-    .limit(5) : { data: [] }
 
   return (
     <div className="space-y-5 pb-24 md:pb-6">
@@ -133,6 +92,18 @@ export default async function StaffDashboardPage() {
       {/* ── COACH VIEW ── */}
       {!isTeacher && (
         <>
+          {/* Squad stats headline */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border bg-white p-4 text-center">
+              <p className="text-3xl font-bold text-tranmere-blue">{totalStudents}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 flex items-center justify-center gap-1"><Users size={11} /> Registered Players</p>
+            </div>
+            <div className="rounded-2xl border bg-white p-4 text-center">
+              <p className="text-3xl font-bold text-tranmere-blue">{upcomingMatches?.length ?? 0}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 flex items-center justify-center gap-1"><Calendar size={11} /> Fixtures Ahead</p>
+            </div>
+          </div>
+
           {/* Next match squad status */}
           {upcomingMatches && upcomingMatches.length > 0 && squadSummary && (
             <div className="rounded-2xl border bg-white p-4 space-y-3">
@@ -156,126 +127,139 @@ export default async function StaffDashboardPage() {
                 </div>
               </div>
               <Link href={`/admin/match-events/${upcomingMatches[0].id}`} className="text-xs text-tranmere-blue underline underline-offset-2">
-                View full squad →
+                Manage squad →
               </Link>
             </div>
           )}
+
+          {/* Quick actions */}
+          <div className="rounded-2xl border bg-white p-4 space-y-3">
+            <p className="font-semibold text-sm">Quick Actions</p>
+            <div className="grid grid-cols-3 gap-2">
+              <Link href="/admin/formation" className="flex flex-col items-center gap-2 rounded-xl border bg-gray-50 hover:bg-tranmere-blue/5 p-3 transition-colors text-center">
+                <LayoutGrid size={20} className="text-tranmere-blue" />
+                <span className="text-[11px] font-medium leading-tight">Formation Builder</span>
+              </Link>
+              <Link href="/admin/gps-dashboard" className="flex flex-col items-center gap-2 rounded-xl border bg-gray-50 hover:bg-tranmere-blue/5 p-3 transition-colors text-center">
+                <Activity size={20} className="text-tranmere-blue" />
+                <span className="text-[11px] font-medium leading-tight">Squad GPS</span>
+              </Link>
+              <Link href="/admin/grade-submissions" className="flex flex-col items-center gap-2 rounded-xl border bg-gray-50 hover:bg-tranmere-blue/5 p-3 transition-colors text-center">
+                <Star size={20} className="text-tranmere-blue" />
+                <span className="text-[11px] font-medium leading-tight">Grade Work</span>
+              </Link>
+            </div>
+          </div>
 
           {/* Upcoming fixtures */}
           {upcomingMatches && upcomingMatches.length > 1 && (
             <div className="rounded-2xl border bg-white p-4 space-y-2">
               <p className="font-semibold text-sm flex items-center gap-2"><Calendar size={15} className="text-tranmere-blue" /> Upcoming Fixtures</p>
-              {upcomingMatches.slice(1, 4).map(m => (
+              {upcomingMatches.slice(1, 5).map(m => (
                 <Link key={m.id} href={`/admin/match-events/${m.id}`} className="flex justify-between items-center text-sm py-1.5 border-t">
                   <span className="font-medium">vs {m.opponent}</span>
                   <span className="text-xs text-muted-foreground">{new Date(m.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                 </Link>
               ))}
-            </div>
-          )}
-
-          {/* Missed coursework alerts */}
-          {missedCoursework.length > 0 && (
-            <div className="rounded-2xl border bg-white p-4 space-y-2">
-              <p className="font-semibold text-sm flex items-center gap-2">
-                <AlertTriangle size={15} className="text-amber-500" /> Missed Coursework
-              </p>
-              {missedCoursework.map((item, i) => (
-                <div key={i} className="flex justify-between items-start text-sm py-1.5 border-t">
-                  <div>
-                    <p className="font-medium">{item.student}</p>
-                    <p className="text-xs text-muted-foreground truncate max-w-[200px]">{item.assignment}</p>
-                  </div>
-                  <span className="text-xs text-red-600 font-medium shrink-0">{item.daysLate}d late</span>
-                </div>
-              ))}
-              <Link href="/admin/grade-submissions" className="text-xs text-tranmere-blue underline underline-offset-2">View all →</Link>
-            </div>
-          )}
-
-          {/* Upcoming deadlines */}
-          {upcomingAssignments && upcomingAssignments.length > 0 && (
-            <div className="rounded-2xl border bg-white p-4 space-y-2">
-              <p className="font-semibold text-sm flex items-center gap-2"><BookOpen size={15} className="text-tranmere-blue" /> Upcoming Deadlines</p>
-              {upcomingAssignments.map(a => {
-                const daysLeft = Math.ceil((new Date(a.due_date).getTime() - Date.now()) / 86400000)
-                return (
-                  <div key={a.id} className="flex justify-between items-center text-sm py-1.5 border-t">
-                    <span className="truncate pr-2">{a.title}</span>
-                    <span className={`shrink-0 text-xs font-medium ${daysLeft <= 3 ? 'text-red-600' : 'text-muted-foreground'}`}>
-                      {daysLeft === 0 ? 'Today' : daysLeft === 1 ? 'Tomorrow' : `${daysLeft}d`}
-                    </span>
-                  </div>
-                )
-              })}
+              <Link href="/admin/match-events" className="text-xs text-tranmere-blue underline underline-offset-2">All fixtures →</Link>
             </div>
           )}
         </>
       )}
 
       {/* ── TEACHER VIEW ── */}
-      {isTeacher && (
-        <>
-          <div className="rounded-2xl border bg-white p-4 space-y-3">
-            <p className="font-semibold text-sm flex items-center gap-2"><BookOpen size={15} className="text-tranmere-blue" /> Coursework Overview</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-xl bg-tranmere-blue/5 border p-3 text-center">
+      {isTeacher && (() => {
+        const overdueCount = assignments.filter(a => new Date(a.due_date) < new Date()).length
+        const needsGradingCount = assignments.filter(a => {
+          const submitted = submissionsByAssignment[a.id] ?? 0
+          return submitted > 0 && submitted < totalStudents
+        }).length
+        const totalSubmissions = Object.values(submissionsByAssignment).reduce((acc, n) => acc + n, 0)
+        const maxPossible = assignments.length * totalStudents
+
+        return (
+          <>
+            {/* Headline stats */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-2xl border bg-white p-3 text-center">
                 <p className="text-2xl font-bold text-tranmere-blue">{assignments.length}</p>
                 <p className="text-[11px] text-muted-foreground">Assignments</p>
               </div>
-              <div className="rounded-xl bg-tranmere-blue/5 border p-3 text-center">
+              <div className="rounded-2xl border bg-white p-3 text-center">
                 <p className="text-2xl font-bold text-tranmere-blue">{totalStudents}</p>
                 <p className="text-[11px] text-muted-foreground">Students</p>
               </div>
+              <div className={`rounded-2xl border p-3 text-center ${overdueCount > 0 ? 'bg-red-50 border-red-200' : 'bg-white'}`}>
+                <p className={`text-2xl font-bold ${overdueCount > 0 ? 'text-red-600' : 'text-tranmere-blue'}`}>{overdueCount}</p>
+                <p className={`text-[11px] ${overdueCount > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>Overdue</p>
+              </div>
             </div>
-          </div>
 
-          <div className="rounded-2xl border bg-white divide-y overflow-hidden">
-            <div className="px-4 py-3 flex items-center gap-2">
-              <CheckCircle size={15} className="text-tranmere-blue" />
-              <p className="font-semibold text-sm">Assignment Submissions</p>
-            </div>
-            {assignments.slice(0, 10).map(a => {
-              const submitted = submissionsByAssignment[a.id] ?? 0
-              const pct = totalStudents > 0 ? Math.round((submitted / totalStudents) * 100) : 0
-              const daysLeft = Math.ceil((new Date(a.due_date).getTime() - Date.now()) / 86400000)
-              const overdue = daysLeft < 0
-              return (
-                <div key={a.id} className="px-4 py-3 space-y-1">
-                  <div className="flex justify-between items-start gap-2">
-                    <p className="text-sm font-medium truncate">{a.title}</p>
-                    <span className={`text-[10px] font-medium shrink-0 px-1.5 py-0.5 rounded-full ${overdue ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {overdue ? `${Math.abs(daysLeft)}d overdue` : daysLeft === 0 ? 'Due today' : `${daysLeft}d left`}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-gray-100 rounded-full h-1.5">
-                      <div className="bg-tranmere-blue h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+            {/* Grading alert */}
+            {needsGradingCount > 0 && (
+              <Link href="/admin/grade-submissions" className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 hover:bg-amber-100 transition-colors">
+                <AlertCircle size={18} className="text-amber-600 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-800">{needsGradingCount} assignments need grading</p>
+                  <p className="text-xs text-amber-600">{totalSubmissions} submissions received so far</p>
+                </div>
+                <span className="text-xs text-amber-700 font-medium">Grade →</span>
+              </Link>
+            )}
+
+            {/* Submission progress */}
+            <div className="rounded-2xl border bg-white divide-y overflow-hidden">
+              <div className="px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle size={15} className="text-tranmere-blue" />
+                  <p className="font-semibold text-sm">Submission Progress</p>
+                </div>
+                {maxPossible > 0 && (
+                  <span className="text-xs text-muted-foreground">{Math.round((totalSubmissions / maxPossible) * 100)}% overall</span>
+                )}
+              </div>
+              {assignments.slice(0, 8).map(a => {
+                const submitted = submissionsByAssignment[a.id] ?? 0
+                const pct = totalStudents > 0 ? Math.round((submitted / totalStudents) * 100) : 0
+                const daysLeft = Math.ceil((new Date(a.due_date).getTime() - Date.now()) / 86400000)
+                const overdue = daysLeft < 0
+                return (
+                  <div key={a.id} className="px-4 py-3 space-y-1">
+                    <div className="flex justify-between items-start gap-2">
+                      <p className="text-sm font-medium truncate">{a.title}</p>
+                      <span className={`text-[10px] font-medium shrink-0 px-1.5 py-0.5 rounded-full ${overdue ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {overdue ? `${Math.abs(daysLeft)}d overdue` : daysLeft === 0 ? 'Due today' : `${daysLeft}d left`}
+                      </span>
                     </div>
-                    <span className="text-[11px] text-muted-foreground shrink-0">{submitted}/{totalStudents}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                        <div className={`h-1.5 rounded-full ${pct === 100 ? 'bg-green-500' : overdue && pct < 80 ? 'bg-red-400' : 'bg-tranmere-blue'}`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-[11px] text-muted-foreground shrink-0">{submitted}/{totalStudents}</span>
+                    </div>
                   </div>
-                </div>
-              )
-            })}
-            <div className="px-4 py-3">
-              <Link href="/admin/grade-submissions" className="text-xs text-tranmere-blue underline underline-offset-2">Grade submissions →</Link>
+                )
+              })}
+              <div className="px-4 py-3">
+                <Link href="/admin/grade-submissions" className="text-xs text-tranmere-blue underline underline-offset-2">Grade submissions →</Link>
+              </div>
             </div>
-          </div>
 
-          {/* Upcoming deadlines for teacher */}
-          {upcomingMatches && upcomingMatches.length > 0 && (
-            <div className="rounded-2xl border bg-white p-4 space-y-2">
-              <p className="font-semibold text-sm flex items-center gap-2"><Clock size={15} className="text-muted-foreground" /> Match Schedule</p>
-              {upcomingMatches.slice(0, 3).map(m => (
-                <div key={m.id} className="flex justify-between items-center text-sm py-1.5 border-t">
-                  <span>vs {m.opponent}</span>
-                  <span className="text-xs text-muted-foreground">{new Date(m.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
+            {/* Match schedule */}
+            {upcomingMatches && upcomingMatches.length > 0 && (
+              <div className="rounded-2xl border bg-white p-4 space-y-2">
+                <p className="font-semibold text-sm flex items-center gap-2"><Clock size={15} className="text-muted-foreground" /> Match Schedule</p>
+                {upcomingMatches.slice(0, 3).map(m => (
+                  <div key={m.id} className="flex justify-between items-center text-sm py-1.5 border-t">
+                    <span>vs {m.opponent}</span>
+                    <span className="text-xs text-muted-foreground">{new Date(m.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )
+      })()}
 
       {/* Chat shortcut */}
       <Link href="/chat" className="flex items-center gap-3 rounded-2xl border bg-white p-4 hover:bg-gray-50 transition-colors">

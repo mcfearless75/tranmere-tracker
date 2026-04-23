@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
   const name = verified.name || verified['given_name'] || verified.email || 'LTI user'
   const email = verified.email as string | undefined
   const roles: string[] = verified['https://purl.imsglobal.org/spec/lti/claim/roles'] || []
-  const targetLinkUri = verified['https://purl.imsglobal.org/spec/lti/claim/target_link_uri'] as string | undefined
+  // target_link_uri available in payload but not used — destination is role-based
 
   // Determine role: instructor/admin → staff, else student
   const isStaffRole = roles.some(r => /Instructor|Administrator|ContentDeveloper|Mentor|Faculty|Staff/i.test(r))

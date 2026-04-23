@@ -3,6 +3,8 @@ import { SideNav } from '@/components/layout/SideNav'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
+import { signOut } from '@/app/(auth)/login/actions'
+import { LogOut } from 'lucide-react'
 
 export default async function StudentLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
@@ -44,6 +46,15 @@ export default async function StudentLayout({ children }: { children: React.Reac
 
       {/* Mobile: bottom nav */}
       <div className="md:hidden min-h-[100dvh] relative z-10">
+        {/* Thin top bar for sign-out on shared devices */}
+        <div className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b px-4 py-2 flex items-center justify-between">
+          <span className="text-xs text-muted-foreground font-medium">{profile?.name?.split(' ')[0] ?? 'Player'}</span>
+          <form action={signOut}>
+            <button type="submit" className="text-[11px] text-gray-400 hover:text-red-500 flex items-center gap-1.5 transition-colors">
+              <LogOut size={11} /> Sign out
+            </button>
+          </form>
+        </div>
         <div className="max-w-lg mx-auto">
           <main className="pb-20 px-4 pt-4">{children}</main>
         </div>
