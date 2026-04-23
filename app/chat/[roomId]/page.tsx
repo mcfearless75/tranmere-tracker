@@ -51,7 +51,7 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)] bg-gray-50">
+    <div className="flex flex-col h-[calc(100dvh-4rem)] md:h-screen bg-gray-50">
       <header className="sticky top-0 z-10 bg-white border-b px-4 py-3 flex items-center gap-3 shrink-0">
         <Link href="/chat" className="p-2 -ml-2 rounded-lg active:bg-gray-100">
           <ArrowLeft size={18} />
