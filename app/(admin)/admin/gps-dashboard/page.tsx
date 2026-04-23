@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TeamLeaderboard } from '@/components/gps/TeamLeaderboard'
 import { SeedDemoButton } from '@/components/gps/SeedDemoButton'
+import { GpsAiAnalysis } from '@/components/gps/GpsAiAnalysis'
 import { Trophy, Route, Zap, Gauge, Activity } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -107,6 +108,8 @@ export default async function GpsDashboardPage() {
         <TotalCard icon={<Zap size={16} />}     label="Total Sprints"  value={totalSprints.toString()}  colour="green" />
         <TotalCard icon={<Activity size={16} />} label="Avg Player Load" value={avgLoad.toFixed(0)}     colour="purple" />
       </div>
+
+      {entries.length > 0 && <GpsAiAnalysis />}
 
       {entries.length === 0 ? (
         <div className="rounded-2xl border bg-white p-12 text-center">

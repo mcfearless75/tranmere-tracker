@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Megaphone, Users, MessageSquare } from 'lucide-react'
 import { CreateBroadcastForm } from './CreateBroadcastForm'
+import { AiBroadcastDrafter } from './AiBroadcastDrafter'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +39,8 @@ export default async function BroadcastPage() {
         <Megaphone size={22} className="text-tranmere-blue" />
         <h1 className="text-xl font-bold text-tranmere-blue">Broadcast Channels</h1>
       </div>
+
+      <AiBroadcastDrafter />
 
       <div className="rounded-2xl border bg-white p-5 space-y-3">
         <p className="text-sm font-semibold text-gray-700">New broadcast channel</p>
