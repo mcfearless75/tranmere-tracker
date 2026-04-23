@@ -17,24 +17,24 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
     .single()
 
   return (
-    <>
-      {/* ── Desktop: permanent sidebar + scrollable main ── */}
-      <div className="hidden md:flex h-screen overflow-hidden bg-gray-50">
+    // Single wrapper — children rendered ONCE, CSS handles desktop vs mobile layout
+    <div className="md:flex md:h-screen md:overflow-hidden bg-gray-50">
+      {/* Desktop: permanent sidebar */}
+      <div className="hidden md:block shrink-0">
         <SideNav
           userName={profile?.name ?? 'Player'}
           avatarUrl={profile?.avatar_url ?? null}
           role={profile?.role ?? 'student'}
         />
-        <main className="flex-1 flex flex-col overflow-hidden">
-          {children}
-        </main>
       </div>
 
-      {/* ── Mobile: full-height content + bottom nav ── */}
-      <div className="md:hidden">
+      {/* Content — always rendered once */}
+      <main className="flex-1 flex flex-col md:overflow-hidden min-h-[100dvh] md:min-h-0">
         {children}
-        <BottomNav />
-      </div>
-    </>
+      </main>
+
+      {/* Mobile bottom nav (md:hidden is in BottomNav itself) */}
+      <BottomNav />
+    </div>
   )
 }
