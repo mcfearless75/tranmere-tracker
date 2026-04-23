@@ -1,8 +1,12 @@
 import { SideNav } from '@/components/layout/SideNav'
+import { AdminSidebar } from '@/components/layout/AdminSidebar'
 import { BottomNav } from '@/components/layout/BottomNav'
+import { MobileAdminBar } from '@/components/layout/MobileAdminBar'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
+
+const STAFF_ROLES = ['admin', 'coach', 'teacher']
 
 export default async function ChatLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
@@ -16,16 +20,20 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
     .eq('id', user.id)
     .single()
 
+  const isStaff = STAFF_ROLES.includes(profile?.role ?? '')
+  const name = profile?.name ?? 'User'
+  const avatar = profile?.avatar_url ?? null
+  const role = profile?.role ?? 'student'
+
   return (
     // Single wrapper — children rendered ONCE, CSS handles desktop vs mobile layout
     <div className="md:flex md:h-screen md:overflow-hidden bg-gray-50">
-      {/* Desktop: permanent sidebar */}
+      {/* Desktop: permanent sidebar — admin sidebar for staff, student sidenav for students */}
       <div className="hidden md:block shrink-0">
-        <SideNav
-          userName={profile?.name ?? 'Player'}
-          avatarUrl={profile?.avatar_url ?? null}
-          role={profile?.role ?? 'student'}
-        />
+        {isStaff
+          ? <AdminSidebar userName={name} avatarUrl={avatar} role={role} />
+          : <SideNav userName={name} avatarUrl={avatar} role={role} />
+        }
       </div>
 
       {/* Content — always rendered once */}
@@ -33,8 +41,11 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
         {children}
       </main>
 
-      {/* Mobile bottom nav (md:hidden is in BottomNav itself) */}
-      <BottomNav />
+      {/* Mobile nav — admin drawer for staff, bottom tabs for students */}
+      {isStaff
+        ? <MobileAdminBar userName={name} avatarUrl={avatar} role={role} />
+        : <BottomNav />
+      }
     </div>
   )
 }
