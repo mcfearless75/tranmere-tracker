@@ -102,99 +102,103 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
         </div>
       </div>
 
-      {/* AI Insights */}
-      <AiInsights studentId={student.id} studentName={student.name ?? 'Student'} />
+      {/* Student-only: AI Insights, coursework, GPS, matches */}
+      {student.role === 'student' && (
+        <>
+          <AiInsights studentId={student.id} studentName={student.name ?? 'Student'} />
 
-      {/* Progress summary */}
-      <div className="rounded-2xl border bg-white p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Coursework Progress</h2>
-          <p className="text-2xl font-bold text-tranmere-blue">{progressPct}%</p>
-        </div>
-        <div className="h-3 rounded-full bg-gray-100 overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-tranmere-blue to-blue-500 transition-all duration-700"
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-        <div className="grid grid-cols-4 gap-2 pt-2">
-          <GradePill label="Distinction" count={gradeCounts.Distinction} colour="purple" />
-          <GradePill label="Merit" count={gradeCounts.Merit} colour="blue" />
-          <GradePill label="Pass" count={gradeCounts.Pass} colour="green" />
-          <GradePill label="Pending" count={totalCourseAssignments - submitted} colour="amber" />
-        </div>
-      </div>
+          {/* Progress summary */}
+          <div className="rounded-2xl border bg-white p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold">Coursework Progress</h2>
+              <p className="text-2xl font-bold text-tranmere-blue">{progressPct}%</p>
+            </div>
+            <div className="h-3 rounded-full bg-gray-100 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-tranmere-blue to-blue-500 transition-all duration-700"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+            <div className="grid grid-cols-4 gap-2 pt-2">
+              <GradePill label="Distinction" count={gradeCounts.Distinction} colour="purple" />
+              <GradePill label="Merit" count={gradeCounts.Merit} colour="blue" />
+              <GradePill label="Pass" count={gradeCounts.Pass} colour="green" />
+              <GradePill label="Pending" count={totalCourseAssignments - submitted} colour="amber" />
+            </div>
+          </div>
 
-      {/* Units accordion */}
-      <div className="space-y-2">
-        <h2 className="font-semibold px-1">BTEC Units &amp; Assignments</h2>
-        <UnitProgress
-          studentId={student.id}
-          studentName={student.name ?? ''}
-          units={units ?? []}
-          assignments={assignments ?? []}
-          submissions={submissions ?? []}
-        />
-      </div>
+          {/* Units accordion */}
+          <div className="space-y-2">
+            <h2 className="font-semibold px-1">BTEC Units &amp; Assignments</h2>
+            <UnitProgress
+              studentId={student.id}
+              studentName={student.name ?? ''}
+              units={units ?? []}
+              assignments={assignments ?? []}
+              submissions={submissions ?? []}
+            />
+          </div>
 
-      {/* Admin actions */}
+          {/* Bottom row — GPS & Matches */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-2xl border bg-white p-5">
+              <h3 className="font-semibold flex items-center gap-1.5 mb-3">
+                <Route size={16} className="text-tranmere-blue" /> Recent GPS
+              </h3>
+              {gpsSessions && gpsSessions.length > 0 ? (
+                <ul className="space-y-2">
+                  {gpsSessions.map(s => (
+                    <li key={s.id} className="flex items-center justify-between text-sm border-b last:border-0 py-1.5">
+                      <div>
+                        <p className="font-medium">{s.session_label ?? 'Session'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(s.session_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                        </p>
+                      </div>
+                      <div className="flex gap-3 text-xs">
+                        <span className="flex items-center gap-1"><Route size={12} /> {s.total_distance_m ? (s.total_distance_m / 1000).toFixed(1) : '—'} km</span>
+                        <span className="flex items-center gap-1"><Gauge size={12} /> {s.max_speed_kmh ?? '—'}</span>
+                        <span className="flex items-center gap-1"><Zap size={12} /> {s.sprint_count ?? 0}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">No GPS sessions yet.</p>
+              )}
+            </div>
+
+            <div className="rounded-2xl border bg-white p-5">
+              <h3 className="font-semibold flex items-center gap-1.5 mb-3">
+                <Trophy size={16} className="text-tranmere-blue" /> Recent Matches
+              </h3>
+              {matches && matches.length > 0 ? (
+                <ul className="space-y-2">
+                  {matches.map(m => (
+                    <li key={m.id} className="flex items-center justify-between text-sm border-b last:border-0 py-1.5">
+                      <div>
+                        <p className="font-medium">vs {m.opponent}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(m.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                        </p>
+                      </div>
+                      <div className="text-xs text-right">
+                        <p className="font-bold">{m.goals}G {m.assists}A</p>
+                        {m.self_rating && <p className="text-muted-foreground">{m.self_rating}/10</p>}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">No matches logged yet.</p>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Admin actions — shown for all users */}
       <AdminActions userId={student.id} userName={student.name ?? 'User'} email={student.email ?? ''} />
-
-      {/* Bottom row — GPS & Matches */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="rounded-2xl border bg-white p-5">
-          <h3 className="font-semibold flex items-center gap-1.5 mb-3">
-            <Route size={16} className="text-tranmere-blue" /> Recent GPS
-          </h3>
-          {gpsSessions && gpsSessions.length > 0 ? (
-            <ul className="space-y-2">
-              {gpsSessions.map(s => (
-                <li key={s.id} className="flex items-center justify-between text-sm border-b last:border-0 py-1.5">
-                  <div>
-                    <p className="font-medium">{s.session_label ?? 'Session'}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(s.session_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                    </p>
-                  </div>
-                  <div className="flex gap-3 text-xs">
-                    <span className="flex items-center gap-1"><Route size={12} /> {s.total_distance_m ? (s.total_distance_m / 1000).toFixed(1) : '—'} km</span>
-                    <span className="flex items-center gap-1"><Gauge size={12} /> {s.max_speed_kmh ?? '—'}</span>
-                    <span className="flex items-center gap-1"><Zap size={12} /> {s.sprint_count ?? 0}</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted-foreground">No GPS sessions yet.</p>
-          )}
-        </div>
-
-        <div className="rounded-2xl border bg-white p-5">
-          <h3 className="font-semibold flex items-center gap-1.5 mb-3">
-            <Trophy size={16} className="text-tranmere-blue" /> Recent Matches
-          </h3>
-          {matches && matches.length > 0 ? (
-            <ul className="space-y-2">
-              {matches.map(m => (
-                <li key={m.id} className="flex items-center justify-between text-sm border-b last:border-0 py-1.5">
-                  <div>
-                    <p className="font-medium">vs {m.opponent}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(m.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                    </p>
-                  </div>
-                  <div className="text-xs text-right">
-                    <p className="font-bold">{m.goals}G {m.assists}A</p>
-                    {m.self_rating && <p className="text-muted-foreground">{m.self_rating}/10</p>}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted-foreground">No matches logged yet.</p>
-          )}
-        </div>
-      </div>
     </div>
   )
 }

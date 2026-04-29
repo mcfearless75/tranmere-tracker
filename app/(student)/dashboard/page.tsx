@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Image from 'next/image'
 import Link from 'next/link'
 import { PushOptIn } from '@/components/PushOptIn'
-import { Trophy } from 'lucide-react'
+import { Trophy, Dumbbell, Apple, Activity } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -199,6 +199,25 @@ export default async function DashboardPage() {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* Quick links — mobile access for Training & Nutrition (not in bottom nav) */}
+      <div className="md:hidden">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-0.5">More</p>
+        <div className="grid grid-cols-3 gap-2">
+          <Link href="/training" className="flex flex-col items-center gap-1.5 rounded-2xl border bg-white p-3 text-center hover:bg-gray-50 active:bg-gray-100 transition-colors">
+            <Dumbbell size={20} className="text-tranmere-blue" />
+            <span className="text-[11px] font-medium">Training</span>
+          </Link>
+          <Link href="/nutrition" className="flex flex-col items-center gap-1.5 rounded-2xl border bg-white p-3 text-center hover:bg-gray-50 active:bg-gray-100 transition-colors">
+            <Apple size={20} className="text-green-600" />
+            <span className="text-[11px] font-medium">Nutrition</span>
+          </Link>
+          <Link href="/gps" className="flex flex-col items-center gap-1.5 rounded-2xl border bg-white p-3 text-center hover:bg-gray-50 active:bg-gray-100 transition-colors">
+            <Activity size={20} className="text-orange-500" />
+            <span className="text-[11px] font-medium">My GPS</span>
+          </Link>
+        </div>
       </div>
 
       <PushOptIn />

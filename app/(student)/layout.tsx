@@ -5,6 +5,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import { signOut } from '@/app/(auth)/login/actions'
 import { LogOut } from 'lucide-react'
+import Image from 'next/image'
 
 export default async function StudentLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
@@ -24,7 +25,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
 
   // Admin/coach/teacher should never see student pages — send them to admin
   if (profile && ['admin', 'coach', 'teacher'].includes(profile.role)) {
-    redirect('/admin/gps-dashboard')
+    redirect('/admin/dashboard')
   }
 
   return (
@@ -46,12 +47,20 @@ export default async function StudentLayout({ children }: { children: React.Reac
 
       {/* Mobile: bottom nav */}
       <div className="md:hidden min-h-[100dvh] relative z-10">
-        {/* Thin top bar for sign-out on shared devices */}
-        <div className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b px-4 py-2 flex items-center justify-between">
-          <span className="text-xs text-muted-foreground font-medium">{profile?.name?.split(' ')[0] ?? 'Player'}</span>
+        {/* Branded top bar */}
+        <div className="sticky top-0 z-20 bg-tranmere-blue px-4 py-2.5 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2">
+            <Image
+              src="https://upload.wikimedia.org/wikipedia/en/thumb/5/55/Tranmere_Rovers_FC_crest.svg/960px-Tranmere_Rovers_FC_crest.svg.png"
+              alt="Tranmere Rovers"
+              width={22}
+              height={22}
+            />
+            <span className="text-white text-xs font-bold tracking-wide">Tranmere Tracker</span>
+          </div>
           <form action={signOut}>
-            <button type="submit" className="text-[11px] text-gray-400 hover:text-red-500 flex items-center gap-1.5 transition-colors">
-              <LogOut size={11} /> Sign out
+            <button type="submit" className="text-[11px] text-blue-200 hover:text-white flex items-center gap-1.5 transition-colors">
+              <LogOut size={11} /> {profile?.name?.split(' ')[0] ?? 'Sign out'}
             </button>
           </form>
         </div>
