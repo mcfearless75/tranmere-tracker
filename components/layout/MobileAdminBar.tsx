@@ -12,11 +12,11 @@ const nav = [
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/courses', label: 'Courses', icon: GraduationCap },
   { href: '/admin/assignments', label: 'Assignments', icon: BookOpen },
-  { href: '/admin/match-events', label: 'Match Squads', icon: Calendar },
-  { href: '/admin/formation', label: 'Formation', icon: LayoutGrid },
+  { href: '/admin/match-events', label: 'Match Squads', icon: Calendar, teacherHidden: true },
+  { href: '/admin/formation', label: 'Formation', icon: LayoutGrid, teacherHidden: true },
   { href: '/admin/grade-submissions', label: 'Grade Work', icon: Star },
   { href: '/admin/gps-dashboard', label: 'Squad GPS', icon: Activity },
-  { href: '/admin/gps-import', label: 'GPS Import', icon: Wifi },
+  { href: '/admin/gps-import', label: 'GPS Import', icon: Wifi, teacherHidden: true },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
   { href: '/admin/broadcast', label: 'Broadcast', icon: Megaphone },
   { href: '/admin/notifications', label: 'Notifications', icon: Bell },
@@ -30,6 +30,8 @@ export function MobileAdminBar({ userName, avatarUrl, role }: Props) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  const isTeacher = role === 'teacher'
+  const visibleNav = nav.filter(item => !(isTeacher && item.teacherHidden))
 
   useEffect(() => { setOpen(false) }, [pathname])
 
@@ -75,7 +77,7 @@ export function MobileAdminBar({ userName, avatarUrl, role }: Props) {
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto mt-2 pb-4">
-          {nav.map(({ href, label, icon: Icon }) => (
+          {visibleNav.map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href}
               className={`flex items-center gap-3 px-3 py-3 rounded-lg text-sm transition-colors ${pathname.startsWith(href) ? 'bg-white/20 font-semibold' : 'active:bg-white/10 text-blue-100'}`}>
               <Icon size={18} />{label}
