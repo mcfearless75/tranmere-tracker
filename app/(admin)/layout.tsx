@@ -24,7 +24,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const avatarUrl = profile.avatar_url ?? null
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50">
+    <div className="min-h-[100dvh] bg-gray-50 relative overflow-hidden">
+      {/* Watermark */}
+      <div className="pointer-events-none fixed inset-0 flex items-center justify-center z-0 opacity-[0.035]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="https://upload.wikimedia.org/wikipedia/en/thumb/5/55/Tranmere_Rovers_FC_crest.svg/960px-Tranmere_Rovers_FC_crest.svg.png"
+          alt=""
+          className="w-[480px] h-[480px] object-contain select-none"
+        />
+      </div>
+
       {/* Mobile top bar + drawer */}
       <MobileAdminBar userName={userName} avatarUrl={avatarUrl} role={profile.role} />
 

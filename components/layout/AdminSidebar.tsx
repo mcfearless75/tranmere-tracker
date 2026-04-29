@@ -11,11 +11,11 @@ const nav = [
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/courses', label: 'Courses', icon: GraduationCap },
   { href: '/admin/assignments', label: 'Assignments', icon: BookOpen },
-  { href: '/admin/match-events', label: 'Match Squads', icon: Calendar },
-  { href: '/admin/formation', label: 'Formation', icon: LayoutGrid },
+  { href: '/admin/match-events', label: 'Match Squads', icon: Calendar, teacherHidden: true },
+  { href: '/admin/formation', label: 'Formation', icon: LayoutGrid, teacherHidden: true },
   { href: '/admin/grade-submissions', label: 'Grade Work', icon: Star },
   { href: '/admin/gps-dashboard', label: 'Squad GPS', icon: Activity },
-  { href: '/admin/gps-import', label: 'GPS Import', icon: Wifi },
+  { href: '/admin/gps-import', label: 'GPS Import', icon: Wifi, teacherHidden: true },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
   { href: '/admin/broadcast', label: 'Broadcast', icon: Megaphone },
   { href: '/admin/notifications', label: 'Notifications', icon: Bell },
@@ -28,6 +28,8 @@ type Props = { userName: string; avatarUrl: string | null; role: string }
 export function AdminSidebar({ userName, avatarUrl, role }: Props) {
   const pathname = usePathname()
   const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  const isTeacher = role === 'teacher'
+  const visibleNav = nav.filter(item => !(isTeacher && item.teacherHidden))
 
   return (
     <aside className="w-56 min-h-screen bg-tranmere-blue text-white flex flex-col shrink-0">
@@ -41,13 +43,13 @@ export function AdminSidebar({ userName, avatarUrl, role }: Props) {
         />
         <div>
           <p className="font-bold text-sm leading-tight">Tranmere</p>
-          <p className="text-xs text-blue-200 leading-tight">Admin Panel</p>
+          <p className="text-xs text-blue-200 leading-tight capitalize">{role} Panel</p>
         </div>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {nav.map(({ href, label, icon: Icon }) => (
+        {visibleNav.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}
