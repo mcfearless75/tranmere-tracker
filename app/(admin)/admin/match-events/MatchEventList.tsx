@@ -54,41 +54,44 @@ export function MatchEventList({ matches }: { matches: Match[] }) {
 
   if (matches.length === 0) return null
 
-  return (
-    <div className="space-y-4">
-      <h2 className="font-semibold text-lg">Match History</h2>
-      {matches.map(m => (
-        <div key={m.id} className="bg-white rounded-xl border p-4 space-y-3">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <Link href={`/admin/match-events/${m.id}`} className="font-semibold text-tranmere-blue hover:underline inline-flex items-center gap-1">
-                vs {m.opponent}
-                <ExternalLink size={12} className="opacity-60" />
-              </Link>
-              <p className="text-sm text-muted-foreground">
-                {new Date(m.match_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
-                {m.location && ` · ${m.location}`}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                m.status === 'completed' ? 'bg-green-100 text-green-700' :
-                m.status === 'cancelled' ? 'bg-red-100 text-red-600' :
-                'bg-amber-100 text-amber-700'
-              }`}>
-                {m.status}
-              </span>
-              {m.status === 'upcoming' && (
-                <button
-                  onClick={() => markComplete(m.id)}
-                  className="text-xs text-tranmere-blue underline"
-                >
-                  Mark complete
-                </button>
-              )}
-            </div>
-          </div>
+  const today = new Date().toISOString().split('T')[0]
+  const upcoming = matches.filter(m => m.match_date >= today || m.status === 'upcoming')
+  const past = matches.filter(m => m.match_date < today && m.status !== 'upcoming')
 
+  function renderMatch(m: Match) {
+    return (
+      <div key={m.id} className="bg-white rounded-xl border p-4 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <Link href={`/admin/match-events/${m.id}`} className="font-semibold text-tranmere-blue hover:underline inline-flex items-center gap-1">
+              vs {m.opponent}
+              <ExternalLink size={12} className="opacity-60" />
+            </Link>
+            <p className="text-sm text-muted-foreground">
+              {new Date(m.match_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+              {m.location && ` · ${m.location}`}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+              m.status === 'completed' ? 'bg-green-100 text-green-700' :
+              m.status === 'cancelled' ? 'bg-red-100 text-red-600' :
+              'bg-amber-100 text-amber-700'
+            }`}>
+              {m.status}
+            </span>
+            {m.status === 'upcoming' && (
+              <button
+                onClick={() => markComplete(m.id)}
+                className="text-xs text-tranmere-blue underline"
+              >
+                Mark complete
+              </button>
+            )}
+          </div>
+        </div>
+
+        {m.match_squads.length > 0 && (
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-muted-foreground border-b">
@@ -146,8 +149,34 @@ export function MatchEventList({ matches }: { matches: Match[] }) {
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {upcoming.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="font-semibold text-lg flex items-center gap-2">
+            <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+            Upcoming Fixtures
+            <span className="text-sm font-normal text-muted-foreground">({upcoming.length})</span>
+          </h2>
+          {upcoming.map(renderMatch)}
         </div>
-      ))}
+      )}
+
+      {past.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="font-semibold text-lg flex items-center gap-2">
+            <span className="inline-block w-2 h-2 rounded-full bg-gray-400" />
+            Past Matches
+            <span className="text-sm font-normal text-muted-foreground">({past.length})</span>
+          </h2>
+          {past.map(renderMatch)}
+        </div>
+      )}
     </div>
   )
 }
