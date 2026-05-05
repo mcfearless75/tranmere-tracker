@@ -2,59 +2,116 @@
 
 import { useEffect, useState } from 'react'
 
+type State = 'idle' | 'loading' | 'subscribed' | 'denied' | 'unsupported' | 'error'
+
 export function PushOptIn() {
-  const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default')
+  const [state, setState] = useState<State>('idle')
+  const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
     if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-      setPermission('unsupported')
+      setState('unsupported')
       return
     }
-    setPermission(Notification.permission)
-
-    // Auto-register if already granted
+    if (Notification.permission === 'denied') {
+      setState('denied')
+      return
+    }
+    // Auto-register silently if already granted + not yet subscribed
     if (Notification.permission === 'granted') {
-      registerPush().catch(() => {})
+      registerPush(true).catch(() => {})
     }
   }, [])
 
-  async function registerPush() {
-    const reg = await navigator.serviceWorker.ready
-    const existing = await reg.pushManager.getSubscription()
-    if (existing) return
-
+  async function registerPush(silent = false): Promise<boolean> {
     const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-    if (!publicKey) return
+    if (!publicKey) {
+      if (!silent) {
+        setErrorMsg('Push configuration missing — contact support.')
+        setState('error')
+      }
+      return false
+    }
 
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey) as unknown as ArrayBuffer,
-    })
+    try {
+      const reg = await navigator.serviceWorker.ready
+      const existing = await reg.pushManager.getSubscription()
+      if (existing) {
+        setState('subscribed')
+        return true
+      }
 
-    await fetch('/api/push/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(sub.toJSON()),
-    })
-  }
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey) as unknown as ArrayBuffer,
+      })
 
-  async function requestPermission() {
-    const perm = await Notification.requestPermission()
-    setPermission(perm)
-    if (perm === 'granted') {
-      await registerPush()
+      const res = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub.toJSON()),
+      })
+
+      if (!res.ok) throw new Error('Server rejected subscription')
+      setState('subscribed')
+      return true
+    } catch (_err) {
+      if (!silent) {
+        setErrorMsg('Could not enable notifications. Try again.')
+        setState('error')
+      }
+      return false
     }
   }
 
-  // Don't render if unsupported or already granted/denied
-  if (permission !== 'default') return null
+  async function handleClick() {
+    setState('loading')
+    setErrorMsg('')
+
+    const perm = await Notification.requestPermission()
+    if (perm === 'denied') {
+      setState('denied')
+      return
+    }
+    if (perm !== 'granted') {
+      setState('idle')
+      return
+    }
+    await registerPush(false)
+  }
+
+  if (state === 'unsupported' || state === 'denied') return null
+
+  if (state === 'subscribed') {
+    return (
+      <div className="w-full text-sm bg-green-50 border border-green-200 text-green-700 font-medium py-3 rounded-xl flex items-center justify-center gap-2">
+        ✅ Notifications enabled
+      </div>
+    )
+  }
+
+  if (state === 'error') {
+    return (
+      <div className="w-full text-sm bg-red-50 border border-red-200 text-red-700 py-3 rounded-xl flex items-center justify-center gap-2 px-3 text-center">
+        ⚠️ {errorMsg}
+      </div>
+    )
+  }
 
   return (
     <button
-      onClick={requestPermission}
-      className="w-full text-sm bg-tranmere-gold text-tranmere-blue font-semibold py-3 rounded-xl flex items-center justify-center gap-2"
+      onClick={handleClick}
+      disabled={state === 'loading'}
+      className="w-full text-sm bg-tranmere-gold text-tranmere-blue font-semibold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.98] transition-transform"
     >
-      🔔 Enable deadline notifications
+      {state === 'loading' ? (
+        <>
+          <span className="animate-spin inline-block w-4 h-4 border-2 border-tranmere-blue border-t-transparent rounded-full" />
+          Enabling…
+        </>
+      ) : (
+        '🔔 Enable deadline notifications'
+      )}
     </button>
   )
 }
