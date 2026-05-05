@@ -137,79 +137,84 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {/* Today's Plan */}
-      <Card>
-        <CardHeader className="pb-2 pt-4">
-          <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-            <CalendarDays size={13} /> Today&apos;s Plan
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 pb-4">
+      {/* ═══════════ TODAY'S ITINERARY — HERO ═══════════ */}
+      <div className="rounded-2xl bg-gradient-to-br from-tranmere-blue to-blue-900 text-white p-5 shadow-lg space-y-4">
+        <div className="flex items-center gap-2">
+          <CalendarDays size={18} className="text-blue-200" />
+          <p className="text-xs font-semibold uppercase tracking-widest text-blue-200">Today</p>
+          <p className="ml-auto text-xs text-blue-200">
+            {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+        </div>
 
-          {/* AM / PM check-in mini-cards */}
-          <div className="flex gap-2">
-            <div className={`flex-1 rounded-xl border px-3 py-2 ${todayDaily?.am_checked_at ? 'border-green-200 bg-green-50/60' : 'border-border bg-gray-50/40'}`}>
-              <div className="flex items-center gap-1.5">
+        {/* Session list */}
+        {todaySessions && todaySessions.length > 0 ? (
+          <div className="space-y-1.5">
+            {todaySessions.map(s => {
+              const opens  = new Date(s.opens_at)
+              const closes = s.closes_at ? new Date(s.closes_at) : null
+              const now    = new Date()
+              const isPast = closes && closes <= now
+              const isLive = opens <= now && (!closes || closes > now)
+              return (
+                <div key={s.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
+                  isLive ? 'bg-white/20 ring-1 ring-white/30' :
+                  isPast ? 'bg-white/5 text-white/50' :
+                           'bg-white/10'
+                }`}>
+                  {isPast
+                    ? <CheckCircle2 size={15} className="text-blue-300/70 shrink-0" />
+                    : isLive
+                    ? <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse shrink-0" />
+                    : <Clock size={15} className="text-blue-200 shrink-0" />}
+                  <span className="font-semibold truncate">{s.session_label}</span>
+                  <span className={`ml-auto text-xs font-mono shrink-0 ${isLive ? 'text-white' : 'text-blue-200'}`}>
+                    {opens.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                    {closes && `–${closes.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`}
+                  </span>
+                  {isLive && <span className="text-[10px] font-bold bg-green-400 text-blue-900 px-1.5 py-0.5 rounded uppercase">Live</span>}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="text-center py-6 text-blue-100">
+            <span className="text-3xl block mb-1">🏖️</span>
+            <span className="text-sm font-medium">No sessions today — day off</span>
+          </p>
+        )}
+
+        {/* AM / PM strip */}
+        <div className="flex gap-2 pt-2 border-t border-white/15">
+          <div className="flex-1 flex items-center gap-2">
+            {todayDaily?.am_checked_at
+              ? <CheckCircle2 size={15} className="text-green-400" />
+              : <Sun size={15} className="text-blue-200" />}
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200">AM</p>
+              <p className="text-xs font-semibold truncate">
                 {todayDaily?.am_checked_at
-                  ? <CheckCircle2 size={13} className="text-green-600" />
-                  : <Sun size={13} className="text-muted-foreground" />}
-                <p className={`text-[10px] font-bold uppercase tracking-wide ${todayDaily?.am_checked_at ? 'text-green-700' : 'text-muted-foreground'}`}>AM</p>
-              </div>
-              <p className={`text-xs font-semibold mt-0.5 ${todayDaily?.am_checked_at ? 'text-green-800' : 'text-muted-foreground'}`}>
-                {todayDaily?.am_checked_at
-                  ? `Checked in ${new Date(todayDaily.am_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+                  ? `In ${new Date(todayDaily.am_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
                   : 'Tap NFC on arrival'}
               </p>
             </div>
-            <div className={`flex-1 rounded-xl border px-3 py-2 ${todayDaily?.pm_checked_at ? 'border-green-200 bg-green-50/60' : 'border-border bg-gray-50/40'}`}>
-              <div className="flex items-center gap-1.5">
+          </div>
+          <div className="w-px bg-white/15" />
+          <div className="flex-1 flex items-center gap-2">
+            {todayDaily?.pm_checked_at
+              ? <CheckCircle2 size={15} className="text-green-400" />
+              : <Moon size={15} className="text-blue-200" />}
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200">PM</p>
+              <p className="text-xs font-semibold truncate">
                 {todayDaily?.pm_checked_at
-                  ? <CheckCircle2 size={13} className="text-green-600" />
-                  : <Moon size={13} className="text-muted-foreground" />}
-                <p className={`text-[10px] font-bold uppercase tracking-wide ${todayDaily?.pm_checked_at ? 'text-green-700' : 'text-muted-foreground'}`}>PM</p>
-              </div>
-              <p className={`text-xs font-semibold mt-0.5 ${todayDaily?.pm_checked_at ? 'text-green-800' : 'text-muted-foreground'}`}>
-                {todayDaily?.pm_checked_at
-                  ? `Checked out ${new Date(todayDaily.pm_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+                  ? `Out ${new Date(todayDaily.pm_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
                   : 'Tap NFC on leaving'}
               </p>
             </div>
           </div>
-
-          {/* Today's session list */}
-          {todaySessions && todaySessions.length > 0 ? (
-            <ul className="divide-y border-t pt-1">
-              {todaySessions.map(s => {
-                const opens  = new Date(s.opens_at)
-                const closes = s.closes_at ? new Date(s.closes_at) : null
-                const now    = new Date()
-                const isPast = closes && closes <= now
-                const isLive = opens <= now && (!closes || closes > now)
-                return (
-                  <li key={s.id} className="flex items-center gap-3 py-1.5 text-sm">
-                    {isPast
-                      ? <CheckCircle2 size={14} className="text-muted-foreground shrink-0" />
-                      : isLive
-                      ? <span className="w-[10px] h-[10px] rounded-full bg-tranmere-blue animate-pulse shrink-0" />
-                      : <Clock size={14} className="text-muted-foreground shrink-0" />}
-                    <span className="font-medium truncate">{s.session_label}</span>
-                    <span className="ml-auto text-xs text-muted-foreground shrink-0">
-                      {opens.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                      {closes && `–${closes.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`}
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
-          ) : (
-            <p className="text-xs text-muted-foreground text-center py-2">No sessions today — day off 🏖️</p>
-          )}
-
-          <Link href="/attendance" className="block text-xs text-tranmere-blue underline underline-offset-2 text-center pt-1">
-            Full schedule →
-          </Link>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Upcoming Deadlines */}
       <Card>
