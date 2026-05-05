@@ -1,54 +1,84 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { Dumbbell, BookOpen, Trophy, Zap, CalendarDays, Loader2, CheckCircle2, X, RotateCcw } from 'lucide-react'
+import { useState } from 'react'
+import {
+  Dumbbell, BookOpen, Trophy, Zap, CalendarDays,
+  Loader2, CheckCircle2, Plus, Trash2, GraduationCap,
+  BarChart2, MessageSquare
+} from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
-type SessionType = 'training' | 'lessons' | 'match' | 'gym'
+type SessionType = 'training' | 'lessons' | 'match' | 'gym' | 'btec' | 'gcse' | 'tutorial' | 'analysis'
 
-interface SlotData {
+interface Slot {
+  startTime: string
+  endTime: string
   type: SessionType
   label: string
 }
 
-type Slots = Record<string, SlotData>
+type DaySlots = Record<number, Slot[]>
 
-const DAYS = [
-  { num: 1, short: 'Mon', full: 'Monday',    weekend: false },
-  { num: 2, short: 'Tue', full: 'Tuesday',   weekend: false },
-  { num: 3, short: 'Wed', full: 'Wednesday', weekend: false },
-  { num: 4, short: 'Thu', full: 'Thursday',  weekend: false },
-  { num: 5, short: 'Fri', full: 'Friday',    weekend: false },
-  { num: 6, short: 'Sat', full: 'Saturday',  weekend: true  },
-  { num: 0, short: 'Sun', full: 'Sunday',    weekend: true  },
+export interface ScheduleSlot {
+  day_of_week: number
+  slot_order: number
+  start_time: string
+  end_time: string
+  session_type: string
+  session_label: string
+}
+
+const WEEKDAYS = [
+  { num: 1, short: 'Mon', full: 'Monday'    },
+  { num: 2, short: 'Tue', full: 'Tuesday'   },
+  { num: 3, short: 'Wed', full: 'Wednesday' },
+  { num: 4, short: 'Thu', full: 'Thursday'  },
+  { num: 5, short: 'Fri', full: 'Friday'    },
 ]
 
 const TYPES = [
-  { type: 'training' as SessionType, label: 'Training', icon: Dumbbell, chip: 'bg-blue-500 text-white',   cell: 'bg-blue-50 border-blue-200 text-blue-700'   },
-  { type: 'lessons'  as SessionType, label: 'Lessons',  icon: BookOpen, chip: 'bg-violet-500 text-white', cell: 'bg-violet-50 border-violet-200 text-violet-700' },
-  { type: 'match'    as SessionType, label: 'Match',    icon: Trophy,   chip: 'bg-green-500 text-white',  cell: 'bg-green-50 border-green-200 text-green-700'  },
-  { type: 'gym'      as SessionType, label: 'Gym',      icon: Zap,      chip: 'bg-orange-500 text-white', cell: 'bg-orange-50 border-orange-200 text-orange-700' },
+  { type: 'btec'     as SessionType, label: 'BTEC',     Icon: BookOpen,       chip: 'bg-violet-500 text-white', cell: 'border-violet-200 bg-violet-50 text-violet-800'   },
+  { type: 'training' as SessionType, label: 'Training', Icon: Dumbbell,       chip: 'bg-blue-500 text-white',   cell: 'border-blue-200 bg-blue-50 text-blue-800'         },
+  { type: 'match'    as SessionType, label: 'Match',    Icon: Trophy,         chip: 'bg-green-500 text-white',  cell: 'border-green-200 bg-green-50 text-green-800'      },
+  { type: 'gym'      as SessionType, label: 'Gym',      Icon: Zap,            chip: 'bg-orange-500 text-white', cell: 'border-orange-200 bg-orange-50 text-orange-800'   },
+  { type: 'gcse'     as SessionType, label: 'GCSE',     Icon: GraduationCap,  chip: 'bg-red-500 text-white',    cell: 'border-red-200 bg-red-50 text-red-800'            },
+  { type: 'tutorial' as SessionType, label: 'Tutorial', Icon: MessageSquare,  chip: 'bg-teal-500 text-white',   cell: 'border-teal-200 bg-teal-50 text-teal-800'         },
+  { type: 'analysis' as SessionType, label: 'Analysis', Icon: BarChart2,      chip: 'bg-indigo-500 text-white', cell: 'border-indigo-200 bg-indigo-50 text-indigo-800'   },
+  { type: 'lessons'  as SessionType, label: 'Lessons',  Icon: BookOpen,       chip: 'bg-purple-500 text-white', cell: 'border-purple-200 bg-purple-50 text-purple-800'   },
 ]
 
-function typeInfo(t: SessionType) {
-  return TYPES.find(x => x.type === t) ?? TYPES[0]
-}
+function tInfo(t: SessionType) { return TYPES.find(x => x.type === t) ?? TYPES[0] }
+const emptyForm = (): { startTime: string; endTime: string; type: SessionType; label: string } =>
+  ({ startTime: '', endTime: '', type: 'btec', label: '' })
 
-function defaultLabel(type: SessionType, day: typeof DAYS[0], slot: 'am' | 'pm'): string {
-  const slotName = slot === 'am' ? 'Morning' : 'Afternoon'
-  return `${day.full} ${slotName} ${typeInfo(type).label}`
+function fromDb(dbSlots: ScheduleSlot[]): DaySlots {
+  const result: DaySlots = {}
+  for (const s of dbSlots) {
+    if (!result[s.day_of_week]) result[s.day_of_week] = []
+    result[s.day_of_week].push({
+      startTime: s.start_time.substring(0, 5),
+      endTime:   s.end_time.substring(0, 5),
+      type:      s.session_type as SessionType,
+      label:     s.session_label,
+    })
+  }
+  for (const day of Object.keys(result)) {
+    result[+day].sort((a, b) => a.startTime.localeCompare(b.startTime))
+  }
+  return result
 }
 
 interface Props {
   templateId: string | null
-  initialSlots: Slots
+  initialSlots: ScheduleSlot[]
 }
 
 export function ScheduleBuilder({ templateId: initId, initialSlots }: Props) {
   const router = useRouter()
-  const [slots, setSlots]         = useState<Slots>(initialSlots)
-  const [dragType, setDragType]   = useState<SessionType | null>(null)
-  const [dragOver, setDragOver]   = useState<string | null>(null)
+  const [activeDay, setActiveDay] = useState(1)
+  const [slots, setSlots]         = useState<DaySlots>(() => fromDb(initialSlots))
+  const [adding, setAdding]       = useState(false)
+  const [form, setForm]           = useState(emptyForm)
   const [templateId, setTid]      = useState<string | null>(initId)
   const [saving, setSaving]       = useState(false)
   const [saved, setSaved]         = useState(false)
@@ -59,39 +89,40 @@ export function ScheduleBuilder({ templateId: initId, initialSlots }: Props) {
   })
   const [genResult, setGenResult] = useState<string | null>(null)
 
-  const drop = useCallback((dayNum: number, slot: 'am' | 'pm', type: SessionType) => {
-    const day = DAYS.find(d => d.num === dayNum)!
-    setSlots(prev => ({ ...prev, [`${dayNum}_${slot}`]: { type, label: defaultLabel(type, day, slot) } }))
-  }, [])
+  const daySlots = slots[activeDay] ?? []
 
-  const clear = useCallback((key: string) => {
-    setSlots(prev => { const n = { ...prev }; delete n[key]; return n })
-  }, [])
+  const removeSlot = (idx: number) =>
+    setSlots(prev => ({ ...prev, [activeDay]: (prev[activeDay] ?? []).filter((_, i) => i !== idx) }))
 
-  const clearDay = useCallback((dayNum: number) => {
+  const confirmAdd = () => {
+    if (!form.startTime || !form.endTime) return
+    const label = form.label.trim() || tInfo(form.type).label
     setSlots(prev => {
-      const n = { ...prev }
-      delete n[`${dayNum}_am`]
-      delete n[`${dayNum}_pm`]
-      return n
+      const updated = [...(prev[activeDay] ?? []), { ...form, label }]
+        .sort((a, b) => a.startTime.localeCompare(b.startTime))
+      return { ...prev, [activeDay]: updated }
     })
-  }, [])
+    setAdding(false)
+    setForm(emptyForm())
+  }
 
   const saveTemplate = async () => {
     setSaving(true); setSaved(false)
+    const payload: Record<string, { type: string; label: string; startTime: string; endTime: string }[]> = {}
+    for (const [day, dayData] of Object.entries(slots)) {
+      payload[day] = dayData.map(s => ({ type: s.type, label: s.label, startTime: s.startTime, endTime: s.endTime }))
+    }
     try {
       const res = await fetch('/api/attendance/save-schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templateId, slots }),
+        body: JSON.stringify({ templateId, slots: payload }),
       })
       const data = await res.json()
       if (data.templateId) setTid(data.templateId)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   const generateMonth = async () => {
@@ -105,149 +136,168 @@ export function ScheduleBuilder({ templateId: initId, initialSlots }: Props) {
         body: JSON.stringify({ templateId, year, month }),
       })
       const data = await res.json()
-      const label = new Date(year, month - 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' })
-      setGenResult(`Created ${data.created} sessions for ${label}`)
+      const lbl = new Date(year, month - 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' })
+      setGenResult(`✓ Created ${data.created} sessions for ${lbl}`)
       router.refresh()
-    } finally {
-      setGenerating(false)
-    }
+    } finally { setGenerating(false) }
   }
 
+  const activeDayInfo = WEEKDAYS.find(d => d.num === activeDay)!
+  const isMatchDay = activeDay === 3
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
 
-      {/* ── Drag palette ── */}
-      <div className="bg-white rounded-xl border p-4">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-          Drag onto the timetable below
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {TYPES.map(({ type, label, icon: Icon, chip }) => (
-            <div
-              key={type}
-              draggable
-              onDragStart={e => { e.dataTransfer.effectAllowed = 'copy'; setDragType(type) }}
-              onDragEnd={() => { setDragType(null); setDragOver(null) }}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg cursor-grab active:cursor-grabbing text-sm font-semibold select-none shadow-sm ${chip}`}
+      {/* ── Day tabs ── */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+        {WEEKDAYS.map(d => {
+          const count = (slots[d.num] ?? []).length
+          const isWed = d.num === 3
+          return (
+            <button
+              key={d.num}
+              onClick={() => { setActiveDay(d.num); setAdding(false); setForm(emptyForm()) }}
+              className={`flex-1 flex flex-col items-center py-2 rounded-lg text-sm font-semibold transition-all
+                ${activeDay === d.num ? 'bg-white shadow text-tranmere-blue' : 'text-gray-500 hover:text-gray-700'}
+              `}
             >
-              <Icon size={14} />
-              {label}
-            </div>
-          ))}
+              <span>{d.short}</span>
+              {count > 0
+                ? <span className="text-[10px] font-normal text-muted-foreground">{count} sessions</span>
+                : isWed
+                  ? <span className="text-[10px] text-green-500">⚽ Match</span>
+                  : <span className="text-[10px] text-gray-300">—</span>
+              }
+            </button>
+          )
+        })}
+      </div>
+
+      {/* ── Day card ── */}
+      <div className="bg-white rounded-xl border">
+        <div className="flex items-center justify-between px-4 py-3 border-b">
+          <div>
+            <h3 className="font-bold text-tranmere-blue">{activeDayInfo.full}</h3>
+            <p className="text-xs text-muted-foreground">
+              {daySlots.length} session{daySlots.length !== 1 ? 's' : ''} scheduled
+            </p>
+          </div>
+          {isMatchDay && daySlots.length === 0 && (
+            <span className="text-xs bg-green-50 text-green-700 border border-green-200 rounded-full px-3 py-1 font-medium">
+              ⚽ Game Day
+            </span>
+          )}
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          Tip: click the <X size={10} className="inline" /> on a cell to remove it, or use the bin icon per day to clear the whole column.
-        </p>
-      </div>
 
-      {/* ── Timetable grid ── */}
-      <div className="bg-white rounded-xl border overflow-x-auto">
-        <table className="w-full min-w-[640px] border-collapse">
-          <thead>
-            <tr className="border-b">
-              <th className="text-left text-xs text-muted-foreground font-medium px-3 py-2.5 w-14" />
-              {DAYS.map(d => (
-                <th key={d.num} className="px-1.5 py-2 w-[13%]">
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className={`text-xs font-bold ${d.weekend ? 'text-gray-400' : 'text-tranmere-blue'}`}>{d.short}</span>
-                    {!d.weekend && (
-                      <button
-                        onClick={() => clearDay(d.num)}
-                        title="Clear day"
-                        className="text-gray-300 hover:text-red-400 transition-colors"
-                      >
-                        <RotateCcw size={10} />
-                      </button>
-                    )}
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {(['am', 'pm'] as const).map((slot, si) => (
-              <tr key={slot} className={si === 0 ? 'border-b' : ''}>
-                <td className="px-3 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide">
-                  {slot === 'am' ? '🌅 AM' : '☀️ PM'}
-                </td>
-                {DAYS.map(day => {
-                  const key = `${day.num}_${slot}`
-                  const data = slots[key]
-                  const info = data ? typeInfo(data.type) : null
-                  const isOver = dragOver === key
+        <div className="p-4 space-y-2">
+          {daySlots.length === 0 && !adding && (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              {isMatchDay
+                ? 'Match day — no sessions needed, or add a warm-up / debrief below.'
+                : 'No sessions yet. Add one below.'}
+            </p>
+          )}
 
-                  return (
-                    <td
-                      key={day.num}
-                      className={`px-1.5 py-2 ${day.weekend ? 'bg-gray-50/60' : ''}`}
-                      onDragOver={e => { e.preventDefault(); setDragOver(key) }}
-                      onDragLeave={() => setDragOver(null)}
-                      onDrop={e => {
-                        e.preventDefault()
-                        setDragOver(null)
-                        if (dragType && !day.weekend) drop(day.num, slot, dragType)
-                      }}
+          {daySlots.map((slot, idx) => {
+            const info = tInfo(slot.type)
+            return (
+              <div key={idx} className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 ${info.cell}`}>
+                <span className="text-xs font-mono font-bold tabular-nums shrink-0 text-gray-600 w-24">
+                  {slot.startTime}–{slot.endTime}
+                </span>
+                <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                  <info.Icon size={13} />
+                  <span className="text-sm font-semibold truncate">{slot.label}</span>
+                </div>
+                <button onClick={() => removeSlot(idx)} className="shrink-0 text-gray-400 hover:text-red-500 transition-colors">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            )
+          })}
+
+          {/* ── Add slot form ── */}
+          {adding ? (
+            <div className="border rounded-xl p-4 bg-gray-50 space-y-4 mt-2">
+              <div className="flex gap-3">
+                <div className="flex flex-col gap-1 flex-1">
+                  <label className="text-xs font-medium text-muted-foreground">Start time</label>
+                  <input type="time" value={form.startTime}
+                    onChange={e => setForm(p => ({ ...p, startTime: e.target.value }))}
+                    className="text-sm border rounded-lg px-3 py-2 bg-white" />
+                </div>
+                <div className="flex flex-col gap-1 flex-1">
+                  <label className="text-xs font-medium text-muted-foreground">End time</label>
+                  <input type="time" value={form.endTime}
+                    onChange={e => setForm(p => ({ ...p, endTime: e.target.value }))}
+                    className="text-sm border rounded-lg px-3 py-2 bg-white" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-2">Session type</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {TYPES.map(({ type, label, Icon, chip }) => (
+                    <button key={type}
+                      onClick={() => setForm(p => ({ ...p, type, label: p.label || label }))}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        form.type === type ? chip + ' ring-2 ring-offset-1 ring-current' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                      }`}
                     >
-                      {data && info ? (
-                        <div className={`relative rounded-lg border px-2 py-2 text-xs font-medium flex flex-col items-center gap-0.5 ${info.cell} transition-all`}>
-                          <info.icon size={14} />
-                          <span className="text-center leading-tight">{info.label}</span>
-                          <button
-                            onClick={() => clear(key)}
-                            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-white border shadow flex items-center justify-center hover:bg-red-50 hover:border-red-300"
-                          >
-                            <X size={9} className="text-gray-500" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div
-                          className={`rounded-lg border-2 border-dashed h-14 flex items-center justify-center text-xs transition-all
-                            ${day.weekend ? 'border-gray-100 text-gray-200' : ''}
-                            ${!day.weekend && isOver && dragType ? 'border-tranmere-blue bg-tranmere-blue/5 scale-105' : ''}
-                            ${!day.weekend && !isOver ? 'border-gray-200 text-gray-300 hover:border-gray-300' : ''}
-                          `}
-                        >
-                          {day.weekend ? 'off' : '+'}
-                        </div>
-                      )}
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                      <Icon size={11} />{label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Label <span className="font-normal">(e.g. &quot;Maths GCSE&quot; or &quot;Eng GCSE&quot;)</span>
+                </label>
+                <input type="text" value={form.label}
+                  onChange={e => setForm(p => ({ ...p, label: e.target.value }))}
+                  placeholder={tInfo(form.type).label}
+                  className="text-sm border rounded-lg px-3 py-2 bg-white" />
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button onClick={confirmAdd}
+                  disabled={!form.startTime || !form.endTime}
+                  className="flex-1 py-2 bg-tranmere-blue text-white rounded-lg text-sm font-semibold disabled:opacity-40 hover:bg-tranmere-blue/90">
+                  Add Session
+                </button>
+                <button onClick={() => { setAdding(false); setForm(emptyForm()) }}
+                  className="px-4 py-2 border rounded-lg text-sm text-muted-foreground hover:bg-gray-50">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setAdding(true)}
+              className="flex items-center gap-2 w-full border-2 border-dashed border-gray-200 rounded-xl py-3 text-sm text-muted-foreground hover:border-tranmere-blue/40 hover:text-tranmere-blue transition-colors justify-center mt-2">
+              <Plus size={15} />
+              Add Session
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* ── Actions bar ── */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-
-        {/* Save template */}
-        <button
-          onClick={saveTemplate}
-          disabled={saving}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-tranmere-blue text-white text-sm font-semibold disabled:opacity-60 hover:bg-tranmere-blue/90 transition-colors shadow-sm"
-        >
+      {/* ── Actions ── */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center pt-1">
+        <button onClick={saveTemplate} disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-tranmere-blue text-white text-sm font-semibold disabled:opacity-60 hover:bg-tranmere-blue/90 shadow-sm">
           {saving ? <Loader2 size={15} className="animate-spin" /> : saved ? <CheckCircle2 size={15} /> : null}
           {saved ? 'Saved!' : saving ? 'Saving…' : 'Save Template'}
         </button>
 
-        <div className="text-muted-foreground text-sm hidden sm:block">then</div>
+        <span className="text-muted-foreground text-sm hidden sm:block">then</span>
 
-        {/* Generate month */}
         <div className="flex items-center gap-2 bg-white border rounded-xl px-4 py-2 shadow-sm">
           <CalendarDays size={16} className="text-muted-foreground shrink-0" />
-          <input
-            type="month"
-            value={genMonth}
-            onChange={e => setGenMonth(e.target.value)}
-            className="text-sm border-0 outline-none bg-transparent text-gray-700 w-36"
-          />
-          <button
-            onClick={generateMonth}
-            disabled={generating || !templateId}
-            className="px-3 py-1.5 rounded-lg bg-tranmere-blue text-white text-sm font-semibold hover:bg-tranmere-blue/90 disabled:opacity-40 flex items-center gap-1.5 transition-colors"
-          >
+          <input type="month" value={genMonth} onChange={e => setGenMonth(e.target.value)}
+            className="text-sm border-0 outline-none bg-transparent text-gray-700 w-36" />
+          <button onClick={generateMonth} disabled={generating || !templateId}
+            className="px-3 py-1.5 rounded-lg bg-tranmere-blue text-white text-sm font-semibold disabled:opacity-40 flex items-center gap-1.5 hover:bg-tranmere-blue/90">
             {generating && <Loader2 size={13} className="animate-spin" />}
             {generating ? 'Generating…' : 'Generate Month'}
           </button>
@@ -256,16 +306,15 @@ export function ScheduleBuilder({ templateId: initId, initialSlots }: Props) {
 
       {!templateId && (
         <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          Save the template first, then you can generate sessions for any month.
+          Save the template first — then you can generate sessions for any month.
         </p>
       )}
 
       {genResult && (
         <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
           <CheckCircle2 size={16} className="shrink-0" />
-          <span>{genResult} — sessions appear in the </span>
-          <a href="/admin/attendance" className="underline font-semibold">Attendance list</a>
-          <span>. Coaches open each one on the day to activate the PIN.</span>
+          {genResult} — Coaches open each session on the day to activate the PIN.{' '}
+          <a href="/admin/attendance" className="underline font-semibold">View sessions →</a>
         </div>
       )}
     </div>

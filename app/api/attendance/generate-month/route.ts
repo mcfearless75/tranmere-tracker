@@ -41,10 +41,10 @@ export async function POST(request: Request) {
     if (!daySlots) continue
 
     for (const slot of daySlots) {
-      const startHour = slot.time_slot === 'am' ? 9 : 13
-      const endHour   = slot.time_slot === 'am' ? 12 : 17
-      const opensAt   = new Date(year, month - 1, day, startHour, 0, 0)
-      const closesAt  = new Date(year, month - 1, day, endHour, 0, 0)
+      const [sh, sm] = slot.start_time.substring(0, 5).split(':').map(Number)
+      const [eh, em] = slot.end_time.substring(0, 5).split(':').map(Number)
+      const opensAt   = new Date(year, month - 1, day, sh, sm, 0)
+      const closesAt  = new Date(year, month - 1, day, eh, em, 0)
       const pin       = makePin()
 
       toCreate.push({
