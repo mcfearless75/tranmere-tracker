@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { NewSessionForm } from './NewSessionForm'
-import { ClipboardList, CheckCircle, Clock, Users } from 'lucide-react'
+import { ClipboardList, CheckCircle, Clock, Users, CalendarDays } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,9 +30,18 @@ export default async function AttendancePage() {
 
   return (
     <div className="space-y-5 max-w-2xl">
-      <div className="flex items-center gap-2">
-        <ClipboardList size={22} className="text-tranmere-blue" />
-        <h1 className="text-xl font-bold text-tranmere-blue">Attendance</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ClipboardList size={22} className="text-tranmere-blue" />
+          <h1 className="text-xl font-bold text-tranmere-blue">Attendance</h1>
+        </div>
+        <Link
+          href="/admin/attendance/schedule"
+          className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
+        >
+          <CalendarDays size={15} />
+          Weekly Schedule
+        </Link>
       </div>
 
       <NewSessionForm coachId={user.id} />
