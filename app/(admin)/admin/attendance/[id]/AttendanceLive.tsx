@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { CheckCircle, AlertTriangle, UserX, RefreshCw, ChevronDown, ChevronUp, MapPin, Wifi, Image as ImageIcon } from 'lucide-react'
+import { CheckCircle, AlertTriangle, UserX, RefreshCw, ChevronDown, ChevronUp, MapPin, Wifi, Image as ImageIcon, Bell, BellRing } from 'lucide-react'
 import Link from 'next/link'
 
 type Student = { id: string; name: string; avatar_url: string | null }
@@ -47,6 +47,9 @@ export function AttendanceLive({ session, initialRecords, allStudents, coachId: 
   const [rotating, setRotating] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [closingSession, setClosingSession] = useState(false)
+  const [notifying, setNotifying]           = useState(false)
+  const [reminding, setReminding]           = useState(false)
+  const [pushResult, setPushResult]         = useState<string | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // ── Countdown timer ────────────────────────────────────────────────────────
@@ -113,6 +116,31 @@ export function AttendanceLive({ session, initialRecords, allStudents, coachId: 
     router.refresh()
   }
 
+  // ── Push notifications ─────────────────────────────────────────────────────
+  async function notifyAll() {
+    setNotifying(true)
+    setPushResult(null)
+    const res  = await fetch('/api/attendance/notify-students', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id }),
+    })
+    const json = await res.json()
+    setPushResult(`Notified ${json.sent ?? 0} student${json.sent !== 1 ? 's' : ''}`)
+    setNotifying(false)
+  }
+
+  async function remindUnchecked() {
+    setReminding(true)
+    setPushResult(null)
+    const res  = await fetch('/api/attendance/remind-unchecked', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: session.id }),
+    })
+    const json = await res.json()
+    setPushResult(json.message ?? `Reminded ${json.sent ?? 0} student${json.sent !== 1 ? 's' : ''}`)
+    setReminding(false)
+  }
+
   // ── Selfie URL ─────────────────────────────────────────────────────────────
   function selfieUrl(path: string) {
     const { data } = supabase.storage.from('attendance-selfies').getPublicUrl(path)
@@ -177,6 +205,30 @@ export function AttendanceLive({ session, initialRecords, allStudents, coachId: 
             {closingSession ? 'Closing…' : 'Close Session'}
           </button>
         </div>
+
+        {/* Push notification controls */}
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={notifyAll}
+            disabled={notifying || reminding}
+            className="flex-1 flex items-center justify-center gap-1.5 bg-white/15 hover:bg-white/25 rounded-xl py-2 text-xs font-semibold transition-colors disabled:opacity-50"
+          >
+            <Bell size={13} />
+            {notifying ? 'Sending…' : 'Notify All'}
+          </button>
+          <button
+            onClick={remindUnchecked}
+            disabled={notifying || reminding}
+            className="flex-1 flex items-center justify-center gap-1.5 bg-white/15 hover:bg-white/25 rounded-xl py-2 text-xs font-semibold transition-colors disabled:opacity-50"
+          >
+            <BellRing size={13} />
+            {reminding ? 'Sending…' : 'Remind Unchecked'}
+          </button>
+        </div>
+
+        {pushResult && (
+          <p className="text-center text-xs text-blue-200 pt-0.5">{pushResult}</p>
+        )}
       </div>
 
       {/* Roster — Checked In */}
