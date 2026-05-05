@@ -2,14 +2,25 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { StudentPlanner } from './StudentPlanner'
-import { CheckInFlow } from './CheckInFlow'
+import { NfcCheckIn } from './NfcCheckIn'
 
 export const dynamic = 'force-dynamic'
+
+function decidePhase(amStart: string, amEnd: string, pmStart: string, pmEnd: string): 'am' | 'pm' | null {
+  const now    = new Date()
+  const local  = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }))
+  const mins   = local.getHours() * 60 + local.getMinutes()
+  const toMins = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+
+  if (mins >= toMins(amStart) && mins <= toMins(amEnd)) return 'am'
+  if (mins >= toMins(pmStart) && mins <= toMins(pmEnd)) return 'pm'
+  return null
+}
 
 export default async function StudentAttendancePage({
   searchParams,
 }: {
-  searchParams: { session?: string; manual?: string }
+  searchParams: { tag?: string }
 }) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -17,64 +28,67 @@ export default async function StudentAttendancePage({
 
   const admin = createAdminClient()
 
-  // ── Manual PIN entry (legacy / fallback) ─────────────────────────────────
-  // Imports the original plain PIN-search flow via the CheckInFlow component
-  // with no session pre-selected (session prop will be null guard handled below)
+  // ── Load academy settings (windows, NFC token) ────────────────────────────
+  const { data: settings } = await admin
+    .from('academy_settings')
+    .select('nfc_token, am_window_start, am_window_end, pm_window_start, pm_window_end')
+    .eq('id', 1)
+    .single()
 
-  // ── Specific session check-in ─────────────────────────────────────────────
-  if (searchParams.session) {
-    const { data: session } = await admin
-      .from('attendance_sessions')
-      .select('id, session_label, session_type, pin_code, pin_expires_at, opens_at, closes_at')
-      .eq('id', searchParams.session)
-      .maybeSingle()
+  const amWindow = { start: settings?.am_window_start ?? '07:30:00', end: settings?.am_window_end ?? '10:30:00' }
+  const pmWindow = { start: settings?.pm_window_start ?? '14:30:00', end: settings?.pm_window_end ?? '17:30:00' }
 
-    if (!session) redirect('/attendance')
+  // ── NFC tap arrival ────────────────────────────────────────────────────────
+  if (searchParams.tag) {
+    if (searchParams.tag !== settings?.nfc_token) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[70vh] gap-3 text-center px-4">
+          <h1 className="text-xl font-bold text-red-600">Invalid sticker</h1>
+          <p className="text-sm text-muted-foreground">This NFC tag doesn&apos;t match the academy. Ask reception.</p>
+        </div>
+      )
+    }
 
-    // Already checked in?
-    const { data: existing } = await admin
-      .from('attendance_records')
-      .select('id, checked_in_at')
-      .eq('session_id', session.id)
-      .eq('student_id', user.id)
-      .maybeSingle()
+    const phase = decidePhase(amWindow.start, amWindow.end, pmWindow.start, pmWindow.end)
+    if (!phase) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[70vh] gap-3 text-center px-4">
+          <h1 className="text-xl font-bold text-tranmere-blue">Out of hours</h1>
+          <p className="text-sm text-muted-foreground">
+            Check-in opens {amWindow.start.substring(0, 5)}–{amWindow.end.substring(0, 5)}
+            {' '}and check-out {pmWindow.start.substring(0, 5)}–{pmWindow.end.substring(0, 5)}.
+          </p>
+        </div>
+      )
+    }
 
-    return <CheckInFlow session={session} existingRecord={existing ?? null} />
+    return <NfcCheckIn phase={phase} nfcToken={searchParams.tag} />
   }
 
-  // ── Manual PIN fallback ───────────────────────────────────────────────────
-  if (searchParams.manual) {
-    // Return a minimal shell that lets the ManualPin client component handle it
-    const { ManualPin } = await import('./ManualPin')
-    return <ManualPin />
-  }
-
-  // ── Today's planner ───────────────────────────────────────────────────────
+  // ── Default: planner view ─────────────────────────────────────────────────
   const today = new Date().toISOString().split('T')[0]
 
-  const { data: sessions } = await admin
-    .from('attendance_sessions')
-    .select('id, session_label, session_type, opens_at, closes_at, pin_expires_at')
-    .eq('scheduled_date', today)
-    .order('opens_at')
-
-  const sessionIds = (sessions ?? []).map(s => s.id)
-
-  let myRecords: { session_id: string; checked_in_at: string }[] = []
-  if (sessionIds.length > 0) {
-    const { data } = await admin
-      .from('attendance_records')
-      .select('session_id, checked_in_at')
+  const [{ data: sessions }, { data: daily }] = await Promise.all([
+    admin
+      .from('attendance_sessions')
+      .select('id, session_label, session_type, opens_at, closes_at')
+      .eq('scheduled_date', today)
+      .order('opens_at'),
+    admin
+      .from('daily_attendance')
+      .select('am_checked_at, pm_checked_at')
       .eq('student_id', user.id)
-      .in('session_id', sessionIds)
-    myRecords = data ?? []
-  }
+      .eq('attendance_date', today)
+      .maybeSingle(),
+  ])
 
   return (
     <StudentPlanner
       sessions={sessions ?? []}
-      myRecords={myRecords}
+      daily={daily ?? null}
       today={today}
+      amWindow={amWindow}
+      pmWindow={pmWindow}
     />
   )
 }
