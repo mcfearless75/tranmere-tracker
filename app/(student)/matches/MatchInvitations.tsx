@@ -19,14 +19,17 @@ type Invitation = {
   match_events: MatchEvent | null
 }
 
-export function MatchInvitations({ invitations }: { invitations: Invitation[] }) {
+export function MatchInvitations({ invitations: initial }: { invitations: Invitation[] }) {
   const router = useRouter()
+  const [invitations, setInvitations] = useState(initial)
   const [loading, setLoading] = useState<string | null>(null)
 
   const pending = invitations.filter(i => i.status === 'invited')
   const past = invitations.filter(i => i.status !== 'invited')
 
   async function respond(squadId: string, status: 'accepted' | 'declined') {
+    // Optimistic update — UI responds instantly
+    setInvitations(prev => prev.map(i => i.id === squadId ? { ...i, status } : i))
     setLoading(squadId)
     const supabase = createClient()
     await supabase.from('match_squads').update({ status }).eq('id', squadId)

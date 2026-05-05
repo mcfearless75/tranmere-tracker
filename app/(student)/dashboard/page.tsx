@@ -47,40 +47,46 @@ export default async function DashboardPage() {
   const today = new Date().toISOString().split('T')[0]
   const in14 = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]
 
-  const { data: upcoming } = await supabase
-    .from('assignments')
-    .select('id, title, due_date')
-    .gte('due_date', today)
-    .lte('due_date', in14)
-    .order('due_date')
-    .limit(3)
-
-  const { data: todayFood } = await supabase
-    .from('nutrition_logs')
-    .select('calories')
-    .eq('student_id', user!.id)
-    .eq('logged_date', today)
+  // Run all 4 independent queries in parallel — ~4x faster than sequential
+  const [
+    { data: upcoming },
+    { data: todayFood },
+    { data: squadRaw },
+    { data: lastTraining },
+  ] = await Promise.all([
+    supabase
+      .from('assignments')
+      .select('id, title, due_date')
+      .gte('due_date', today)
+      .lte('due_date', in14)
+      .order('due_date')
+      .limit(3),
+    supabase
+      .from('nutrition_logs')
+      .select('calories')
+      .eq('student_id', user!.id)
+      .eq('logged_date', today),
+    supabase
+      .from('match_squads')
+      .select('match_id, status, match_events(id, opponent, match_date, location)')
+      .eq('player_id', user!.id)
+      .gte('match_events.match_date', today)
+      .limit(5),
+    supabase
+      .from('training_logs')
+      .select('session_type, session_date, duration_mins')
+      .eq('student_id', user!.id)
+      .order('session_date', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
 
   const totalCalories = todayFood?.reduce((sum, r) => sum + r.calories, 0) ?? 0
 
-  // Upcoming matches this student is in the squad for (fetch recent, filter client-side)
-  const { data: squadRaw } = await supabase
-    .from('match_squads')
-    .select('match_id, status, match_events(id, opponent, match_date, location)')
-    .eq('player_id', user!.id)
-    .limit(20)
   const mySquadEntries = (squadRaw ?? [])
     .filter((e: any) => e.match_events?.match_date >= today)
     .sort((a: any, b: any) => new Date(a.match_events.match_date).getTime() - new Date(b.match_events.match_date).getTime())
     .slice(0, 3)
-
-  const { data: lastTraining } = await supabase
-    .from('training_logs')
-    .select('session_type, session_date, duration_mins')
-    .eq('student_id', user!.id)
-    .order('session_date', { ascending: false })
-    .limit(1)
-    .maybeSingle()
 
   const firstName = profile?.name?.split(' ')[0] ?? 'Player'
   const courseName = (profile?.courses as any)?.name ?? ''

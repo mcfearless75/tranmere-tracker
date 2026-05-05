@@ -1,4 +1,6 @@
 import Image from 'next/image'
+import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
 import { StaffPinForm } from './StaffPinForm'
 
 export default function StaffLoginPage() {
@@ -17,6 +19,9 @@ export default function StaffLoginPage() {
           <p className="text-sm text-muted-foreground text-center">Enter your username and PIN</p>
         </div>
         <StaffPinForm />
+        <Link href="/login" className="flex items-center justify-center gap-1 text-xs text-muted-foreground hover:text-tranmere-blue transition-colors pt-2">
+          <ArrowLeft size={12} /> Back to main login
+        </Link>
       </div>
     </div>
   )
