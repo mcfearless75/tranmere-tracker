@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Image from 'next/image'
 import Link from 'next/link'
 import { PushOptIn } from '@/components/PushOptIn'
-import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, CalendarDays } from 'lucide-react'
+import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, CalendarDays, AlertTriangle } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,7 +45,10 @@ export default async function DashboardPage() {
   }
 
   const today = new Date().toISOString().split('T')[0]
+  const tomorrowDate = new Date(Date.now() + 86400000)
+  const tomorrow = tomorrowDate.toISOString().split('T')[0]
   const in14 = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]
+  const ago30 = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
 
   // Run all independent queries in parallel — ~4x faster than sequential
   const [
@@ -55,6 +58,11 @@ export default async function DashboardPage() {
     { data: lastTraining },
     { data: todaySessions },
     { data: todayDaily },
+    { data: tomorrowSessions },
+    { data: attendedDays },
+    { data: scheduledDays },
+    { data: overdueAssignments },
+    { data: mySubmissions },
   ] = await Promise.all([
     supabase
       .from('assignments')
@@ -92,6 +100,37 @@ export default async function DashboardPage() {
       .eq('student_id', user!.id)
       .eq('attendance_date', today)
       .maybeSingle(),
+    // Tomorrow's sessions so student can plan ahead
+    supabase
+      .from('attendance_sessions')
+      .select('id, session_label, session_type, opens_at, closes_at')
+      .eq('scheduled_date', tomorrow)
+      .order('opens_at'),
+    // Attendance: days the student was present in the last 30 days
+    supabase
+      .from('daily_attendance')
+      .select('attendance_date')
+      .eq('student_id', user!.id)
+      .gte('attendance_date', ago30)
+      .lte('attendance_date', today),
+    // Attendance: total scheduled days in the last 30 days
+    supabase
+      .from('attendance_sessions')
+      .select('scheduled_date')
+      .gte('scheduled_date', ago30)
+      .lte('scheduled_date', today),
+    // Overdue assignments (due before today)
+    supabase
+      .from('assignments')
+      .select('id, title, due_date')
+      .lt('due_date', today)
+      .order('due_date', { ascending: false })
+      .limit(10),
+    // Student's own submissions — to cross-check overdue
+    supabase
+      .from('submissions')
+      .select('assignment_id, status')
+      .eq('student_id', user!.id),
   ])
 
   const totalCalories = todayFood?.reduce((sum, r) => sum + r.calories, 0) ?? 0
@@ -100,6 +139,24 @@ export default async function DashboardPage() {
     .filter((e: any) => e.match_events?.match_date >= today)
     .sort((a: any, b: any) => new Date(a.match_events.match_date).getTime() - new Date(b.match_events.match_date).getTime())
     .slice(0, 3)
+
+  // Attendance % — unique days present / unique days scheduled (last 30 days)
+  const presentDates  = new Set((attendedDays ?? []).map(r => r.attendance_date as string))
+  const scheduledDates = new Set((scheduledDays ?? []).map(r => r.scheduled_date as string))
+  const attendancePct = scheduledDates.size > 0
+    ? Math.round(presentDates.size / scheduledDates.size * 100)
+    : null
+
+  // Overdue = past due_date + no submitted/graded submission
+  const submittedIds = new Set(
+    (mySubmissions ?? [])
+      .filter(s => ['submitted', 'graded'].includes(s.status))
+      .map(s => s.assignment_id)
+  )
+  const overdueUnsubmitted = (overdueAssignments ?? []).filter(a => !submittedIds.has(a.id))
+
+  // Does tomorrow have a match session?
+  const tomorrowHasMatch = (tomorrowSessions ?? []).some(s => s.session_type === 'match')
 
   const firstName = profile?.name?.split(' ')[0] ?? 'Player'
   const courseName = (profile?.courses as any)?.name ?? ''
@@ -216,7 +273,78 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Upcoming Deadlines */}
+      {/* ═══════════ TOMORROW PREVIEW ═══════════ */}
+      <div className="rounded-2xl bg-white border border-gray-200 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CalendarDays size={14} className="text-muted-foreground" />
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Tomorrow</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {tomorrowDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+        </div>
+
+        {tomorrowHasMatch && (
+          <div className="flex items-center gap-2 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+            ⚽ Match day — pack your kit tonight
+          </div>
+        )}
+
+        {tomorrowSessions && tomorrowSessions.length > 0 ? (
+          <div className="space-y-0.5">
+            {tomorrowSessions.map(s => {
+              const opens  = new Date(s.opens_at)
+              const closes = s.closes_at ? new Date(s.closes_at) : null
+              const dot = s.session_type === 'match' ? 'bg-green-500' : s.session_type === 'training' ? 'bg-blue-500' : 'bg-purple-500'
+              return (
+                <div key={s.id} className="flex items-center gap-3 py-1.5 text-sm">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+                  <span className="font-medium flex-1 truncate">{s.session_label}</span>
+                  <span className="text-xs font-mono text-muted-foreground shrink-0">
+                    {opens.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                    {closes && `–${closes.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground flex items-center gap-2 py-1">
+            <span>😴</span> Rest day — recover well
+          </p>
+        )}
+      </div>
+
+      {/* ═══════════ OVERDUE WARNING ═══════════ */}
+      {overdueUnsubmitted.length > 0 && (
+        <div className="rounded-2xl bg-red-50 border border-red-200 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle size={15} className="text-red-600 shrink-0" />
+            <p className="text-sm font-semibold text-red-700">
+              {overdueUnsubmitted.length} overdue assignment{overdueUnsubmitted.length > 1 ? 's' : ''} — not yet submitted
+            </p>
+          </div>
+          <div className="space-y-1">
+            {overdueUnsubmitted.slice(0, 3).map(a => {
+              const daysAgo = Math.ceil((Date.now() - new Date(a.due_date).getTime()) / 86400000)
+              return (
+                <Link key={a.id} href="/coursework" className="flex justify-between items-center text-xs py-0.5">
+                  <span className="text-red-700 font-medium truncate pr-2">{a.title}</span>
+                  <span className="text-red-500 shrink-0">{daysAgo}d overdue</span>
+                </Link>
+              )
+            })}
+          </div>
+          {overdueUnsubmitted.length > 3 && (
+            <Link href="/coursework" className="text-xs text-red-600 underline mt-1 inline-block">
+              +{overdueUnsubmitted.length - 3} more →
+            </Link>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════ UPCOMING DEADLINES ═══════════ */}
       <Card>
         <CardHeader className="pb-2 pt-4">
           <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -287,7 +415,7 @@ export default async function DashboardPage() {
             <p className="text-xs text-muted-foreground mb-1">Last session</p>
             {lastTraining ? (
               <>
-                <p className="text-sm font-bold leading-tight">{lastTraining.session_type}</p>
+                <p className="text-sm font-bold leading-tight capitalize">{lastTraining.session_type}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">{lastTraining.duration_mins} mins</p>
               </>
             ) : (
@@ -297,6 +425,29 @@ export default async function DashboardPage() {
             )}
           </CardContent>
         </Card>
+        {attendancePct !== null && (
+          <Card className="col-span-2">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-end justify-between mb-2">
+                <p className="text-xs text-muted-foreground">Attendance — last 30 days</p>
+                <p className={`text-2xl font-bold ${attendancePct >= 90 ? 'text-green-600' : attendancePct >= 75 ? 'text-amber-500' : 'text-red-600'}`}>
+                  {attendancePct}%
+                </p>
+              </div>
+              {/* progress bar */}
+              <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${attendancePct >= 90 ? 'bg-green-500' : attendancePct >= 75 ? 'bg-amber-400' : 'bg-red-500'}`}
+                  style={{ width: `${attendancePct}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                {presentDates.size} of {scheduledDates.size} days
+                {attendancePct < 90 && <span className="text-amber-600 font-medium"> · Academy target: 90%</span>}
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Quick links — mobile access for Training & Nutrition (not in bottom nav) */}
