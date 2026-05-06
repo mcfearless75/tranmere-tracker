@@ -91,6 +91,42 @@ export async function markRead(roomId: string) {
     .eq('room_id', roomId).eq('user_id', user.id)
 }
 
+/** Fire a push notification to other room members when a new message arrives */
+export async function notifyRoomMembers(
+  roomId: string,
+  senderName: string,
+  preview: string,
+): Promise<void> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  const admin = createAdminClient()
+
+  const { data: members } = await admin
+    .from('chat_members')
+    .select('user_id')
+    .eq('room_id', roomId)
+    .neq('user_id', user.id)
+
+  if (!members || members.length === 0) return
+
+  const otherIds = members.map(m => m.user_id)
+  const { data: subs } = await admin
+    .from('push_subscriptions')
+    .select('endpoint, p256dh, auth')
+    .in('user_id', otherIds)
+
+  if (!subs || subs.length === 0) return
+
+  await Promise.allSettled(
+    subs.map(s => sendPushNotification(
+      { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
+      { title: senderName, body: preview.slice(0, 100), url: `/chat/${roomId}` }
+    ))
+  )
+}
+
 /** Send a push nudge to all other members of a room */
 export async function nudgeRoom(roomId: string): Promise<{ ok: boolean; error?: string }> {
   const supabase = createClient()
