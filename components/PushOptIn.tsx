@@ -41,22 +41,39 @@ export function PushOptIn() {
         reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
       }
 
-      // Wait for it to become active with a timeout
-      if (reg.installing || reg.waiting) {
+      // If no active SW, wait for one to activate
+      if (!reg.active) {
+        // Tell any waiting SW to skip waiting (next-pwa sets skipWaiting:true but
+        // an old SW may block the new one from taking over on the first page load)
+        if (reg.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+        }
+
         await Promise.race([
           new Promise<void>(resolve => {
-            const sw = reg!.installing ?? reg!.waiting!
-            sw.addEventListener('statechange', function handler() {
-              if (sw.state === 'activated') { sw.removeEventListener('statechange', handler); resolve() }
-            })
+            // Primary signal: controllerchange fires when new SW takes control
+            navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })
+
+            // Backup: statechange on the currently installing/waiting SW
+            const sw = reg!.installing ?? reg!.waiting
+            if (sw) {
+              sw.addEventListener('statechange', function handler() {
+                if (sw.state === 'activated') {
+                  sw.removeEventListener('statechange', handler)
+                  resolve()
+                }
+              })
+            }
           }),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Service worker install timed out')), 10000)
+            setTimeout(() => reject(new Error('Service worker install timed out')), 15000)
           ),
         ])
+
         // Re-fetch now-active registration
         reg = (await navigator.serviceWorker.getRegistration('/')) ?? reg
       }
+
       const existing = await reg.pushManager.getSubscription()
       if (existing) {
         // Re-send existing subscription to server in case it wasn't saved

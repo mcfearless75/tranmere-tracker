@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { CalendarDays, ChevronLeft, ChevronRight, ListChecks } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, ListChecks, ExternalLink } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,15 +60,29 @@ export default async function AttendanceCalendarPage({
     })
   }
 
-  // Fetch all sessions for the week
-  const { data: sessions } = await admin
-    .from('attendance_sessions')
-    .select('id, session_label, session_type, opens_at, closes_at, scheduled_date')
-    .gte('scheduled_date', weekStartIso)
-    .lte('scheduled_date', weekEndIso)
-    .order('opens_at')
+  // Fetch all sessions for the week + any match_events on those dates
+  const [{ data: sessions }, { data: matchEvents }] = await Promise.all([
+    admin
+      .from('attendance_sessions')
+      .select('id, session_label, session_type, opens_at, closes_at, scheduled_date')
+      .gte('scheduled_date', weekStartIso)
+      .lte('scheduled_date', weekEndIso)
+      .order('opens_at'),
+    admin
+      .from('match_events')
+      .select('id, match_date, opponent, location')
+      .gte('match_date', weekStartIso)
+      .lte('match_date', weekEndIso),
+  ])
 
-  // Group by day
+  // Build date → match_id lookup so match session blocks can link directly
+  const matchByDate: Record<string, string> = {}
+  for (const m of matchEvents ?? []) {
+    const d = (m.match_date as string).split('T')[0]
+    matchByDate[d] = m.id as string
+  }
+
+  // Group sessions by day
   const byDay: Record<string, typeof sessions> = {}
   for (const s of sessions ?? []) {
     const d = s.scheduled_date as string
@@ -187,15 +201,37 @@ export default async function AttendanceCalendarPage({
                   const o = new Date(s.opens_at)
                   const c = s.closes_at ? new Date(s.closes_at) : null
                   const time = `${o.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}${c ? `–${c.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : ''}`
-                  return (
+                  const matchId = s.session_type === 'match' ? matchByDate[s.scheduled_date as string] : null
+                  const blockHref = matchId ? `/admin/match-events/${matchId}` : s.session_type === 'match' ? '/admin/match-events' : null
+
+                  const inner = (
+                    <>
+                      <p className="font-bold truncate">{s.session_label}</p>
+                      <p className="text-[10px] opacity-90 truncate">{time}</p>
+                      {matchId && <ExternalLink size={9} className="absolute top-1 right-1 opacity-70" />}
+                    </>
+                  )
+
+                  const baseClass = `absolute inset-x-1 rounded-md px-2 py-1 text-[11px] leading-tight shadow-sm overflow-hidden ${colour}`
+
+                  return blockHref ? (
+                    <Link
+                      key={s.id}
+                      href={blockHref}
+                      className={`${baseClass} hover:brightness-110 transition-[filter]`}
+                      style={blockStyle(s.opens_at, s.closes_at)}
+                      title={`${s.session_label} — ${time}${matchId ? ' · Click to view match' : ''}`}
+                    >
+                      {inner}
+                    </Link>
+                  ) : (
                     <div
                       key={s.id}
-                      className={`absolute inset-x-1 rounded-md px-2 py-1 text-[11px] leading-tight shadow-sm overflow-hidden ${colour}`}
+                      className={baseClass}
                       style={blockStyle(s.opens_at, s.closes_at)}
                       title={`${s.session_label} — ${time}`}
                     >
-                      <p className="font-bold truncate">{s.session_label}</p>
-                      <p className="text-[10px] opacity-90 truncate">{time}</p>
+                      {inner}
                     </div>
                   )
                 })}
