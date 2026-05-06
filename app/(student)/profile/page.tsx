@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { ProfileClient } from './ProfileClient'
+import { PlayerAttributesForm } from '@/components/PlayerAttributesForm'
 
 export default async function ProfilePage() {
   const supabase = createClient()
@@ -9,7 +10,7 @@ export default async function ProfilePage() {
   const [{ data: profile }, { data: courses }] = await Promise.all([
     supabase
       .from('users')
-      .select('id, name, email, role, course_id, avatar_url, courses(name)')
+      .select('id, name, email, role, course_id, avatar_url, courses(name), date_of_birth, position, height_cm, weight_kg, build, dominant_foot')
       .eq('id', user.id)
       .single(),
     supabase.from('courses').select('id, name').order('name'),
@@ -27,7 +28,7 @@ export default async function ProfilePage() {
     })
     const { data: created } = await supabase
       .from('users')
-      .select('id, name, email, role, course_id, avatar_url, courses(name)')
+      .select('id, name, email, role, course_id, avatar_url, courses(name), date_of_birth, position, height_cm, weight_kg, build, dominant_foot')
       .eq('id', user.id)
       .single()
     resolvedProfile = created
@@ -43,10 +44,24 @@ export default async function ProfilePage() {
     courses: null,
   }
 
+  const p = (resolvedProfile ?? fallback) as any
+
   return (
-    <ProfileClient
-      profile={(resolvedProfile ?? fallback) as any}
-      courses={courses ?? []}
-    />
+    <div className="space-y-5">
+      <ProfileClient profile={p} courses={courses ?? []} />
+
+      {p.role === 'student' && (
+        <PlayerAttributesForm
+          attributes={{
+            date_of_birth: p.date_of_birth ?? null,
+            position:      p.position ?? null,
+            height_cm:     p.height_cm ?? null,
+            weight_kg:     p.weight_kg ?? null,
+            build:         p.build ?? null,
+            dominant_foot: p.dominant_foot ?? null,
+          }}
+        />
+      )}
+    </div>
   )
 }
