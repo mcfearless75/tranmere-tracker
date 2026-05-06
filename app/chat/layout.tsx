@@ -37,7 +37,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       </div>
 
       {/* Content — always rendered once */}
-      <main className="flex-1 flex flex-col md:overflow-hidden min-h-[100dvh] md:min-h-0">
+      <main className="flex-1 flex flex-col overflow-x-hidden md:overflow-hidden min-h-[100dvh] md:min-h-0">
         {children}
       </main>
 
