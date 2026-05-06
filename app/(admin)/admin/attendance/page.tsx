@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   ClipboardList, CalendarDays, ChevronLeft, ChevronRight,
   CheckCircle2, AlertTriangle, UserX, Sun, Moon, ArrowRightCircle,
+  Printer, Download,
 } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -174,9 +175,28 @@ export default async function AttendancePage({
         )}
       </div>
 
+      {/* Export bar */}
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href={`/admin/attendance/print?date=${date}&phase=both`}
+          target="_blank"
+          className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
+        >
+          <Printer size={14} /> Print full report
+        </Link>
+        <a
+          href={`/api/attendance/export-csv?date=${date}`}
+          className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
+        >
+          <Download size={14} /> Download CSV
+        </a>
+      </div>
+
       {/* End-of-period reports */}
       <div className="grid sm:grid-cols-2 gap-3">
         <ReportCard
+          date={date}
+          phase="am"
           title="Morning Report"
           subtitle="After AM window (10:30)"
           summary={`${amIn} of ${rows.length} students checked in`}
@@ -185,6 +205,8 @@ export default async function AttendancePage({
           tone="blue"
         />
         <ReportCard
+          date={date}
+          phase="pm"
           title="End-of-Day Report"
           subtitle="After PM window (17:30)"
           summary={`${pmOut} of ${rows.length} students checked out`}
@@ -246,8 +268,10 @@ function PhaseCell({ time, flagged, reason }: { time: string | null; flagged: bo
 }
 
 function ReportCard({
-  title, subtitle, summary, missingCount, missingNames, tone,
+  date, phase, title, subtitle, summary, missingCount, missingNames, tone,
 }: {
+  date: string
+  phase: 'am' | 'pm'
   title: string
   subtitle: string
   summary: string
@@ -277,6 +301,25 @@ function ReportCard({
       ) : (
         <p className="text-xs text-green-600 border-t pt-2 font-medium">✓ Everyone accounted for</p>
       )}
+      <div className="flex gap-2 pt-1 border-t mt-1">
+        <Link
+          href={`/admin/attendance/print?date=${date}&phase=${phase}`}
+          target="_blank"
+          className={`flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold rounded-md py-1.5 transition-colors ${
+            tone === 'blue' ? 'text-blue-700 hover:bg-blue-50' : 'text-purple-700 hover:bg-purple-50'
+          }`}
+        >
+          <Printer size={11} /> Print / PDF
+        </Link>
+        <a
+          href={`/api/attendance/export-csv?date=${date}`}
+          className={`flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold rounded-md py-1.5 transition-colors ${
+            tone === 'blue' ? 'text-blue-700 hover:bg-blue-50' : 'text-purple-700 hover:bg-purple-50'
+          }`}
+        >
+          <Download size={11} /> CSV
+        </a>
+      </div>
     </div>
   )
 }
