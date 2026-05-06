@@ -14,7 +14,7 @@ const nav = [
   { href: '/admin/match-events', label: 'Match Squads', icon: Calendar, teacherHidden: true },
   { href: '/admin/formation', label: 'Formation', icon: LayoutGrid, teacherHidden: true },
   { href: '/admin/grade-submissions', label: 'Grade Work', icon: Star },
-  { href: '/admin/gps-dashboard', label: 'Squad GPS', icon: Activity },
+  { href: '/admin/gps-dashboard', label: 'Squad GPS', icon: Activity, teacherHidden: true },
   { href: '/admin/gps-import', label: 'GPS Import', icon: Wifi, teacherHidden: true },
   { href: '/admin/attendance', label: 'Attendance', icon: ClipboardList },
   { href: '/chat', label: 'Chat', icon: MessageSquare },

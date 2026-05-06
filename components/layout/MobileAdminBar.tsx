@@ -15,7 +15,7 @@ const nav = [
   { href: '/admin/match-events', label: 'Match Squads', icon: Calendar, teacherHidden: true },
   { href: '/admin/formation', label: 'Formation', icon: LayoutGrid, teacherHidden: true },
   { href: '/admin/grade-submissions', label: 'Grade Work', icon: Star },
-  { href: '/admin/gps-dashboard', label: 'Squad GPS', icon: Activity },
+  { href: '/admin/gps-dashboard', label: 'Squad GPS', icon: Activity, teacherHidden: true },
   { href: '/admin/gps-import', label: 'GPS Import', icon: Wifi, teacherHidden: true },
   { href: '/admin/attendance', label: 'Attendance', icon: ClipboardList },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
@@ -112,11 +112,19 @@ export function MobileAdminBar({ userName, avatarUrl, role }: Props) {
           <Star size={20} strokeWidth={pathname.startsWith('/admin/grade-submissions') ? 2.5 : 1.5} />
           <span className="text-[10px] font-medium">Grades</span>
         </Link>
-        <Link href="/admin/match-events"
-          className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${pathname.startsWith('/admin/match-events') ? 'text-white' : 'text-blue-300'}`}>
-          <Calendar size={20} strokeWidth={pathname.startsWith('/admin/match-events') ? 2.5 : 1.5} />
-          <span className="text-[10px] font-medium">Matches</span>
-        </Link>
+        {isTeacher ? (
+          <Link href="/admin/attendance"
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${pathname.startsWith('/admin/attendance') ? 'text-white' : 'text-blue-300'}`}>
+            <ClipboardList size={20} strokeWidth={pathname.startsWith('/admin/attendance') ? 2.5 : 1.5} />
+            <span className="text-[10px] font-medium">Attendance</span>
+          </Link>
+        ) : (
+          <Link href="/admin/match-events"
+            className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${pathname.startsWith('/admin/match-events') ? 'text-white' : 'text-blue-300'}`}>
+            <Calendar size={20} strokeWidth={pathname.startsWith('/admin/match-events') ? 2.5 : 1.5} />
+            <span className="text-[10px] font-medium">Matches</span>
+          </Link>
+        )}
         <button onClick={() => setOpen(true)}
           className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-blue-300 active:text-white">
           <MoreHorizontal size={20} strokeWidth={1.5} />
