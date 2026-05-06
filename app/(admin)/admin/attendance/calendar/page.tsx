@@ -75,11 +75,11 @@ export default async function AttendanceCalendarPage({
       .lte('match_date', weekEndIso),
   ])
 
-  // Build date → match_id lookup so match session blocks can link directly
-  const matchByDate: Record<string, string> = {}
+  // Build date → match detail lookup so match session blocks reflect live match data
+  const matchByDate: Record<string, { id: string; opponent: string | null; location: string | null }> = {}
   for (const m of matchEvents ?? []) {
     const d = (m.match_date as string).split('T')[0]
-    matchByDate[d] = m.id as string
+    matchByDate[d] = { id: m.id as string, opponent: m.opponent as string | null, location: m.location as string | null }
   }
 
   // Group sessions by day
@@ -201,14 +201,19 @@ export default async function AttendanceCalendarPage({
                   const o = new Date(s.opens_at)
                   const c = s.closes_at ? new Date(s.closes_at) : null
                   const time = `${o.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}${c ? `–${c.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : ''}`
-                  const matchId = s.session_type === 'match' ? matchByDate[s.scheduled_date as string] : null
-                  const blockHref = matchId ? `/admin/match-events/${matchId}` : s.session_type === 'match' ? '/admin/match-events' : null
+                  const matchDetail = s.session_type === 'match' ? (matchByDate[s.scheduled_date as string] ?? null) : null
+                  const blockHref = matchDetail ? `/admin/match-events/${matchDetail.id}` : s.session_type === 'match' ? '/admin/match-events' : null
+
+                  // For match blocks: show live opponent + location from match_events if available
+                  const label = matchDetail?.opponent ? `vs ${matchDetail.opponent}` : s.session_label
+                  const sublabel = matchDetail?.location ?? time
 
                   const inner = (
                     <>
-                      <p className="font-bold truncate">{s.session_label}</p>
-                      <p className="text-[10px] opacity-90 truncate">{time}</p>
-                      {matchId && <ExternalLink size={9} className="absolute top-1 right-1 opacity-70" />}
+                      <p className="font-bold truncate">{label}</p>
+                      <p className="text-[10px] opacity-90 truncate">{sublabel}</p>
+                      <p className="text-[10px] opacity-75 truncate">KO {time.split('–')[0]}</p>
+                      {matchDetail && <ExternalLink size={9} className="absolute top-1 right-1 opacity-70" />}
                     </>
                   )
 
@@ -220,7 +225,7 @@ export default async function AttendanceCalendarPage({
                       href={blockHref}
                       className={`${baseClass} hover:brightness-110 transition-[filter]`}
                       style={blockStyle(s.opens_at, s.closes_at)}
-                      title={`${s.session_label} — ${time}${matchId ? ' · Click to view match' : ''}`}
+                      title={`${label}${matchDetail?.location ? ` @ ${matchDetail.location}` : ''} — KO ${time.split('–')[0]} · Click to view match`}
                     >
                       {inner}
                     </Link>
@@ -229,7 +234,7 @@ export default async function AttendanceCalendarPage({
                       key={s.id}
                       className={baseClass}
                       style={blockStyle(s.opens_at, s.closes_at)}
-                      title={`${s.session_label} — ${time}`}
+                      title={`${label} — ${time}`}
                     >
                       {inner}
                     </div>
