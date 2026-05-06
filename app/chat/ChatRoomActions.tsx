@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useRef, useEffect } from 'react'
+import { useState, useTransition, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { MoreVertical, Bell, Trash2, LogOut } from 'lucide-react'
 import { nudgeRoom, leaveOrDeleteRoom } from './actions'
@@ -17,8 +17,20 @@ export function ChatRoomActions({
   const [open, setOpen] = useState(false)
   const [pending, start] = useTransition()
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [dropPos, setDropPos] = useState<{ top: number; left: number } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
   const router = useRouter()
+
+  const openMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setDropPos({ top: r.bottom + 4, left: r.right - 180 })
+    }
+    setOpen(v => !v)
+  }, [])
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -65,7 +77,8 @@ export function ChatRoomActions({
         <span className="text-[11px] text-tranmere-blue font-medium px-2 whitespace-nowrap">{feedback}</span>
       ) : (
         <button
-          onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(v => !v) }}
+          ref={btnRef}
+          onClick={openMenu}
           disabled={pending}
           aria-label="Chat options"
           className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:text-tranmere-blue hover:bg-tranmere-blue/10 active:bg-tranmere-blue/20 transition-colors disabled:opacity-40"
@@ -74,14 +87,9 @@ export function ChatRoomActions({
         </button>
       )}
 
-      {open && (
+      {open && dropPos && (
         <div className="fixed z-[200] min-w-[180px] rounded-xl border bg-white shadow-xl py-1.5 text-sm"
-          style={{
-            right: '12px',
-            top: menuRef.current
-              ? menuRef.current.getBoundingClientRect().bottom + 4
-              : 'auto',
-          }}
+          style={{ top: dropPos.top, left: Math.max(8, dropPos.left) }}
         >
           <button
             onClick={handleNudge}
