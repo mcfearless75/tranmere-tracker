@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 const PUBLIC_PATHS = ['/login', '/signup', '/setup', '/api/setup', '/admin-login', '/staff-login']
 const STUDENT_PREFIXES = ['/dashboard', '/coursework', '/nutrition', '/training', '/matches', '/profile', '/gps']
+const PARENT_PREFIXES = ['/parent']
 
 async function getUserRole(
   userId: string,
@@ -63,6 +64,7 @@ export async function middleware(request: NextRequest) {
   const needsRoleCheck =
     path.startsWith('/admin') ||
     STUDENT_PREFIXES.some(p => path === p || path.startsWith(p + '/')) ||
+    PARENT_PREFIXES.some(p => path === p || path.startsWith(p + '/')) ||
     (isPublic && !path.startsWith('/admin-login') && !path.startsWith('/staff-login'))
 
   if (!needsRoleCheck) return supabaseResponse
@@ -77,10 +79,12 @@ export async function middleware(request: NextRequest) {
   if (!role) return supabaseResponse
 
   const isStaff = role === 'admin' || role === 'coach' || role === 'teacher'
+  const isParent = role === 'parent'
 
   // Authenticated user on auth page → role-appropriate home
   if (isPublic && !path.startsWith('/admin-login') && !path.startsWith('/staff-login')) {
-    return NextResponse.redirect(new URL(isStaff ? '/admin/gps-dashboard' : '/dashboard', request.url))
+    const home = isStaff ? '/admin/gps-dashboard' : isParent ? '/parent/dashboard' : '/dashboard'
+    return NextResponse.redirect(new URL(home, request.url))
   }
 
   // Staff hitting student pages → admin area
@@ -91,6 +95,17 @@ export async function middleware(request: NextRequest) {
   // Students hitting admin pages → dashboard
   if (!isStaff && path.startsWith('/admin')) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
+  // Parents hitting student or admin pages → parent portal
+  if (isParent && (STUDENT_PREFIXES.some(p => path === p || path.startsWith(p + '/')) || path.startsWith('/admin'))) {
+    return NextResponse.redirect(new URL('/parent/dashboard', request.url))
+  }
+
+  // Non-parents hitting parent pages → appropriate home
+  if (!isParent && PARENT_PREFIXES.some(p => path === p || path.startsWith(p + '/'))) {
+    const home = isStaff ? '/admin/gps-dashboard' : '/dashboard'
+    return NextResponse.redirect(new URL(home, request.url))
   }
 
   return supabaseResponse
