@@ -34,15 +34,29 @@ export function PushOptIn() {
     }
 
     try {
-      // Timeout service worker ready — on mobile it can hang if SW isn't active yet
-      const swReady = await Promise.race([
-        navigator.serviceWorker.ready,
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Service worker timed out')), 8000)
-        ),
-      ])
+      // Ensure service worker is registered — next-pwa registers it but on mobile
+      // it may not be active yet; register explicitly if needed
+      let reg = await navigator.serviceWorker.getRegistration('/')
+      if (!reg) {
+        reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      }
 
-      const reg = swReady as ServiceWorkerRegistration
+      // Wait for it to become active with a timeout
+      if (reg.installing || reg.waiting) {
+        await Promise.race([
+          new Promise<void>(resolve => {
+            const sw = reg!.installing ?? reg!.waiting!
+            sw.addEventListener('statechange', function handler() {
+              if (sw.state === 'activated') { sw.removeEventListener('statechange', handler); resolve() }
+            })
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Service worker install timed out')), 10000)
+          ),
+        ])
+        // Re-fetch now-active registration
+        reg = (await navigator.serviceWorker.getRegistration('/')) ?? reg
+      }
       const existing = await reg.pushManager.getSubscription()
       if (existing) {
         // Re-send existing subscription to server in case it wasn't saved
