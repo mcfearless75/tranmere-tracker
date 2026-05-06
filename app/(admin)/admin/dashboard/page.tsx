@@ -94,14 +94,24 @@ const firstName = profile.name?.split(' ')[0] ?? 'Coach'
         <>
           {/* Squad stats headline */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border bg-white p-4 text-center">
+            <Link
+              href="/admin/users"
+              className="rounded-2xl border bg-white p-4 text-center hover:bg-tranmere-blue/5 hover:border-tranmere-blue/30 transition-colors group"
+            >
               <p className="text-3xl font-bold text-tranmere-blue">{totalStudents}</p>
-              <p className="text-xs text-muted-foreground mt-0.5 flex items-center justify-center gap-1"><Users size={11} /> Registered Players</p>
-            </div>
-            <div className="rounded-2xl border bg-white p-4 text-center">
+              <p className="text-xs text-muted-foreground mt-0.5 flex items-center justify-center gap-1 group-hover:text-tranmere-blue">
+                <Users size={11} /> Registered Players →
+              </p>
+            </Link>
+            <Link
+              href="/admin/match-events"
+              className="rounded-2xl border bg-white p-4 text-center hover:bg-tranmere-blue/5 hover:border-tranmere-blue/30 transition-colors group"
+            >
               <p className="text-3xl font-bold text-tranmere-blue">{upcomingMatches?.length ?? 0}</p>
-              <p className="text-xs text-muted-foreground mt-0.5 flex items-center justify-center gap-1"><Calendar size={11} /> Fixtures Ahead</p>
-            </div>
+              <p className="text-xs text-muted-foreground mt-0.5 flex items-center justify-center gap-1 group-hover:text-tranmere-blue">
+                <Calendar size={11} /> Fixtures Ahead →
+              </p>
+            </Link>
           </div>
 
           {/* Next match squad status */}
@@ -181,18 +191,18 @@ const firstName = profile.name?.split(' ')[0] ?? 'Coach'
           <>
             {/* Headline stats */}
             <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-2xl border bg-white p-3 text-center">
+              <Link href="/admin/assignments" className="rounded-2xl border bg-white p-3 text-center hover:bg-tranmere-blue/5 transition-colors">
                 <p className="text-2xl font-bold text-tranmere-blue">{assignments.length}</p>
                 <p className="text-[11px] text-muted-foreground">Assignments</p>
-              </div>
-              <div className="rounded-2xl border bg-white p-3 text-center">
+              </Link>
+              <Link href="/admin/users" className="rounded-2xl border bg-white p-3 text-center hover:bg-tranmere-blue/5 transition-colors">
                 <p className="text-2xl font-bold text-tranmere-blue">{totalStudents}</p>
                 <p className="text-[11px] text-muted-foreground">Students</p>
-              </div>
-              <div className={`rounded-2xl border p-3 text-center ${overdueCount > 0 ? 'bg-red-50 border-red-200' : 'bg-white'}`}>
+              </Link>
+              <Link href="/admin/grade-submissions" className={`rounded-2xl border p-3 text-center transition-colors ${overdueCount > 0 ? 'bg-red-50 border-red-200 hover:bg-red-100' : 'bg-white hover:bg-tranmere-blue/5'}`}>
                 <p className={`text-2xl font-bold ${overdueCount > 0 ? 'text-red-600' : 'text-tranmere-blue'}`}>{overdueCount}</p>
                 <p className={`text-[11px] ${overdueCount > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>Overdue</p>
-              </div>
+              </Link>
             </div>
 
             {/* Grading alert */}
@@ -250,11 +260,12 @@ const firstName = profile.name?.split(' ')[0] ?? 'Coach'
               <div className="rounded-2xl border bg-white p-4 space-y-2">
                 <p className="font-semibold text-sm flex items-center gap-2"><Clock size={15} className="text-muted-foreground" /> Match Schedule</p>
                 {upcomingMatches.slice(0, 3).map(m => (
-                  <div key={m.id} className="flex justify-between items-center text-sm py-1.5 border-t">
+                  <Link key={m.id} href={`/admin/match-events/${m.id}`} className="flex justify-between items-center text-sm py-1.5 border-t hover:bg-gray-50 -mx-2 px-2 rounded transition-colors">
                     <span>vs {m.opponent}</span>
                     <span className="text-xs text-muted-foreground">{new Date(m.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
-                  </div>
+                  </Link>
                 ))}
+                <Link href="/admin/match-events" className="text-xs text-tranmere-blue underline underline-offset-2">All fixtures →</Link>
               </div>
             )}
           </>
