@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { MessageSquare, Users, Crown, Trophy, Plus } from 'lucide-react'
 import { NewDmPicker } from './NewDmPicker'
 import { AiCoachButton } from './AiCoachButton'
+import { ChatRoomActions } from './ChatRoomActions'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,6 +87,7 @@ export default async function ChatHubPage() {
         lastMessage: last?.body ?? null,
         lastAt: room.last_message_at,
         unread: unreadByRoom[room.id] ?? 0,
+        isOwner: room.created_by === user.id,
       }
     })
     .filter(Boolean) as any[]
@@ -120,35 +122,38 @@ export default async function ChatHubPage() {
         {rooms.map(r => {
           const initials = (r.label ?? '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
           const kindIcon = r.kind === 'squad' ? <Users size={12} /> : r.kind === 'match' ? <Trophy size={12} /> : r.kind === 'broadcast' ? <Crown size={12} /> : null
+          const isDmOrBot = ['dm', 'bot'].includes(r.kind)
           return (
-            <Link
-              key={r.id}
-              href={`/chat/${r.id}`}
-              className="flex items-center gap-3 p-3 hover:bg-gray-50 active:bg-gray-100"
-            >
-              {r.other?.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={r.other.avatar_url} alt="" className="w-11 h-11 rounded-full object-cover shrink-0" />
-              ) : (
-                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 flex items-center justify-center text-white text-sm font-bold shrink-0">
-                  {initials}
+            <div key={r.id} className="flex items-center hover:bg-gray-50 active:bg-gray-100 pr-2">
+              <Link
+                href={`/chat/${r.id}`}
+                className="flex flex-1 items-center gap-3 p-3 min-w-0"
+              >
+                {r.other?.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={r.other.avatar_url} alt="" className="w-11 h-11 rounded-full object-cover shrink-0" />
+                ) : (
+                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 flex items-center justify-center text-white text-sm font-bold shrink-0">
+                    {initials}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-semibold truncate">{r.label}</p>
+                    {kindIcon && <span className="text-muted-foreground">{kindIcon}</span>}
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {r.lastMessage ?? <span className="italic">No messages yet</span>}
+                  </p>
                 </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="font-semibold truncate">{r.label}</p>
-                  {kindIcon && <span className="text-muted-foreground">{kindIcon}</span>}
-                </div>
-                <p className="text-xs text-muted-foreground truncate">
-                  {r.lastMessage ?? <span className="italic">No messages yet</span>}
-                </p>
-              </div>
-              {r.unread > 0 && (
-                <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 rounded-full bg-tranmere-blue text-white text-[11px] font-bold px-1.5">
-                  {r.unread}
-                </span>
-              )}
-            </Link>
+                {r.unread > 0 && (
+                  <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 rounded-full bg-tranmere-blue text-white text-[11px] font-bold px-1.5">
+                    {r.unread}
+                  </span>
+                )}
+              </Link>
+              <ChatRoomActions roomId={r.id} isOwner={r.isOwner} isDmOrBot={isDmOrBot} />
+            </div>
           )
         })}
       </div>
