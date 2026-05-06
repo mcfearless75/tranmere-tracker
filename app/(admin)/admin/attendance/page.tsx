@@ -99,13 +99,22 @@ export default async function AttendancePage({
           <ClipboardList size={22} className="text-tranmere-blue" />
           <h1 className="text-xl font-bold text-tranmere-blue">Daily Attendance</h1>
         </div>
-        <Link
-          href="/admin/attendance/schedule"
-          className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
-        >
-          <CalendarDays size={15} />
-          Weekly Schedule
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/admin/attendance/calendar"
+            className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            <CalendarDays size={15} />
+            Calendar
+          </Link>
+          <Link
+            href="/admin/attendance/schedule"
+            className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            <CalendarDays size={15} />
+            Schedule
+          </Link>
+        </div>
       </div>
 
       {/* Date navigator */}
