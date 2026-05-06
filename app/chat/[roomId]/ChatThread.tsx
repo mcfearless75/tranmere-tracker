@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Send, Paperclip, X, Bot } from 'lucide-react'
-import { markRead } from '../actions'
+import { markRead, notifyRoomMembers } from '../actions'
 
 type Message = {
   id: string
@@ -138,6 +138,11 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
     if (error) { alert(`Send failed: ${error.message}`); return }
     setDraft('')
     if (inserted) setMessages(prev => prev.find(p => p.id === inserted.id) ? prev : [...prev, inserted as Message])
+
+    // Fire push to other members (non-bot rooms only) — fire-and-forget
+    if (roomKind !== 'bot') {
+      notifyRoomMembers(roomId, myName ?? 'Someone', body || '📎 Attachment').catch(() => {})
+    }
 
     if (roomKind === 'bot' && body) {
       setAiTyping(true)
