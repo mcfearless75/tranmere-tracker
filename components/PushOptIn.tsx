@@ -34,9 +34,23 @@ export function PushOptIn() {
     }
 
     try {
-      const reg = await navigator.serviceWorker.ready
+      // Timeout service worker ready — on mobile it can hang if SW isn't active yet
+      const swReady = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Service worker timed out')), 8000)
+        ),
+      ])
+
+      const reg = swReady as ServiceWorkerRegistration
       const existing = await reg.pushManager.getSubscription()
       if (existing) {
+        // Re-send existing subscription to server in case it wasn't saved
+        await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(existing.toJSON()),
+        })
         setState('subscribed')
         return true
       }
@@ -55,9 +69,10 @@ export function PushOptIn() {
       if (!res.ok) throw new Error('Server rejected subscription')
       setState('subscribed')
       return true
-    } catch (_err) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
       if (!silent) {
-        setErrorMsg('Could not enable notifications. Try again.')
+        setErrorMsg(`Could not enable notifications: ${msg}`)
         setState('error')
       }
       return false
