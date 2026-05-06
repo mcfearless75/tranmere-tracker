@@ -4,6 +4,7 @@ import { ArrowLeft, Route, Gauge, Zap, Trophy } from 'lucide-react'
 import { UnitProgress } from './UnitProgress'
 import { AdminActions } from './AdminActions'
 import { AiInsights } from './AiInsights'
+import { PlayerAttributesForm } from '@/components/PlayerAttributesForm'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,7 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
   // Student profile
   const { data: student } = await supabase
     .from('users')
-    .select('id, name, email, avatar_url, role, course_id, courses(name)')
+    .select('id, name, email, avatar_url, role, course_id, courses(name), date_of_birth, position, height_cm, weight_kg, build, dominant_foot')
     .eq('id', studentId)
     .single()
 
@@ -105,6 +106,19 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
       {/* Student-only: AI Insights, coursework, GPS, matches */}
       {student.role === 'student' && (
         <>
+          <PlayerAttributesForm
+            attributes={{
+              date_of_birth: (student as any).date_of_birth ?? null,
+              position:      (student as any).position ?? null,
+              height_cm:     (student as any).height_cm ?? null,
+              weight_kg:     (student as any).weight_kg ?? null,
+              build:         (student as any).build ?? null,
+              dominant_foot: (student as any).dominant_foot ?? null,
+            }}
+            userId={student.id}
+            title="Player Profile"
+          />
+
           <AiInsights studentId={student.id} studentName={student.name ?? 'Student'} />
 
           {/* Progress summary */}
