@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
+import { sendPushNotification } from '@/lib/webpush'
 
 /** Find or create a 1-to-1 DM room between the current user and another user. */
 export async function getOrCreateDM(otherUserId: string): Promise<string | { error: string }> {
@@ -88,4 +89,75 @@ export async function markRead(roomId: string) {
   const admin = createAdminClient()
   await admin.from('chat_members').update({ last_read_at: new Date().toISOString() })
     .eq('room_id', roomId).eq('user_id', user.id)
+}
+
+/** Send a push nudge to all other members of a room */
+export async function nudgeRoom(roomId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+
+  const admin = createAdminClient()
+
+  // Get room label and all other members
+  const [{ data: room }, { data: members }, { data: sender }] = await Promise.all([
+    admin.from('chat_rooms').select('name, kind').eq('id', roomId).single(),
+    admin.from('chat_members').select('user_id').eq('room_id', roomId).neq('user_id', user.id),
+    admin.from('users').select('name').eq('id', user.id).single(),
+  ])
+
+  if (!members || members.length === 0) return { ok: false, error: 'No other members' }
+
+  const senderName = sender?.name ?? 'Someone'
+  const roomName = room?.name ?? (room?.kind === 'dm' ? 'a DM' : 'the chat')
+  const title = `${senderName} nudged you`
+  const body = `You have unread messages in ${roomName}`
+
+  // Get push subscriptions for all other members
+  const otherIds = members.map(m => m.user_id)
+  const { data: subs } = await admin
+    .from('push_subscriptions')
+    .select('subscription')
+    .in('user_id', otherIds)
+
+  if (!subs || subs.length === 0) return { ok: true }
+
+  await Promise.allSettled(
+    subs.map(s => sendPushNotification(s.subscription as any, { title, body, url: `/chat/${roomId}` }))
+  )
+
+  return { ok: true }
+}
+
+/** Leave a room (or delete it if the current user is the only member / owner of a non-DM) */
+export async function leaveOrDeleteRoom(roomId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+
+  const admin = createAdminClient()
+
+  const { data: room } = await admin.from('chat_rooms').select('kind, created_by').eq('id', roomId).single()
+  const { data: members } = await admin.from('chat_members').select('user_id').eq('room_id', roomId)
+
+  if (!room) return { ok: false, error: 'Room not found' }
+
+  const isOwner = room.created_by === user.id
+  const memberCount = members?.length ?? 0
+
+  // Delete entire room if: last member, OR owner of a DM/bot room with only one other person
+  const shouldDelete = memberCount <= 1 || (isOwner && ['dm', 'bot'].includes(room.kind))
+
+  if (shouldDelete) {
+    // Cascade: delete messages and members first, then room
+    await admin.from('chat_messages').delete().eq('room_id', roomId)
+    await admin.from('chat_members').delete().eq('room_id', roomId)
+    await admin.from('chat_rooms').delete().eq('id', roomId)
+  } else {
+    // Just remove self from the room
+    await admin.from('chat_members').delete().eq('room_id', roomId).eq('user_id', user.id)
+  }
+
+  revalidatePath('/chat')
+  return { ok: true }
 }
