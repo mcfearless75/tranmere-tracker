@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Calendar, CheckCircle, Clock, MessageSquare, Activity, LayoutGrid, Star, Users, AlertCircle } from 'lucide-react'
+import { PushOptIn } from '@/components/PushOptIn'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,6 +70,7 @@ const firstName = profile.name?.split(' ')[0] ?? 'Coach'
 
   return (
     <div className="space-y-5 pb-24 md:pb-6">
+      <PushOptIn />
       {/* Header */}
       <div className="flex items-center gap-3 py-1">
         {profile.avatar_url ? (
