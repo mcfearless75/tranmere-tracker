@@ -2,13 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, BookOpen, Trophy, User, MessageSquare } from 'lucide-react'
+import { Home, Trophy, User, MessageSquare, Brain } from 'lucide-react'
 
 const nav = [
   { href: '/dashboard', label: 'Home', icon: Home },
   { href: '/matches', label: 'Matches', icon: Trophy },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
-  { href: '/coursework', label: 'BTEC', icon: BookOpen },
+  { href: '/ai-report', label: 'Report', icon: Brain },
   { href: '/profile', label: 'Profile', icon: User },
 ]
 
