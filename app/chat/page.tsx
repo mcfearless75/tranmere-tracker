@@ -118,7 +118,7 @@ export default async function ChatHubPage() {
         </div>
       )}
 
-      <div className="rounded-2xl border bg-white divide-y overflow-hidden">
+      <div className="rounded-2xl border bg-white divide-y">
         {rooms.map(r => {
           const initials = (r.label ?? '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
           const kindIcon = r.kind === 'squad' ? <Users size={12} /> : r.kind === 'match' ? <Trophy size={12} /> : r.kind === 'broadcast' ? <Crown size={12} /> : null

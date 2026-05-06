@@ -62,33 +62,41 @@ export function ChatRoomActions({
   return (
     <div ref={menuRef} className="relative shrink-0" onClick={e => e.stopPropagation()}>
       {feedback ? (
-        <span className="text-[11px] text-tranmere-blue font-medium px-1 whitespace-nowrap">{feedback}</span>
+        <span className="text-[11px] text-tranmere-blue font-medium px-2 whitespace-nowrap">{feedback}</span>
       ) : (
         <button
           onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(v => !v) }}
           disabled={pending}
           aria-label="Chat options"
-          className="p-1.5 rounded-lg text-muted-foreground hover:text-tranmere-blue hover:bg-tranmere-blue/10 transition-colors disabled:opacity-40"
+          className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:text-tranmere-blue hover:bg-tranmere-blue/10 active:bg-tranmere-blue/20 transition-colors disabled:opacity-40"
         >
-          <MoreVertical size={16} />
+          <MoreVertical size={20} />
         </button>
       )}
 
       {open && (
-        <div className="absolute right-0 top-8 z-50 min-w-[160px] rounded-xl border bg-white shadow-lg py-1 text-sm">
+        <div className="fixed z-[200] min-w-[180px] rounded-xl border bg-white shadow-xl py-1.5 text-sm"
+          style={{
+            right: '12px',
+            top: menuRef.current
+              ? menuRef.current.getBoundingClientRect().bottom + 4
+              : 'auto',
+          }}
+        >
           <button
             onClick={handleNudge}
-            className="flex w-full items-center gap-2 px-3 py-2 hover:bg-gray-50 text-left"
+            className="flex w-full items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-left font-medium"
           >
-            <Bell size={14} className="text-tranmere-blue" />
+            <Bell size={15} className="text-tranmere-blue" />
             Nudge
           </button>
+          <div className="border-t my-1" />
           <button
             onClick={handleLeave}
-            className="flex w-full items-center gap-2 px-3 py-2 hover:bg-gray-50 text-left text-red-600"
+            className="flex w-full items-center gap-3 px-4 py-2.5 hover:bg-red-50 text-left font-medium text-red-600"
           >
-            {isOwner && isDmOrBot ? <Trash2 size={14} /> : <LogOut size={14} />}
-            {isOwner && isDmOrBot ? 'Delete' : 'Leave'}
+            {isOwner && isDmOrBot ? <Trash2 size={15} /> : <LogOut size={15} />}
+            {isOwner && isDmOrBot ? 'Delete conversation' : 'Leave conversation'}
           </button>
         </div>
       )}
