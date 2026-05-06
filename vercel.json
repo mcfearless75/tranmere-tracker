@@ -1,14 +1,6 @@
 {
   "crons": [
     {
-      "path": "/api/cron/session-reminders",
-      "schedule": "*/5 7-17 * * 1-5"
-    },
-    {
-      "path": "/api/cron/check-in-nudges",
-      "schedule": "0 9,16 * * 1-5"
-    },
-    {
       "path": "/api/cron/attendance-report-am",
       "schedule": "30 10 * * 1-5"
     },
