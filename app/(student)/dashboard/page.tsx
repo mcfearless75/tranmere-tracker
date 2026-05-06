@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Image from 'next/image'
 import Link from 'next/link'
 import { PushOptIn } from '@/components/PushOptIn'
+import { GeofenceCheckIn } from '@/components/GeofenceCheckIn'
 import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, CalendarDays, AlertTriangle } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -241,33 +242,37 @@ export default async function DashboardPage() {
           </p>
         )}
 
-        {/* AM / PM strip */}
+        {/* AM / PM attendance strip */}
         <div className="flex gap-2 pt-2 border-t border-white/15">
           <div className="flex-1 flex items-center gap-2">
             {todayDaily?.am_checked_at
-              ? <CheckCircle2 size={15} className="text-green-400" />
-              : <Sun size={15} className="text-blue-200" />}
-            <div className="min-w-0">
+              ? <CheckCircle2 size={15} className="text-green-400 shrink-0" />
+              : <Sun size={15} className="text-blue-200 shrink-0" />}
+            <div className="min-w-0 flex-1">
               <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200">AM</p>
-              <p className="text-xs font-semibold truncate">
-                {todayDaily?.am_checked_at
-                  ? `In ${new Date(todayDaily.am_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
-                  : 'Tap NFC on arrival'}
-              </p>
+              {todayDaily?.am_checked_at ? (
+                <p className="text-xs font-semibold">
+                  In {new Date(todayDaily.am_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              ) : (
+                <GeofenceCheckIn period="am" alreadyCheckedIn={false} />
+              )}
             </div>
           </div>
           <div className="w-px bg-white/15" />
           <div className="flex-1 flex items-center gap-2">
             {todayDaily?.pm_checked_at
-              ? <CheckCircle2 size={15} className="text-green-400" />
-              : <Moon size={15} className="text-blue-200" />}
-            <div className="min-w-0">
+              ? <CheckCircle2 size={15} className="text-green-400 shrink-0" />
+              : <Moon size={15} className="text-blue-200 shrink-0" />}
+            <div className="min-w-0 flex-1">
               <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200">PM</p>
-              <p className="text-xs font-semibold truncate">
-                {todayDaily?.pm_checked_at
-                  ? `Out ${new Date(todayDaily.pm_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
-                  : 'Tap NFC on leaving'}
-              </p>
+              {todayDaily?.pm_checked_at ? (
+                <p className="text-xs font-semibold">
+                  Out {new Date(todayDaily.pm_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              ) : (
+                <GeofenceCheckIn period="pm" alreadyCheckedIn={false} />
+              )}
             </div>
           </div>
         </div>
