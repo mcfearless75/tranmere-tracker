@@ -117,13 +117,16 @@ export async function nudgeRoom(roomId: string): Promise<{ ok: boolean; error?: 
   const otherIds = members.map(m => m.user_id)
   const { data: subs } = await admin
     .from('push_subscriptions')
-    .select('subscription')
+    .select('endpoint, p256dh, auth')
     .in('user_id', otherIds)
 
   if (!subs || subs.length === 0) return { ok: true }
 
   await Promise.allSettled(
-    subs.map(s => sendPushNotification(s.subscription as any, { title, body, url: `/chat/${roomId}` }))
+    subs.map(s => sendPushNotification(
+      { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
+      { title, body, url: `/chat/${roomId}` }
+    ))
   )
 
   return { ok: true }
