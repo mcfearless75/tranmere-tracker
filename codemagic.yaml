@@ -24,12 +24,23 @@ workflows:
 
       - name: Set up keychain and signing
         script: |
+          set -e
           keychain initialize
+          echo "=== Fetching signing files for $APP_BUNDLE_ID ==="
           app-store-connect fetch-signing-files "$APP_BUNDLE_ID" \
             --type IOS_APP_STORE \
-            --create
+            --create \
+            --verbose
+          echo "=== Provisioning profiles fetched ==="
+          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/" || echo "NO PROFILES DIRECTORY"
+          echo "=== Adding certificates to keychain ==="
           keychain add-certificates
-          xcode-project use-profiles
+          echo "=== Applying profiles to project ==="
+          xcode-project use-profiles \
+            --project ios/App/App.xcodeproj \
+            --warn-only
+          echo "=== Verify pbxproj signing settings after use-profiles ==="
+          grep -E "PROVISIONING_PROFILE_SPECIFIER|CODE_SIGN_STYLE|DEVELOPMENT_TEAM|CODE_SIGN_IDENTITY" ios/App/App.xcodeproj/project.pbxproj || echo "NONE FOUND"
 
       - name: Increment build number
         script: |
