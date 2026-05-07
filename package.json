@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "postinstall": "node scripts/patch-bg-geolocation.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",

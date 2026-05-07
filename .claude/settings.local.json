@@ -22,7 +22,13 @@
       "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts, null, 2\\)\\)\")",
       "Bash(powershell -Command \"Invoke-WebRequest -Uri 'https://upload.wikimedia.org/wikipedia/en/thumb/5/55/Tranmere_Rovers_FC_crest.svg/192px-Tranmere_Rovers_FC_crest.svg.png' -OutFile 'C:/Users/LAPTOP80/Desktop/_Apps_Code/ALL APPS/tranmeretracker/public/icons/icon-192.png'\")",
       "Bash(powershell -Command \"Invoke-WebRequest -Uri 'https://upload.wikimedia.org/wikipedia/en/thumb/5/55/Tranmere_Rovers_FC_crest.svg/192px-Tranmere_Rovers_FC_crest.svg.png' -OutFile 'C:/Users/LAPTOP80/Desktop/_Apps_Code/ALL APPS/tranmeretracker/public/icons/icon-192.png' -UserAgent 'Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36'\")",
-      "Bash(powershell -Command ' *)"
+      "Bash(powershell -Command ' *)",
+      "Bash(del \"!\\(isTeacher\" \"a.id\\)\\),\" \"{\")",
+      "Bash(rm -f \"!\\(isTeacher\" \"\\({}\\)\" \"\\({}\\)\\),\" \",\" \",+\" \"0\" \"0\\)\" \"a.id\\)\\),\" \"console.log\\(p.name\")",
+      "Read(//c/c/Users/LAPTOP80/Desktop/_Apps_Code/ALL APPS/**)",
+      "Bash(clip.exe)",
+      "Bash(convert --version)",
+      "Bash(magick --version)"
     ]
   }
 }
