@@ -49,6 +49,7 @@ workflows:
           echo "=== Fetching signing files for $APP_BUNDLE_ID ==="
           app-store-connect fetch-signing-files "$APP_BUNDLE_ID" \
             --type IOS_APP_STORE \
+            --certificate-key=@file:/tmp/dist_cert_key.pem \
             --create \
             --verbose
 
