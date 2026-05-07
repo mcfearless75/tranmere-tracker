@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushNotification } from '@/lib/webpush'
+import { sendFcmBatch } from '@/lib/firebase-admin'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -35,22 +36,46 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'title and body are required' }, { status: 400 })
   }
 
-  let query = adminClient.from('push_subscriptions').select('endpoint, p256dh, auth')
-  if (targetUserIds && Array.isArray(targetUserIds) && targetUserIds.length > 0) {
-    query = query.in('user_id', targetUserIds)
-  }
+  const notification = { title, body, url: url ?? '/dashboard' }
+  const hasTargets = Array.isArray(targetUserIds) && targetUserIds.length > 0
 
-  const { data: subs, error: subError } = await query
+  // ── Web push (VAPID) ──────────────────────────────────────────────────────
+  let webQuery = adminClient.from('push_subscriptions').select('endpoint, p256dh, auth')
+  if (hasTargets) webQuery = webQuery.in('user_id', targetUserIds)
+
+  const { data: subs, error: subError } = await webQuery
   if (subError) return NextResponse.json({ error: subError.message }, { status: 500 })
 
-  const results = await Promise.allSettled(
-    (subs ?? []).map(sub =>
-      sendPushNotification(sub, { title, body, url: url ?? '/dashboard' })
-    )
+  const webResults = await Promise.allSettled(
+    (subs ?? []).map(sub => sendPushNotification(sub, notification))
   )
 
-  const sent = results.filter(r => r.status === 'fulfilled').length
-  const failed = results.filter(r => r.status === 'rejected').length
+  const webSent = webResults.filter(r => r.status === 'fulfilled').length
+  const webFailed = webResults.filter(r => r.status === 'rejected').length
 
-  return NextResponse.json({ sent, failed, total: subs?.length ?? 0 })
+  // ── Native push (FCM via Firebase Admin) ──────────────────────────────────
+  let fcmSent = 0
+  let fcmFailed = 0
+
+  let nativeQuery = adminClient.from('native_push_tokens').select('token')
+  if (hasTargets) nativeQuery = nativeQuery.in('user_id', targetUserIds)
+
+  const { data: nativeTokens } = await nativeQuery
+  const tokens = (nativeTokens ?? []).map(r => r.token as string)
+
+  if (tokens.length > 0) {
+    const fcmResult = await sendFcmBatch(tokens, notification)
+    fcmSent = fcmResult.sent
+    fcmFailed = fcmResult.failed
+  }
+
+  return NextResponse.json({
+    sent: webSent + fcmSent,
+    failed: webFailed + fcmFailed,
+    total: (subs?.length ?? 0) + tokens.length,
+    detail: {
+      web: { sent: webSent, failed: webFailed, total: subs?.length ?? 0 },
+      native: { sent: fcmSent, failed: fcmFailed, total: tokens.length },
+    },
+  })
 }
