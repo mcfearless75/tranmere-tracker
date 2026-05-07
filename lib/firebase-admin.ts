@@ -8,7 +8,8 @@
  * key file downloaded from Firebase Console → Project Settings → Service Accounts.
  */
 
-import type { App } from 'firebase-admin/app'
+import { initializeApp, getApps, cert, type App } from 'firebase-admin/app'
+import { getMessaging } from 'firebase-admin/messaging'
 
 let _app: App | null = null
 let _initialised = false
@@ -21,7 +22,6 @@ function getApp(): App | null {
   if (!raw) return null
 
   try {
-    const { initializeApp, getApps, cert } = require('firebase-admin/app')
     // Avoid re-initialising if already done (e.g. hot-reload in dev)
     if (getApps().length > 0) {
       _app = getApps()[0]
@@ -48,7 +48,6 @@ export async function sendFcmNotification(
   const app = getApp()
   if (!app) return
 
-  const { getMessaging } = require('firebase-admin/messaging')
   await getMessaging(app).send({
     token,
     notification: {
