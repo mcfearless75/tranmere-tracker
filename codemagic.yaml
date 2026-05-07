@@ -30,17 +30,20 @@ workflows:
           set -e
           keychain initialize
 
+          echo "=== Generating fresh RSA private key for distribution cert ==="
+          openssl genrsa -out /tmp/dist_cert_key.pem 2048
+
           echo "=== Listing existing iOS Distribution certificates ==="
           app-store-connect certificates list --type IOS_DISTRIBUTION --json > /tmp/certs.json || echo "[]" > /tmp/certs.json
           CERT_COUNT=$(python3 -c "import json; print(len(json.load(open('/tmp/certs.json'))))")
           echo "Found $CERT_COUNT existing IOS_DISTRIBUTION certificate(s)"
 
           echo "=== Creating new iOS Distribution certificate (with private key) ==="
-          # Always create a fresh cert+key on Codemagic so we have the matching private key.
-          # This may fail if you've hit Apple's 2-cert-per-team limit — in which case revoke
-          # an existing one in Apple Developer Portal first.
+          # Apple allows max 2 IOS_DISTRIBUTION certs per team. If you hit the limit,
+          # revoke unused ones in https://developer.apple.com/account/resources/certificates/list
           app-store-connect certificates create \
             --type IOS_DISTRIBUTION \
+            --certificate-key=@file:/tmp/dist_cert_key.pem \
             --save
 
           echo "=== Fetching signing files for $APP_BUNDLE_ID ==="
