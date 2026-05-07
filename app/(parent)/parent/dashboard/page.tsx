@@ -6,8 +6,6 @@ export const dynamic = 'force-dynamic'
 
 interface SessionRow { id: string; session_label: string; session_type: string; opens_at: string; closes_at: string }
 interface DeadlineRow { id: string; title: string; due_date: string }
-interface AttendanceRow { attendance_date: string }
-interface ScheduledRow { scheduled_date: string }
 interface MatchSquadRow {
   status: string
   coach_rating: number | null
@@ -78,7 +76,7 @@ function StudentOverviewCard({ student, today }: { student: StudentData; today: 
 
       {/* Today's sessions */}
       <div>
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Today's Sessions</p>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Today&apos;s Sessions</p>
         {todaySessions && todaySessions.length > 0 ? (
           <ul className="space-y-1">
             {todaySessions.map(s => (
@@ -159,7 +157,7 @@ export default async function ParentDashboardPage() {
     return (
       <div className="text-center py-16">
         <p className="text-gray-500">No students linked to your account yet.</p>
-        <p className="text-sm text-gray-400 mt-1">Contact the academy to link your child's account.</p>
+        <p className="text-sm text-gray-400 mt-1">Contact the academy to link your child&apos;s account.</p>
       </div>
     )
   }

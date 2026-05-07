@@ -132,14 +132,23 @@ async function generateReport(userId: string): Promise<{ report: PlayerReport; g
     admin.from('match_squads').select('coach_rating, status').eq('player_id', userId).order('created_at', { ascending: false }).limit(5),
   ])
 
-  const profile = profileResult.data ?? {}
+  interface ProfileData {
+    name: string | null
+    position: string | null
+    height_cm: number | null
+    weight_kg: number | null
+    build: string | null
+    dominant_foot: string | null
+    date_of_birth: string | null
+  }
+  const profile: ProfileData = (profileResult.data ?? {}) as ProfileData
   const trainingLogs = trainingResult.data ?? []
   const nutritionLogs = nutritionResult.data ?? []
   const nutritionGoal = nutritionGoalResult.data ?? null
   const gpsSessions = gpsResult.data ?? []
   const matchSquads = matchResult.data ?? []
 
-  const position = (profile.position as string) ?? 'Not set'
+  const position = profile.position ?? 'Not set'
   const totalTrainingMins = trainingLogs.reduce((s: number, l: { duration_mins: number }) => s + (l.duration_mins ?? 0), 0)
   const avgSessionMins = trainingLogs.length > 0 ? Math.round(totalTrainingMins / trainingLogs.length) : 0
   const daysWithNutrition = new Set(nutritionLogs.map((l: { logged_date: string }) => l.logged_date)).size
@@ -163,9 +172,9 @@ async function generateReport(userId: string): Promise<{ report: PlayerReport; g
 
 PLAYER PROFILE:
 - Position: ${position}
-- Age: ${calculateAge(profile.date_of_birth as string | null)}
-- Height: ${profile.height_cm ? `${profile.height_cm}cm` : 'Unknown'} | Weight: ${profile.weight_kg ? `${profile.weight_kg}kg` : 'Unknown'} | BMI: ${calculateBmi(profile.height_cm as number | null, profile.weight_kg as number | null)}
-- Build: ${(profile.build as string) ?? 'Unknown'} | Dominant foot: ${(profile.dominant_foot as string) ?? 'Unknown'}
+- Age: ${calculateAge(profile.date_of_birth)}
+- Height: ${profile.height_cm ? `${profile.height_cm}cm` : 'Unknown'} | Weight: ${profile.weight_kg ? `${profile.weight_kg}kg` : 'Unknown'} | BMI: ${calculateBmi(profile.height_cm, profile.weight_kg)}
+- Build: ${profile.build ?? 'Unknown'} | Dominant foot: ${profile.dominant_foot ?? 'Unknown'}
 
 TRAINING — last 30 days:
 - Sessions logged: ${trainingLogs.length}

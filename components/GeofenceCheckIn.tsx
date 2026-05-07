@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import { MapPin, CheckCircle2, XCircle, Loader2, AlertTriangle } from 'lucide-react'
+import { isNative } from '@/lib/native'
 
-// Prenton Park / Training ground coordinates — override via env if needed
-const GROUND_LAT  = parseFloat(process.env.NEXT_PUBLIC_GROUND_LAT  ?? '53.3963')
-const GROUND_LNG  = parseFloat(process.env.NEXT_PUBLIC_GROUND_LNG  ?? '-3.0942')
+// Training ground coordinates — override via env if needed
+const GROUND_LAT  = parseFloat(process.env.NEXT_PUBLIC_GROUND_LAT  ?? '53.4089')
+const GROUND_LNG  = parseFloat(process.env.NEXT_PUBLIC_GROUND_LNG  ?? '-3.1067')
 const RADIUS_M    = parseInt(process.env.NEXT_PUBLIC_GROUND_RADIUS_M ?? '300', 10)
 
 function haversineMetres(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -21,6 +22,46 @@ function haversineMetres(lat1: number, lng1: number, lat2: number, lng2: number)
 type CheckInPeriod = 'am' | 'pm'
 type State = 'idle' | 'locating' | 'checking_in' | 'success' | 'too_far' | 'denied' | 'error' | 'unsupported'
 
+interface GeolocationResult {
+  lat: number
+  lng: number
+  accuracy: number
+}
+
+/** Get current position via Capacitor (native) or browser Geolocation API (web). */
+async function getCurrentPosition(): Promise<GeolocationResult> {
+  if (isNative()) {
+    // Dynamically import so the web build never bundles the native plugin
+    const { Geolocation } = await import('@capacitor/geolocation')
+    const pos = await Geolocation.getCurrentPosition({
+      enableHighAccuracy: true,
+      timeout: 15000,
+    })
+    return {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      accuracy: pos.coords.accuracy,
+    }
+  }
+
+  // Web browser fallback
+  return new Promise((resolve, reject) => {
+    if (!('geolocation' in navigator)) {
+      reject(new Error('unsupported'))
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy,
+      }),
+      (err) => reject(err),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    )
+  })
+}
+
 interface Props {
   period: CheckInPeriod
   alreadyCheckedIn: boolean
@@ -31,52 +72,60 @@ export function GeofenceCheckIn({ period, alreadyCheckedIn }: Props) {
   const [distanceM, setDistanceM] = useState<number | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
 
-  if (typeof window !== 'undefined' && !('geolocation' in navigator)) {
-    return null // unsupported silently
+  // Hide on web if Geolocation is unavailable (native always has it)
+  if (
+    typeof window !== 'undefined' &&
+    !isNative() &&
+    !('geolocation' in navigator)
+  ) {
+    return null
   }
 
   async function handleCheckIn() {
     setState('locating')
     setErrorMsg('')
 
-    if (!('geolocation' in navigator)) {
-      setState('unsupported')
-      return
+    try {
+      const pos = await getCurrentPosition()
+      const dist = haversineMetres(pos.lat, pos.lng, GROUND_LAT, GROUND_LNG)
+      setDistanceM(Math.round(dist))
+
+      if (dist > RADIUS_M) {
+        setState('too_far')
+        return
+      }
+
+      setState('checking_in')
+      const res = await fetch('/api/attendance/geo-checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period, lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        throw new Error(data.error ?? 'Check-in failed')
+      }
+
+      setState('success')
+    } catch (err: unknown) {
+      // Web Geolocation permission denied
+      if (
+        typeof err === 'object' &&
+        err !== null &&
+        'code' in err &&
+        (err as GeolocationPositionError).code === (err as GeolocationPositionError).PERMISSION_DENIED
+      ) {
+        setState('denied')
+        return
+      }
+      if (err instanceof Error && err.message === 'unsupported') {
+        setState('unsupported')
+        return
+      }
+      setErrorMsg(err instanceof Error ? err.message : 'Check-in failed')
+      setState('error')
     }
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const dist = haversineMetres(pos.coords.latitude, pos.coords.longitude, GROUND_LAT, GROUND_LNG)
-        setDistanceM(Math.round(dist))
-
-        if (dist > RADIUS_M) {
-          setState('too_far')
-          return
-        }
-
-        setState('checking_in')
-        try {
-          const res = await fetch('/api/attendance/geo-checkin', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ period, lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
-          })
-          if (!res.ok) {
-            const data = await res.json().catch(() => ({}))
-            throw new Error(data.error ?? 'Check-in failed')
-          }
-          setState('success')
-        } catch (err) {
-          setErrorMsg(err instanceof Error ? err.message : 'Check-in failed')
-          setState('error')
-        }
-      },
-      (err) => {
-        if (err.code === err.PERMISSION_DENIED) setState('denied')
-        else { setErrorMsg(err.message); setState('error') }
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    )
   }
 
   if (state === 'success') {
@@ -92,7 +141,7 @@ export function GeofenceCheckIn({ period, alreadyCheckedIn }: Props) {
     return (
       <div className="flex items-center gap-1.5 text-[11px] text-amber-600">
         <AlertTriangle size={12} className="shrink-0" />
-        Location blocked — enable in browser settings
+        Location blocked — enable in {isNative() ? 'app settings' : 'browser settings'}
       </div>
     )
   }

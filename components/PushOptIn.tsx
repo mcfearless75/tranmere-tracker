@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { isNative, getPlatform } from '@/lib/native'
 
 type State = 'idle' | 'loading' | 'subscribed' | 'denied' | 'unsupported' | 'error'
 
@@ -9,6 +10,13 @@ export function PushOptIn() {
   const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
+    if (isNative()) {
+      // On native, check current permission state and auto-register silently
+      checkAndRegisterNative(true).catch(() => {})
+      return
+    }
+
+    // Web path
     if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
       setState('unsupported')
       return
@@ -17,13 +25,75 @@ export function PushOptIn() {
       setState('denied')
       return
     }
-    // Auto-register silently if already granted + not yet subscribed
     if (Notification.permission === 'granted') {
-      registerPush(true).catch(() => {})
+      registerWebPush(true).catch(() => {})
     }
   }, [])
 
-  async function registerPush(silent = false): Promise<boolean> {
+  // ─── Native (Capacitor) path ────────────────────────────────────────────────
+
+  async function checkAndRegisterNative(silent = false): Promise<boolean> {
+    try {
+      const { PushNotifications } = await import('@capacitor/push-notifications')
+
+      const permStatus = await PushNotifications.checkPermissions()
+
+      if (permStatus.receive === 'denied') {
+        if (!silent) setState('denied')
+        return false
+      }
+
+      if (permStatus.receive !== 'granted') {
+        // Not yet requested — only proceed silently if we shouldn't prompt
+        if (silent) return false
+        const requested = await PushNotifications.requestPermissions()
+        if (requested.receive !== 'granted') {
+          setState(requested.receive === 'denied' ? 'denied' : 'idle')
+          return false
+        }
+      }
+
+      await PushNotifications.register()
+
+      // Listen for the registration token once
+      await new Promise<void>((resolve, reject) => {
+        PushNotifications.addListener('registration', async (token) => {
+          try {
+            const res = await fetch('/api/push/native-register', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: token.value, platform: getPlatform() }),
+            })
+            if (!res.ok) throw new Error('Server rejected token')
+            setState('subscribed')
+            resolve()
+          } catch (e) {
+            reject(e)
+          }
+        })
+
+        PushNotifications.addListener('registrationError', (err) => {
+          reject(new Error(err.error))
+        })
+
+        // Timeout safety
+        setTimeout(() => reject(new Error('Token registration timed out')), 20000)
+      })
+
+      return true
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      if (!silent) {
+        setErrorMsg(`Could not enable notifications: ${msg}`)
+        setState('error')
+      }
+      return false
+    }
+  }
+
+  // ─── Web push path ───────────────────────────────────────────────────────────
+
+  async function registerWebPush(silent = false): Promise<boolean> {
     const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
     if (!publicKey) {
       if (!silent) {
@@ -34,27 +104,19 @@ export function PushOptIn() {
     }
 
     try {
-      // Ensure service worker is registered — next-pwa registers it but on mobile
-      // it may not be active yet; register explicitly if needed
       let reg = await navigator.serviceWorker.getRegistration('/')
       if (!reg) {
         reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
       }
 
-      // If no active SW, wait for one to activate
       if (!reg.active) {
-        // Tell any waiting SW to skip waiting (next-pwa sets skipWaiting:true but
-        // an old SW may block the new one from taking over on the first page load)
         if (reg.waiting) {
           reg.waiting.postMessage({ type: 'SKIP_WAITING' })
         }
 
         await Promise.race([
           new Promise<void>(resolve => {
-            // Primary signal: controllerchange fires when new SW takes control
             navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })
-
-            // Backup: statechange on the currently installing/waiting SW
             const sw = reg!.installing ?? reg!.waiting
             if (sw) {
               sw.addEventListener('statechange', function handler() {
@@ -70,13 +132,11 @@ export function PushOptIn() {
           ),
         ])
 
-        // Re-fetch now-active registration
         reg = (await navigator.serviceWorker.getRegistration('/')) ?? reg
       }
 
       const existing = await reg.pushManager.getSubscription()
       if (existing) {
-        // Re-send existing subscription to server in case it wasn't saved
         await fetch('/api/push/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -110,21 +170,24 @@ export function PushOptIn() {
     }
   }
 
+  // ─── Click handler ───────────────────────────────────────────────────────────
+
   async function handleClick() {
     setState('loading')
     setErrorMsg('')
 
+    if (isNative()) {
+      await checkAndRegisterNative(false)
+      return
+    }
+
     const perm = await Notification.requestPermission()
-    if (perm === 'denied') {
-      setState('denied')
-      return
-    }
-    if (perm !== 'granted') {
-      setState('idle')
-      return
-    }
-    await registerPush(false)
+    if (perm === 'denied') { setState('denied'); return }
+    if (perm !== 'granted') { setState('idle'); return }
+    await registerWebPush(false)
   }
+
+  // ─── Render ──────────────────────────────────────────────────────────────────
 
   if (state === 'unsupported' || state === 'denied') return null
 

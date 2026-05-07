@@ -56,7 +56,7 @@ export default async function ParentAttendancePage() {
     }
 
     const scheduledDates = new Set((sessions ?? []).map(s => s.scheduled_date as string))
-    const presentDates = new Set([...attendanceMap.keys()].filter(d => scheduledDates.has(d)))
+    const presentDates = new Set(Array.from(attendanceMap.keys()).filter(d => scheduledDates.has(d)))
     const pct = scheduledDates.size > 0 ? Math.round(presentDates.size / scheduledDates.size * 100) : null
 
     const records: AttendanceRecord[] = (sessions ?? []).map(s => {

@@ -42,3 +42,7 @@ next-env.d.ts
 /public/workbox-*.js.map
 
 .vercel
+
+# Firebase / Google Services — contain API keys, never commit
+android/app/google-services.json
+ios/App/App/GoogleService-Info.plist
