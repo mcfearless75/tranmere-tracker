@@ -7,6 +7,7 @@ workflows:
     environment:
       vars:
         APP_BUNDLE_ID: com.tranmererovers.tracker
+        APPLE_TEAM_ID: F55TGQ7TD3
         APP_STORE_CONNECT_KEY_IDENTIFIER: 5PX9NXN6BX
         APP_STORE_CONNECT_ISSUER_ID: edbead90-0e55-479d-9db9-ac1e7c5f21c1
         # APP_STORE_CONNECT_PRIVATE_KEY — add this in Codemagic > Environment Variables (secure)
@@ -36,27 +37,12 @@ workflows:
           LATEST=$(app-store-connect get-latest-app-store-build-number "$APP_BUNDLE_ID" 2>/dev/null || echo 0)
           agvtool new-version -all $(($LATEST + 1))
 
-      - name: Diagnose project
-        script: |
-          set -e
-          echo "=== Working directory ==="
-          pwd
-          echo "=== ios/App contents ==="
-          ls -la ios/App
-          echo "=== xcodeproj contents ==="
-          ls -la ios/App/App.xcodeproj
-          echo "=== shared schemes ==="
-          ls -la ios/App/App.xcodeproj/xcshareddata/xcschemes/ || echo "NO SHARED SCHEMES"
-          echo "=== xcodebuild -list ==="
-          xcodebuild -project ios/App/App.xcodeproj -list || true
-          echo "=== xcodebuild -showBuildSettings (raw) ==="
-          xcodebuild -project ios/App/App.xcodeproj -scheme App -showBuildSettings 2>&1 | head -50 || true
-
       - name: Build IPA
         script: |
           xcode-project build-ipa \
             --project ios/App/App.xcodeproj \
-            --scheme App
+            --scheme App \
+            --archive-flags="DEVELOPMENT_TEAM=$APPLE_TEAM_ID CODE_SIGN_STYLE=Manual"
 
     artifacts:
       - build/ios/ipa/*.ipa
