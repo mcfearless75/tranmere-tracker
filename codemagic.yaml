@@ -5,13 +5,16 @@ workflows:
     instance_type: mac_mini_m2
 
     environment:
+      groups:
+        # Codemagic group containing APP_STORE_CONNECT_PRIVATE_KEY (the .p8 file contents).
+        # Add the group in Codemagic UI: Environment variables → Add new group → name: appstore_credentials
+        # Then add APP_STORE_CONNECT_PRIVATE_KEY (secure) to that group with the full .p8 file contents.
+        - appstore_credentials
       vars:
         APP_BUNDLE_ID: com.tranmererovers.tracker
         APPLE_TEAM_ID: F55TGQ7TD3
         APP_STORE_CONNECT_KEY_IDENTIFIER: 5PX9NXN6BX
         APP_STORE_CONNECT_ISSUER_ID: edbead90-0e55-479d-9db9-ac1e7c5f21c1
-        # APP_STORE_CONNECT_PRIVATE_KEY — add this in Codemagic > Environment Variables (secure)
-        #   Value = full contents of the .p8 file
       node: latest
       xcode: 16.3
 
