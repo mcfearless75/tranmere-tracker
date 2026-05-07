@@ -29,19 +29,37 @@ workflows:
         script: |
           set -e
           keychain initialize
+
+          echo "=== Listing existing iOS Distribution certificates ==="
+          app-store-connect certificates list --type IOS_DISTRIBUTION --json > /tmp/certs.json || echo "[]" > /tmp/certs.json
+          CERT_COUNT=$(python3 -c "import json; print(len(json.load(open('/tmp/certs.json'))))")
+          echo "Found $CERT_COUNT existing IOS_DISTRIBUTION certificate(s)"
+
+          echo "=== Creating new iOS Distribution certificate (with private key) ==="
+          # Always create a fresh cert+key on Codemagic so we have the matching private key.
+          # This may fail if you've hit Apple's 2-cert-per-team limit — in which case revoke
+          # an existing one in Apple Developer Portal first.
+          app-store-connect certificates create \
+            --type IOS_DISTRIBUTION \
+            --save
+
           echo "=== Fetching signing files for $APP_BUNDLE_ID ==="
           app-store-connect fetch-signing-files "$APP_BUNDLE_ID" \
             --type IOS_APP_STORE \
             --create \
             --verbose
+
           echo "=== Provisioning profiles fetched ==="
           ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/" || echo "NO PROFILES DIRECTORY"
+
           echo "=== Adding certificates to keychain ==="
           keychain add-certificates
+
           echo "=== Applying profiles to project ==="
           xcode-project use-profiles \
             --project ios/App/App.xcodeproj \
             --warn-only
+
           echo "=== Verify pbxproj signing settings after use-profiles ==="
           grep -E "PROVISIONING_PROFILE_SPECIFIER|CODE_SIGN_STYLE|DEVELOPMENT_TEAM|CODE_SIGN_IDENTITY" ios/App/App.xcodeproj/project.pbxproj || echo "NONE FOUND"
 
