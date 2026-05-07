@@ -43,7 +43,7 @@ export default async function ParentMessagesPage() {
       id: m.id as string,
       content: m.content as string,
       created_at: m.created_at as string,
-      sender: (m.users as { name: string | null } | null),
+      sender: (Array.isArray(m.users) ? m.users[0] as { name: string | null } : m.users as { name: string | null } | null) ?? null,
     }))
   }
 

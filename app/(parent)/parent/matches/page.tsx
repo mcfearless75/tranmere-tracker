@@ -80,7 +80,7 @@ export default async function ParentMatchesPage() {
         .limit(30),
     ])
 
-    const rows = (squads ?? []) as MatchSquadRow[]
+    const rows = (squads ?? []) as unknown as MatchSquadRow[]
     const upcoming = rows.filter(r => r.match_events && r.match_events.match_date >= today)
       .sort((a, b) => (a.match_events!.match_date > b.match_events!.match_date ? 1 : -1))
     const past = rows.filter(r => r.match_events && r.match_events.match_date < today && r.match_events.match_date >= ago60)

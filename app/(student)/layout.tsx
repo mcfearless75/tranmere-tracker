@@ -1,5 +1,6 @@
 import { BottomNav } from '@/components/layout/BottomNav'
 import { SideNav } from '@/components/layout/SideNav'
+import { NativeInit } from '@/components/NativeInit'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
@@ -30,6 +31,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
 
   return (
     <div className="min-h-[100dvh] bg-gray-50 relative overflow-hidden">
+      <NativeInit />
       {/* Watermark */}
       <div className="pointer-events-none fixed inset-0 flex items-center justify-center z-0 opacity-[0.04]">
         <img
