@@ -1,0 +1,55 @@
+workflows:
+  ios-release:
+    name: Tranmere Tracker — iOS Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.tranmererovers.tracker
+      vars:
+        APP_ID: com.tranmererovers.tracker
+        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_SCHEME: App
+        APP_STORE_CONNECT_KEY_IDENTIFIER: 5PX9NXN6BX
+        APP_STORE_CONNECT_ISSUER_ID: edbead90-0e55-479d-9db9-ac1e7c5f21c1
+      node: latest
+      xcode: latest
+      cocoapods: default
+
+    scripts:
+      - name: Install Node dependencies
+        script: npm ci
+
+      - name: Sync Capacitor iOS
+        script: npx cap sync ios
+
+      - name: Install CocoaPods
+        script: |
+          cd ios/App
+          pod install
+
+      - name: Increment build number
+        script: |
+          cd ios/App
+          LATEST=$(app-store-connect get-latest-app-store-build-number "$APP_ID" 2>/dev/null || echo 0)
+          agvtool new-version -all $(($LATEST + 1))
+
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY   # .p8 content — added in Codemagic dashboard
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: true
+        submit_to_app_store: false

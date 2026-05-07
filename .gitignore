@@ -46,3 +46,7 @@ next-env.d.ts
 # Firebase / Google Services — contain API keys, never commit
 android/app/google-services.json
 ios/App/App/GoogleService-Info.plist
+*firebase-adminsdk*.json
+
+# Loose image assets in root (source files, not for committing)
+*.svg.png
