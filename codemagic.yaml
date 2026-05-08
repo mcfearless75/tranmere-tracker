@@ -16,7 +16,8 @@ workflows:
         APP_STORE_CONNECT_KEY_IDENTIFIER: 5PX9NXN6BX
         APP_STORE_CONNECT_ISSUER_ID: edbead90-0e55-479d-9db9-ac1e7c5f21c1
       node: latest
-      xcode: 16.3
+      # Apple requires iOS 26 SDK (Xcode 26+) for all App Store uploads as of 2026.
+      xcode: latest
 
     scripts:
       - name: Install Node dependencies
