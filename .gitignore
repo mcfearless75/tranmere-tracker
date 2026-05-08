@@ -50,3 +50,21 @@ ios/App/App/GoogleService-Info.plist
 
 # Loose image assets in root (source files, not for committing)
 *.svg.png
+
+# Signing keystores — private keys, never commit
+android/keystores/
+*.jks
+*.keystore
+*.p12
+
+# IDE
+android/.idea/
+.idea/
+
+# Android build outputs
+android/app/release/
+android/app/build/
+android/build/
+
+# Generated PWA worker hashes (auto-regenerated)
+public/worker-*.js

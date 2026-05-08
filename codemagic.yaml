@@ -31,31 +31,36 @@ workflows:
           set -e
           keychain initialize
 
-          echo "=== Generating fresh RSA private key for distribution cert ==="
-          openssl genrsa -out /tmp/dist_cert_key.pem 2048
-
-          echo "=== Listing existing iOS Distribution certificates ==="
-          app-store-connect certificates list --type IOS_DISTRIBUTION --json > /tmp/certs.json || echo "[]" > /tmp/certs.json
-          CERT_COUNT=$(python3 -c "import json; print(len(json.load(open('/tmp/certs.json'))))")
-          echo "Found $CERT_COUNT existing IOS_DISTRIBUTION certificate(s)"
-
-          echo "=== Creating new iOS Distribution certificate (with private key) ==="
-          # Apple allows max 2 IOS_DISTRIBUTION certs per team. If you hit the limit,
-          # revoke unused ones in https://developer.apple.com/account/resources/certificates/list
-          app-store-connect certificates create \
-            --type IOS_DISTRIBUTION \
-            --certificate-key=@file:/tmp/dist_cert_key.pem \
-            --save
+          # Reusable cert flow:
+          # If IOS_DIST_PRIVATE_KEY is set in the env, write it to disk and reuse the
+          # existing iOS Distribution cert in App Store Connect (no new cert per build).
+          # Otherwise, generate a fresh key and create a new cert (one-off bootstrap).
+          if [ -n "$IOS_DIST_PRIVATE_KEY" ]; then
+            echo "=== Using stored IOS_DIST_PRIVATE_KEY (reusing existing cert) ==="
+            printf "%s" "$IOS_DIST_PRIVATE_KEY" > /tmp/dist_cert_key.pem
+          else
+            echo "=== No stored private key — generating fresh and creating new cert ==="
+            openssl genrsa -out /tmp/dist_cert_key.pem 2048
+            app-store-connect certificates create \
+              --type IOS_DISTRIBUTION \
+              --certificate-key=@file:/tmp/dist_cert_key.pem \
+              --save
+            echo ""
+            echo "============================================================"
+            echo "ONE-TIME ACTION: Save this private key to Codemagic env vars"
+            echo "as IOS_DIST_PRIVATE_KEY (group: appstore_credentials, secure)"
+            echo "so future builds reuse this cert instead of creating a new one."
+            echo "----- BEGIN private key (copy ALL of this incl. headers) -----"
+            cat /tmp/dist_cert_key.pem
+            echo "----- END private key -----"
+            echo "============================================================"
+          fi
 
           echo "=== Fetching signing files for $APP_BUNDLE_ID ==="
           app-store-connect fetch-signing-files "$APP_BUNDLE_ID" \
             --type IOS_APP_STORE \
             --certificate-key=@file:/tmp/dist_cert_key.pem \
-            --create \
-            --verbose
-
-          echo "=== Provisioning profiles fetched ==="
-          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/" || echo "NO PROFILES DIRECTORY"
+            --create
 
           echo "=== Adding certificates to keychain ==="
           keychain add-certificates
@@ -64,9 +69,6 @@ workflows:
           xcode-project use-profiles \
             --project ios/App/App.xcodeproj \
             --warn-only
-
-          echo "=== Verify pbxproj signing settings after use-profiles ==="
-          grep -E "PROVISIONING_PROFILE_SPECIFIER|CODE_SIGN_STYLE|DEVELOPMENT_TEAM|CODE_SIGN_IDENTITY" ios/App/App.xcodeproj/project.pbxproj || echo "NONE FOUND"
 
       - name: Increment build number
         script: |
