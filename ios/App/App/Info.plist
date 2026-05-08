@@ -48,6 +48,11 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 
+	<!-- Encryption export compliance: app uses only standard HTTPS (exempt from US export rules).
+	     Setting this skips Apple's "Missing Compliance" prompt on every TestFlight build. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
 	<!-- Location permissions — required by Capacitor Geolocation + Background Geolocation -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Tranmere Tracker uses your location to verify attendance at the training ground.</string>
