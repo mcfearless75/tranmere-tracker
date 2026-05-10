@@ -5,7 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { PushOptIn } from '@/components/PushOptIn'
 import { GeofenceCheckIn } from '@/components/GeofenceCheckIn'
-import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, CalendarDays, AlertTriangle } from 'lucide-react'
+import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, CalendarDays, AlertTriangle, Brain, ChevronRight, Target } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,6 +64,7 @@ export default async function DashboardPage() {
     { data: scheduledDays },
     { data: overdueAssignments },
     { data: mySubmissions },
+    { data: cachedReport },
   ] = await Promise.all([
     supabase
       .from('assignments')
@@ -132,6 +133,12 @@ export default async function DashboardPage() {
       .from('submissions')
       .select('assignment_id, status')
       .eq('student_id', user!.id),
+    // AI report cache — show summary on dashboard if <24h old
+    supabase
+      .from('ai_player_reports')
+      .select('report_json, generated_at')
+      .eq('student_id', user!.id)
+      .maybeSingle(),
   ])
 
   const totalCalories = todayFood?.reduce((sum, r) => sum + r.calories, 0) ?? 0
@@ -158,6 +165,22 @@ export default async function DashboardPage() {
 
   // Does tomorrow have a match session?
   const tomorrowHasMatch = (tomorrowSessions ?? []).some(s => s.session_type === 'match')
+
+  // AI report summary — only show if cached and <24h old
+  const reportAge = cachedReport?.generated_at
+    ? Date.now() - new Date(cachedReport.generated_at).getTime()
+    : Infinity
+  const reportData = reportAge < 24 * 60 * 60 * 1000
+    ? (cachedReport?.report_json as { overall_rating?: string; this_week_priority?: string; headline?: string } | null)
+    : null
+
+  const ratingLabel: Record<string, { label: string; bg: string; text: string }> = {
+    developing: { label: 'Developing', bg: 'bg-gray-100', text: 'text-gray-600' },
+    on_track:   { label: 'On Track',   bg: 'bg-blue-100', text: 'text-blue-700' },
+    performing: { label: 'Performing', bg: 'bg-emerald-100', text: 'text-emerald-700' },
+    elite:      { label: 'Elite',      bg: 'bg-yellow-100', text: 'text-yellow-700' },
+  }
+  const ratingCfg = reportData?.overall_rating ? ratingLabel[reportData.overall_rating] : null
 
   const firstName = profile?.name?.split(' ')[0] ?? 'Player'
   const courseName = (profile?.courses as any)?.name ?? ''
@@ -348,6 +371,47 @@ export default async function DashboardPage() {
           )}
         </div>
       )}
+
+      {/* ═══════════ AI REPORT SUMMARY ═══════════ */}
+      <Link
+        href="/ai-report"
+        className="block rounded-2xl bg-gradient-to-br from-blue-950 to-tranmere-blue text-white p-4 shadow group"
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Brain size={16} className="text-blue-200" />
+            <span className="text-xs font-bold uppercase tracking-widest text-blue-200">AI Development Report</span>
+          </div>
+          {ratingCfg ? (
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${ratingCfg.bg} ${ratingCfg.text}`}>
+              {ratingCfg.label}
+            </span>
+          ) : null}
+        </div>
+
+        {reportData ? (
+          <div className="space-y-2">
+            {reportData.headline && (
+              <p className="text-sm font-medium leading-snug text-white/90">{reportData.headline}</p>
+            )}
+            {reportData.this_week_priority && (
+              <div className="flex items-start gap-2 bg-white/10 rounded-xl px-3 py-2">
+                <Target size={13} className="text-tranmere-gold mt-0.5 shrink-0" />
+                <p className="text-xs text-white/80 leading-snug">{reportData.this_week_priority}</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-blue-200">
+            Get a personalised AI development plan for your training, nutrition &amp; GPS.
+          </p>
+        )}
+
+        <div className="flex items-center gap-1 mt-3 text-xs font-semibold text-blue-200 group-hover:text-white transition-colors">
+          {reportData ? 'View full report' : 'Generate your report'}
+          <ChevronRight size={13} />
+        </div>
+      </Link>
 
       {/* ═══════════ UPCOMING DEADLINES ═══════════ */}
       <Card>
