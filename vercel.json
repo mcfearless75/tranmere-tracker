@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/attendance-report-pm",
       "schedule": "30 17 * * 1-5"
+    },
+    {
+      "path": "/api/cron/refresh-reports",
+      "schedule": "0 2 * * *"
     }
   ]
 }
