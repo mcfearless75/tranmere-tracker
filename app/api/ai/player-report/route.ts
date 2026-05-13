@@ -212,10 +212,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     }
 
-    const url = new URL(req.url)
-    const force = url.searchParams.get('force') === '1'
-
     const admin = createAdminClient()
+
+    // Only admin/coach/teacher may bypass the 24h cache — prevents cost abuse by students
+    const forceRequested = new URL(req.url).searchParams.get('force') === '1'
+    let force = false
+    if (forceRequested) {
+      const { data: profile } = await admin.from('users').select('role').eq('id', user.id).single()
+      force = ['admin', 'coach', 'teacher'].includes(profile?.role ?? '')
+    }
 
     // Check cache unless force refresh
     if (!force) {

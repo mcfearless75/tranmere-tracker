@@ -148,9 +148,9 @@ Return ONLY valid JSON (no markdown):
 // ─── cron handler ─────────────────────────────────────────────────────────────
 
 export async function GET(request: Request) {
-  // Secure with CRON_SECRET (Vercel sets the Authorization header automatically)
-  const authHeader = request.headers.get('authorization')
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Fail closed: if CRON_SECRET is unset the endpoint is locked, not open
+  const secret = process.env.CRON_SECRET
+  if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -232,8 +232,12 @@ export async function GET(request: Request) {
       // Small delay between students to avoid AI rate-limit spikes
       await new Promise(r => setTimeout(r, 500))
 
-    } catch {
+    } catch (err: unknown) {
       results.errors++
+      console.error(
+        `[refresh-reports] Failed for student ${student.id}:`,
+        err instanceof Error ? err.message : err,
+      )
     }
   }
 
