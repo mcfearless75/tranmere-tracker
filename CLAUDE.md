@@ -45,6 +45,9 @@ docs/          # documentation
 - All new features need Jest tests in `__tests__/`
 - TypeScript strict — no `any` types without justification
 - Components go in `components/`, not inline in page files
+- Use `.maybeSingle()` for any Supabase lookup that may legitimately return no row (new user, first login, optional record). `.single()` throws a Postgres error on empty — it is only correct when the row is guaranteed to exist
+- Every new cron route must be added to `vercel.json` in the same commit it is created. A cron route without a `vercel.json` entry is dead code — it never fires
+- All Vercel cron schedules are UTC. Convert London times before setting them (BST = UTC-1h, GMT = UTC). Format: `"schedule": "30 9 * * 1-5"  // 10:30 London BST`. Verify UTC conversion matches the intended London time at every deploy
 
 ## Supabase SSR Pattern
 ```ts

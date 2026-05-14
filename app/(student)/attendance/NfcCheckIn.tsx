@@ -149,7 +149,7 @@ export function NfcCheckIn({ phase, nfcToken }: Props) {
             <button onClick={submit} className="flex-1 bg-tranmere-blue text-white font-bold py-3.5 rounded-2xl active:scale-[0.98] transition-transform">Submit ✓</button>
           </div>
         )}
-        <button onClick={submit} className="text-xs text-muted-foreground underline">Skip photo and submit</button>
+        <button onClick={submit} className="text-xs text-muted-foreground underline min-h-[44px] px-3 py-2">Skip photo and submit</button>
       </div>
     )
   }

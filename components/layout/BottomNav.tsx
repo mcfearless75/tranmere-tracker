@@ -25,7 +25,7 @@ export function BottomNav() {
             className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${active ? 'text-tranmere-blue' : 'text-gray-400'}`}
           >
             <Icon size={20} strokeWidth={active ? 2.5 : 1.5} />
-            <span className="text-[10px] font-medium">{label}</span>
+            <span className="text-xs font-medium">{label}</span>
           </Link>
         )
       })}

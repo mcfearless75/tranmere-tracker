@@ -326,7 +326,7 @@ export default async function AiReportPage({
           {generatedAt && <span>Generated {timeAgo(generatedAt)}{fromCache ? ' · cached' : ''}</span>}
           <Link
             href="/ai-report?refresh=1"
-            className="flex items-center gap-1 text-tranmere-blue font-medium hover:underline"
+            className="flex items-center gap-1 text-tranmere-blue font-medium hover:underline min-h-[44px] px-2 py-2"
           >
             <RefreshCw size={13} />
             Refresh
@@ -376,7 +376,7 @@ export default async function AiReportPage({
                 )
               })()}
             </div>
-            <p className="text-white/70 text-xs italic">{report.position_insight}</p>
+            <p className="text-white/85 text-xs italic">{report.position_insight}</p>
           </div>
 
           {/* This Week Priority */}
@@ -416,7 +416,7 @@ export default async function AiReportPage({
                   <div key={i} className="bg-white border rounded-xl p-3 space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-semibold text-gray-800">{d.area}</p>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${pcfg.bg} ${pcfg.text}`}>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${pcfg.bg} ${pcfg.text}`}>
                         {pcfg.label}
                       </span>
                     </div>

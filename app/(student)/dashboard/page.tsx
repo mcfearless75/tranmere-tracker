@@ -253,7 +253,7 @@ export default async function DashboardPage() {
                     {opens.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                     {closes && `–${closes.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`}
                   </span>
-                  {isLive && <span className="text-[10px] font-bold bg-green-400 text-blue-900 px-1.5 py-0.5 rounded uppercase">Live</span>}
+                  {isLive && <span className="text-xs font-bold bg-green-400 text-blue-900 px-1.5 py-0.5 rounded uppercase">Live</span>}
                 </div>
               )
             })}
@@ -272,7 +272,7 @@ export default async function DashboardPage() {
               ? <CheckCircle2 size={15} className="text-green-400 shrink-0" />
               : <Sun size={15} className="text-blue-200 shrink-0" />}
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200">AM</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-200">AM</p>
               {todayDaily?.am_checked_at ? (
                 <p className="text-xs font-semibold">
                   In {new Date(todayDaily.am_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
@@ -288,7 +288,7 @@ export default async function DashboardPage() {
               ? <CheckCircle2 size={15} className="text-green-400 shrink-0" />
               : <Moon size={15} className="text-blue-200 shrink-0" />}
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200">PM</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-200">PM</p>
               {todayDaily?.pm_checked_at ? (
                 <p className="text-xs font-semibold">
                   Out {new Date(todayDaily.pm_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
@@ -383,7 +383,7 @@ export default async function DashboardPage() {
             <span className="text-xs font-bold uppercase tracking-widest text-blue-200">AI Development Report</span>
           </div>
           {ratingCfg ? (
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${ratingCfg.bg} ${ratingCfg.text}`}>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${ratingCfg.bg} ${ratingCfg.text}`}>
               {ratingCfg.label}
             </span>
           ) : null}
@@ -459,7 +459,7 @@ export default async function DashboardPage() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-xs text-muted-foreground">{daysLeft === 0 ? 'Today' : daysLeft === 1 ? 'Tomorrow' : `${daysLeft}d`}</p>
-                    <p className={`text-[10px] font-medium capitalize ${statusColour}`}>{entry.status ?? 'pending'}</p>
+                    <p className={`text-xs font-medium capitalize ${statusColour}`}>{entry.status ?? 'pending'}</p>
                   </div>
                 </Link>
               )

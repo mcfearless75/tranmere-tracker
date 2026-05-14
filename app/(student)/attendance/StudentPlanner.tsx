@@ -143,10 +143,10 @@ export function StudentPlanner({ sessions, daily, today, amWindow, pmWindow }: P
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${TYPE_CHIP[session.session_type] ?? 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`text-xs font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${TYPE_CHIP[session.session_type] ?? 'bg-gray-100 text-gray-600'}`}>
                         {session.session_type}
                       </span>
-                      {isLive && <span className="text-[10px] font-bold text-tranmere-blue uppercase tracking-wide">Live</span>}
+                      {isLive && <span className="text-xs font-bold text-tranmere-blue uppercase tracking-wide">Live</span>}
                     </div>
                     <p className="font-semibold text-sm mt-0.5 leading-tight">{session.session_label}</p>
                     <p className="text-xs text-muted-foreground">
