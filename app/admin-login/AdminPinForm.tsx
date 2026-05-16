@@ -18,7 +18,7 @@ export function AdminPinForm() {
   function press(d: string) {
     if (d === '⌫') { setPin(p => p.slice(0, -1)); return }
     if (d === '') return
-    if (pin.length >= 6) return
+    if (pin.length >= 7) return
     setPin(p => p + d)
   }
 
@@ -45,7 +45,7 @@ export function AdminPinForm() {
     <div className="space-y-5">
       {/* PIN dots */}
       <div className="flex justify-center gap-3">
-        {Array.from({ length: 6 }).map((_, i) => (
+        {Array.from({ length: 7 }).map((_, i) => (
           <div
             key={i}
             className={`w-4 h-4 rounded-full border-2 transition-all ${
