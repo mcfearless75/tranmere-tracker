@@ -94,3 +94,56 @@ workflows:
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
         submit_to_app_store: false
+
+  android-release:
+    name: Tranmere Tracker — Android Release
+    max_build_duration: 60
+    instance_type: linux_x2
+
+    environment:
+      # Create a group in Codemagic UI: Environment variables → Add new group → name: android_credentials
+      # Add these variables to that group (all secure):
+      #   CM_KEYSTORE        — base64-encoded .jks or .keystore file
+      #                        Generate: keytool -genkeypair -v -keystore tranmere.keystore -alias tranmere -keyalg RSA -keysize 2048 -validity 10000
+      #                        Encode:   base64 -w 0 tranmere.keystore  (Linux/Mac)
+      #   CM_KEYSTORE_PASSWORD — keystore password you set above
+      #   CM_KEY_ALIAS         — alias you used above (e.g. tranmere)
+      #   CM_KEY_PASSWORD      — key password (can be same as keystore password)
+      #   GCLOUD_SERVICE_ACCOUNT_CREDENTIALS — full JSON from Google Play Console
+      #     Play Console → Setup → API access → Link to Google Cloud → Create service account
+      #     Grant the service account "Release Manager" role in Play Console
+      groups:
+        - android_credentials
+      vars:
+        PACKAGE_NAME: com.tranmererovers.tracker
+      node: latest
+      java: 17
+
+    scripts:
+      - name: Install Node dependencies
+        script: npm ci
+
+      - name: Sync Capacitor Android
+        script: npx cap sync android
+
+      - name: Decode keystore
+        script: |
+          echo "$CM_KEYSTORE" | base64 --decode > /tmp/tranmere.keystore
+
+      - name: Build release AAB
+        script: |
+          cd android
+          ./gradlew bundleRelease \
+            -Pandroid.injected.signing.store.file=/tmp/tranmere.keystore \
+            -Pandroid.injected.signing.store.password="$CM_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$CM_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$CM_KEY_PASSWORD"
+
+    artifacts:
+      - android/app/build/outputs/bundle/release/app-release.aab
+
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        # Promote to alpha → beta → production manually in Play Console once tested
