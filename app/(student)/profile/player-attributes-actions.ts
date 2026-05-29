@@ -1,7 +1,15 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
+
+function adminClient() {
+  return createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
 
 export type SavePlayerAttributesPayload = {
   userId?:        string  // optional — if omitted, save for current user
@@ -36,7 +44,8 @@ export async function savePlayerAttributes(payload: SavePlayerAttributesPayload)
   if ('build'         in payload) update.build         = payload.build         || null
   if ('dominant_foot' in payload) update.dominant_foot = payload.dominant_foot || null
 
-  const { error } = await supabase.from('users').update(update).eq('id', targetId)
+  // Use service client to bypass RLS — auth checks above already gate access
+  const { error } = await adminClient().from('users').update(update).eq('id', targetId)
   if (error) return { ok: false, error: error.message }
 
   revalidatePath('/profile')

@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Image from 'next/image'
 import Link from 'next/link'
 import { PushOptIn } from '@/components/PushOptIn'
-import { GeofenceCheckIn } from '@/components/GeofenceCheckIn'
 import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, CalendarDays, AlertTriangle, Brain, ChevronRight, Target } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -278,7 +277,9 @@ export default async function DashboardPage() {
                   In {new Date(todayDaily.am_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                 </p>
               ) : (
-                <GeofenceCheckIn period="am" alreadyCheckedIn={false} />
+                <Link href="/attendance" className="text-xs font-semibold text-blue-100 hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg transition-colors">
+                  Check in →
+                </Link>
               )}
             </div>
           </div>
@@ -294,7 +295,9 @@ export default async function DashboardPage() {
                   Out {new Date(todayDaily.pm_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                 </p>
               ) : (
-                <GeofenceCheckIn period="pm" alreadyCheckedIn={false} />
+                <Link href="/attendance" className="text-xs font-semibold text-blue-100 hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg transition-colors">
+                  Check out →
+                </Link>
               )}
             </div>
           </div>
