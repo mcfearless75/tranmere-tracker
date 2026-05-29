@@ -7,10 +7,16 @@ import { NfcCheckIn } from './NfcCheckIn'
 export const dynamic = 'force-dynamic'
 
 function decidePhase(amStart: string, amEnd: string, pmStart: string, pmEnd: string): 'am' | 'pm' | null {
-  const now    = new Date()
-  const local  = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }))
-  const mins   = local.getHours() * 60 + local.getMinutes()
-  const toMins = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+  // Use Intl to extract London hour/minute reliably on Vercel (avoids Invalid Date from toLocaleString parsing)
+  const now = new Date()
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    hour: 'numeric', minute: 'numeric', hour12: false,
+  }).formatToParts(now)
+  const h = parseInt(parts.find(p => p.type === 'hour')?.value   ?? '0', 10)
+  const m = parseInt(parts.find(p => p.type === 'minute')?.value ?? '0', 10)
+  const mins   = h * 60 + m
+  const toMins = (t: string) => { const [th, tm] = t.split(':').map(Number); return th * 60 + tm }
 
   if (mins >= toMins(amStart) && mins <= toMins(amEnd)) return 'am'
   if (mins >= toMins(pmStart) && mins <= toMins(pmEnd)) return 'pm'
