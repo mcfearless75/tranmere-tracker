@@ -1,6 +1,8 @@
 'use client'
 
-import { CalendarDays, CheckCircle2, Clock, Sun, Moon, Smartphone } from 'lucide-react'
+import { useState } from 'react'
+import { CalendarDays, CheckCircle2, Clock, Sun, Moon } from 'lucide-react'
+import { InAppCheckIn } from './InAppCheckIn'
 
 export type PlannerSession = {
   id: string
@@ -88,6 +90,16 @@ function PhaseCard({
 export function StudentPlanner({ sessions, daily, today, amWindow, pmWindow }: Props) {
   const now = new Date()
 
+  const [amCheckedAt, setAmCheckedAt] = useState<string | null>(daily?.am_checked_at ?? null)
+  const [pmCheckedAt, setPmCheckedAt] = useState<string | null>(daily?.pm_checked_at ?? null)
+
+  const amOpen = inWindow(now, amWindow.start, amWindow.end)
+  const pmOpen = inWindow(now, pmWindow.start, pmWindow.end)
+  const activePhase: 'am' | 'pm' | null =
+    amOpen && !amCheckedAt ? 'am' :
+    pmOpen && !pmCheckedAt ? 'pm' :
+    null
+
   const dayLabel = new Date(today + 'T12:00:00').toLocaleDateString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long',
   })
@@ -104,19 +116,19 @@ export function StudentPlanner({ sessions, daily, today, amWindow, pmWindow }: P
         </div>
       </div>
 
-      {/* AM / PM check-in cards */}
+      {/* AM / PM status cards */}
       <div className="flex gap-3">
-        <PhaseCard phase="am" checkedAt={daily?.am_checked_at ?? null} window={amWindow} now={now} />
-        <PhaseCard phase="pm" checkedAt={daily?.pm_checked_at ?? null} window={pmWindow} now={now} />
+        <PhaseCard phase="am" checkedAt={amCheckedAt} window={amWindow} now={now} />
+        <PhaseCard phase="pm" checkedAt={pmCheckedAt} window={pmWindow} now={now} />
       </div>
 
-      {/* NFC hint */}
-      <div className="flex items-start gap-2.5 bg-blue-50/50 border border-blue-100 rounded-xl px-3 py-2.5">
-        <Smartphone size={16} className="text-tranmere-blue shrink-0 mt-0.5" />
-        <p className="text-[11px] text-blue-900/80 leading-relaxed">
-          Tap your phone on the Tranmere NFC sticker at reception when you arrive and again before you leave. No PIN needed.
-        </p>
-      </div>
+      {/* In-app check-in — shown when a window is open and not yet checked in */}
+      {activePhase && (
+        <InAppCheckIn
+          phase={activePhase}
+          onSuccess={ts => activePhase === 'am' ? setAmCheckedAt(ts) : setPmCheckedAt(ts)}
+        />
+      )}
 
       {/* Today's lessons */}
       {sessions.length > 0 && (
