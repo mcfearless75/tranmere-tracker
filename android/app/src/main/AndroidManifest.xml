@@ -22,6 +22,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- App Link: tapping an NFC board (or any /attendance link) opens
+                 the app directly instead of the browser. autoVerify checks
+                 /.well-known/assetlinks.json on the domain at install time. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="tranmeretracker.vercel.app"
+                    android:pathPrefix="/attendance" />
+            </intent-filter>
+
         </activity>
 
         <provider

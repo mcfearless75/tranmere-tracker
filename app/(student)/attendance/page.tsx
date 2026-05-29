@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { StudentPlanner } from './StudentPlanner'
-import { NfcCheckIn } from './NfcCheckIn'
+import { AutoCheckIn } from './AutoCheckIn'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,7 +68,7 @@ export default async function StudentAttendancePage({
       )
     }
 
-    return <NfcCheckIn phase={phase} nfcToken={searchParams.tag} />
+    return <AutoCheckIn phase={phase} nfcToken={searchParams.tag} />
   }
 
   // ── Default: planner view ─────────────────────────────────────────────────
