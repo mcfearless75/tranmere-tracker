@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { LoginForm } from './LoginForm'
 import { ShieldCheck, User } from 'lucide-react'
 
-export default function LoginPage() {
+export default function LoginPage({ searchParams }: { searchParams: { next?: string } }) {
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-tranmere-blue p-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-8 space-y-6">
@@ -19,7 +19,7 @@ export default function LoginPage() {
           <p className="text-sm text-muted-foreground">Sign in to your account</p>
         </div>
 
-        <LoginForm />
+        <LoginForm next={searchParams.next} />
 
         <div className="relative">
           <div className="absolute inset-0 flex items-center">

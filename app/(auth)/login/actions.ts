@@ -10,7 +10,8 @@ export async function signIn(_prevState: { error: string } | null, formData: For
     password: formData.get('password') as string,
   })
   if (error) return { error: error.message }
-  redirect('/')
+  const next = formData.get('next') as string | null
+  redirect(next && next.startsWith('/') ? next : '/')
 }
 
 export async function signOut() {

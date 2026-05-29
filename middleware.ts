@@ -53,9 +53,12 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
   const isPublic = PUBLIC_PATHS.some(p => path.startsWith(p))
 
-  // Unauthenticated on a protected page → /login
+  // Unauthenticated on a protected page → /login (preserve destination)
   if (!user && !isPublic) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    const next = request.nextUrl.pathname + request.nextUrl.search
+    const loginUrl = new URL('/login', request.url)
+    loginUrl.searchParams.set('next', next)
+    return NextResponse.redirect(loginUrl)
   }
 
   if (!user) return supabaseResponse
