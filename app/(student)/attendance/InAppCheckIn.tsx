@@ -24,6 +24,7 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
   const [geo, setGeo]       = useState<{ lat: number; lng: number; accuracy: number } | null>(null)
   const nfcAbortRef         = useRef<AbortController | null>(null)
   const qrScannerRef        = useRef<unknown>(null)
+  const qrStartedRef        = useRef(false)
 
   const PhaseIcon  = phase === 'am' ? Sun : Moon
   const phaseLabel = phase === 'am' ? 'Morning Check-in' : 'End of Day Check-out'
@@ -57,9 +58,8 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
       })
       const json = await res.json()
       if (!json.ok) { setError(json.error ?? 'Check-in failed'); setState('error'); return }
-      const now = new Date().toISOString()
       setState('success')
-      onSuccess(now)
+      onSuccess(new Date().toISOString())
     } catch {
       setError('Network error — try again')
       setState('error')
@@ -81,56 +81,81 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
       // @ts-expect-error Web NFC not in TS lib
       const ndef = new window.NDEFReader()
       await ndef.scan({ signal: abort.signal })
-      ndef.addEventListener('reading', ({ message }: { message: { records: Array<{ recordType: string; data: DataView }> } }) => {
+      ndef.addEventListener('reading', ({ message }: { message: { records: Array<{ recordType: string; data: DataView; mediaType?: string }> } }) => {
         for (const record of message.records) {
-          if (record.recordType === 'url') {
+          // Handle both 'url' and 'text' record types
+          if (record.recordType === 'url' || record.recordType === 'absolute-url') {
             const token = extractToken(new TextDecoder().decode(record.data))
-            if (token) { stopNfc(); submitCheckIn(token) }
+            if (token) { stopNfc(); submitCheckIn(token); return }
+          }
+          if (record.recordType === 'text') {
+            const text = new TextDecoder().decode(record.data)
+            const token = extractToken(text)
+            if (token) { stopNfc(); submitCheckIn(token); return }
           }
         }
       })
       return true
     } catch {
-      setState('idle')
+      // NFC permission denied or not available — fall back to QR
+      setState('qr')
       return false
     }
   }, [stopNfc, submitCheckIn])
 
-  // ── QR ─────────────────────────────────────────────────────────────────────
+  // ── QR — initialized via useEffect so the div is in the DOM ───────────────
   const stopQr = useCallback(async () => {
     if (qrScannerRef.current) {
       // @ts-expect-error html5-qrcode types
       await qrScannerRef.current.stop().catch(() => {})
+      // @ts-expect-error html5-qrcode types
+      qrScannerRef.current.clear?.()
       qrScannerRef.current = null
     }
+    qrStartedRef.current = false
   }, [])
 
-  const startQr = useCallback(async () => {
-    setState('qr')
-    try {
-      const { Html5Qrcode } = await import('html5-qrcode')
-      const scanner = new Html5Qrcode('tt-qr-reader')
-      qrScannerRef.current = scanner
-      await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 220, height: 220 } },
-        async (decoded: string) => {
-          const token = extractToken(decoded)
-          if (token) { await stopQr(); submitCheckIn(token) }
-        },
-        () => {},
-      )
-    } catch {
-      setState('idle')
-      setError('Camera access denied — check browser permissions')
-    }
-  }, [stopQr, submitCheckIn])
+  // This effect runs AFTER React renders the #tt-qr-reader div into the DOM
+  useEffect(() => {
+    if (state !== 'qr' || qrStartedRef.current) return
+    qrStartedRef.current = true
 
-  // ── Entry point ─────────────────────────────────────────────────────────────
+    let cancelled = false
+
+    async function init() {
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode')
+        if (cancelled) return
+        const scanner = new Html5Qrcode('tt-qr-reader')
+        qrScannerRef.current = scanner
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 220, height: 220 } },
+          async (decoded: string) => {
+            const token = extractToken(decoded)
+            if (token) { await stopQr(); submitCheckIn(token) }
+          },
+          () => {},
+        )
+      } catch (err) {
+        if (cancelled) return
+        const msg = err instanceof Error ? err.message : 'Camera failed'
+        setError(msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('denied')
+          ? 'Camera permission denied — enable in browser settings'
+          : `Camera error: ${msg}`)
+        setState('error')
+        qrStartedRef.current = false
+      }
+    }
+
+    init()
+    return () => { cancelled = true }
+  }, [state, stopQr, submitCheckIn])
+
   const handleCheckIn = useCallback(async () => {
     if ('NDEFReader' in window) { await startNfc() }
-    else { await startQr() }
-  }, [startNfc, startQr])
+    else { setState('qr') }
+  }, [startNfc])
 
   const cancel = useCallback(async () => {
     stopNfc(); await stopQr()
@@ -187,11 +212,11 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
         </div>
         <div>
           <p className="font-bold text-tranmere-blue text-lg">Hold phone to the sign</p>
-          <p className="text-xs text-muted-foreground mt-1">Tap the NFC sign at reception</p>
+          <p className="text-xs text-muted-foreground mt-1">Keep the app open — tap the NFC panel</p>
         </div>
         <div className="flex flex-col gap-2 w-full">
           <button
-            onClick={() => { stopNfc(); startQr() }}
+            onClick={() => { stopNfc(); setState('qr') }}
             className="flex items-center justify-center gap-2 border border-tranmere-blue text-tranmere-blue py-3 rounded-xl text-sm font-semibold"
           >
             <QrCode size={16} /> Scan QR code instead
@@ -209,7 +234,8 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
     return (
       <div className="flex flex-col gap-3">
         <p className="text-center text-sm font-semibold text-tranmere-blue">Point camera at the QR code on the sign</p>
-        <div id="tt-qr-reader" className="rounded-2xl overflow-hidden w-full" />
+        {/* This div must exist before the useEffect initialises the scanner */}
+        <div id="tt-qr-reader" className="rounded-2xl overflow-hidden w-full min-h-[260px] bg-gray-100" />
         {hasNfc && (
           <button
             onClick={() => { stopQr(); startNfc() }}
@@ -225,7 +251,7 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
     )
   }
 
-  // idle — the main CTA
+  // idle — main CTA
   return (
     <button
       onClick={handleCheckIn}
