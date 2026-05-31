@@ -57,6 +57,9 @@ android/keystores/
 *.keystore
 *.p12
 
+# Claude Code local settings — can capture secrets in allowed-command history
+.claude/settings.local.json
+
 # IDE
 android/.idea/
 .idea/
