@@ -73,8 +73,13 @@ workflows:
       - name: Increment build number
         script: |
           cd ios/App
-          LATEST=$(app-store-connect get-latest-app-store-build-number "$APP_BUNDLE_ID" 2>/dev/null || echo 0)
-          agvtool new-version -all $(($LATEST + 1))
+          # get-latest-build-number covers TestFlight + App Store (not just released
+          # versions), so it sees prior uploads the app-store-only query misses.
+          LATEST=$(app-store-connect get-latest-build-number "$APP_BUNDLE_ID" 2>/dev/null || echo 0)
+          # Codemagic's BUILD_NUMBER is monotonic per workflow — use whichever is higher.
+          BASE=${LATEST:-0}
+          if [ "${BUILD_NUMBER:-0}" -gt "$BASE" ]; then BASE=$BUILD_NUMBER; fi
+          agvtool new-version -all $(($BASE + 1))
 
       - name: Build IPA
         script: |
