@@ -78,7 +78,7 @@ function PhaseCard({
         </p>
       </div>
       <p className={`text-sm font-bold ${isOpen ? 'text-tranmere-blue' : 'text-muted-foreground'}`}>
-        {isOpen ? 'Tap NFC sticker' : 'Not yet'}
+        {isOpen ? 'Tap board or check in below' : 'Not yet'}
       </p>
       <p className="text-[11px] text-muted-foreground">
         Window: {fmtTime(window.start)}–{fmtTime(window.end)}

@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["F55TGQ7TD3.com.tranmererovers.tracker"],
+        "components": [
+          {
+            "/": "/attendance*",
+            "comment": "NFC board tap and any attendance link opens the iOS app"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -48,6 +48,8 @@ docs/          # documentation
 - Use `.maybeSingle()` for any Supabase lookup that may legitimately return no row (new user, first login, optional record). `.single()` throws a Postgres error on empty — it is only correct when the row is guaranteed to exist
 - Every new cron route must be added to `vercel.json` in the same commit it is created. A cron route without a `vercel.json` entry is dead code — it never fires
 - All Vercel cron schedules are UTC. Convert London times before setting them (BST = UTC-1h, GMT = UTC). Format: `"schedule": "30 9 * * 1-5"  // 10:30 London BST`. Verify UTC conversion matches the intended London time at every deploy
+- The admin PIN login (`app/admin-login/AdminPinForm.tsx`) authenticates as `superuser@tranmeretracker.internal` with the PIN as the GoTrue password. This account must NEVER be deleted. If it is, recreate it via `admin.auth.admin.create_user()` — SQL inserts will not work. PIN is 5–7 digits.
+- Before any mass user deletion in Supabase, audit all migrations first: `grep -r "REFERENCES public.users" supabase/migrations/`. `ON DELETE CASCADE` = safe, handled automatically. Plain `REFERENCES` (no ON DELETE clause) = must handle manually: nullable columns → `UPDATE ... SET col = NULL WHERE col IN (target_ids)`; NOT NULL columns → `DELETE FROM table WHERE col IN (target_ids)`. Do this audit upfront — the SQL editor stops on the first FK violation and every miss means another failed run.
 
 ## Supabase SSR Pattern
 ```ts

@@ -20,6 +20,15 @@ const nextConfig = {
     '@capacitor/ios',
     '@capacitor-community/background-geolocation',
   ],
+  // iOS Universal Links: Apple requires the AASA file served as application/json.
+  async headers() {
+    return [
+      {
+        source: '/.well-known/apple-app-site-association',
+        headers: [{ key: 'Content-Type', value: 'application/json' }],
+      },
+    ]
+  },
 }
 
 module.exports = withPWA(nextConfig)
