@@ -143,6 +143,7 @@ workflows:
       - name: Build release AAB
         script: |
           cd android
+          chmod +x gradlew
           ./gradlew bundleRelease \
             -Pandroid.injected.signing.store.file=/tmp/tranmere.keystore \
             -Pandroid.injected.signing.store.password="$CM_KEYSTORE_PASSWORD" \
