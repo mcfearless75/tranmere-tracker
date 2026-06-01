@@ -144,6 +144,10 @@ workflows:
         script: |
           cd android
           chmod +x gradlew
+          # @capacitor-community/background-geolocation@1.2.x uses the deprecated
+          # proguard-android.txt which Gradle 10 / AGP 8+ rejects. Patch it in place.
+          find . -name "*.gradle" -exec sed -i '' \
+            's/proguard-android\.txt/proguard-android-optimize.txt/g' {} +
           ./gradlew bundleRelease \
             -Pandroid.injected.signing.store.file=/tmp/tranmere.keystore \
             -Pandroid.injected.signing.store.password="$CM_KEYSTORE_PASSWORD" \
