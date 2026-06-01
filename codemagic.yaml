@@ -103,7 +103,9 @@ workflows:
   android-release:
     name: Tranmere Tracker — Android Release
     max_build_duration: 60
-    instance_type: linux_x2
+    # mac_mini_m2 matches the iOS workflow / current billing plan.
+    # linux_x2 requires a paid plan that isn't active. Android builds fine on macOS.
+    instance_type: mac_mini_m2
 
     environment:
       # Create a group in Codemagic UI: Environment variables → Add new group → name: android_credentials
