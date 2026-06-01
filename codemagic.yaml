@@ -131,7 +131,10 @@ workflows:
         script: npm ci
 
       - name: Sync Capacitor Android
-        script: npx cap sync android
+        script: |
+          # assets dir is gitignored but cap sync needs it to exist first
+          mkdir -p android/app/src/main/assets
+          npx cap sync android
 
       - name: Decode keystore
         script: |
