@@ -147,8 +147,11 @@ workflows:
     artifacts:
       - android/app/build/outputs/bundle/release/app-release.aab
 
-    publishing:
-      google_play:
-        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
-        track: internal
-        # Promote to alpha → beta → production manually in Play Console once tested
+    # Manual upload for the first release: download the .aab artifact above and
+    # upload it to Play Console → Internal testing by hand. Once a Google Play
+    # service account is configured (GCLOUD_SERVICE_ACCOUNT_CREDENTIALS in the
+    # android_credentials group), re-enable the block below for auto-publish.
+    # publishing:
+    #   google_play:
+    #     credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+    #     track: internal
