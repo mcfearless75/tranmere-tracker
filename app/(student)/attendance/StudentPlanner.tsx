@@ -32,7 +32,7 @@ const TYPE_CHIP: Record<string, string> = {
 }
 
 function fmt(iso: string) {
-  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })
 }
 function fmtTime(t: string) {
   return t.substring(0, 5)

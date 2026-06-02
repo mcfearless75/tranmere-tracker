@@ -66,7 +66,7 @@ export default async function ParentMessagesPage() {
                     <time className="text-xs text-gray-400 shrink-0">
                       {new Date(msg.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                       {' '}
-                      {new Date(msg.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(msg.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
                     </time>
                   </div>
                   <p className="text-sm text-gray-700 whitespace-pre-wrap">{msg.content}</p>

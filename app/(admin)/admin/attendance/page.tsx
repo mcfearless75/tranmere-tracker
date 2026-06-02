@@ -17,7 +17,7 @@ function shiftDate(iso: string, days: number) {
 }
 
 function fmtTime(iso: string | null) {
-  return iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : null
+  return iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' }) : null
 }
 
 export default async function AttendancePage({

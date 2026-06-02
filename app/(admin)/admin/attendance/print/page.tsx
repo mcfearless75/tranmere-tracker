@@ -7,7 +7,7 @@ import { PrintToolbar } from './PrintToolbar'
 export const dynamic = 'force-dynamic'
 
 function fmtTime(iso: string | null) {
-  return iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—'
+  return iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' }) : '—'
 }
 
 export default async function PrintAttendancePage({

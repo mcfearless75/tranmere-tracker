@@ -249,8 +249,8 @@ export default async function DashboardPage() {
                     : <Clock size={15} className="text-blue-200 shrink-0" />}
                   <span className="font-semibold truncate">{s.session_label}</span>
                   <span className={`ml-auto text-xs font-mono shrink-0 ${isLive ? 'text-white' : 'text-blue-200'}`}>
-                    {opens.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                    {closes && `–${closes.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`}
+                    {opens.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
+                    {closes && `–${closes.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}`}
                   </span>
                   {isLive && <span className="text-xs font-bold bg-green-400 text-blue-900 px-1.5 py-0.5 rounded uppercase">Live</span>}
                 </div>
@@ -274,7 +274,7 @@ export default async function DashboardPage() {
               <p className="text-xs font-bold uppercase tracking-wider text-blue-200">AM</p>
               {todayDaily?.am_checked_at ? (
                 <p className="text-xs font-semibold">
-                  In {new Date(todayDaily.am_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                  In {new Date(todayDaily.am_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
                 </p>
               ) : (
                 <Link href="/attendance" className="text-xs font-semibold text-blue-100 hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg transition-colors">
@@ -292,7 +292,7 @@ export default async function DashboardPage() {
               <p className="text-xs font-bold uppercase tracking-wider text-blue-200">PM</p>
               {todayDaily?.pm_checked_at ? (
                 <p className="text-xs font-semibold">
-                  Out {new Date(todayDaily.pm_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                  Out {new Date(todayDaily.pm_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
                 </p>
               ) : (
                 <Link href="/attendance" className="text-xs font-semibold text-blue-100 hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg transition-colors">
@@ -333,8 +333,8 @@ export default async function DashboardPage() {
                   <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
                   <span className="font-medium flex-1 truncate">{s.session_label}</span>
                   <span className="text-xs font-mono text-muted-foreground shrink-0">
-                    {opens.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                    {closes && `–${closes.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`}
+                    {opens.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
+                    {closes && `–${closes.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}`}
                   </span>
                 </div>
               )

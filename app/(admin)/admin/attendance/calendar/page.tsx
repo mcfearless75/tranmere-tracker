@@ -200,7 +200,7 @@ export default async function AttendanceCalendarPage({
                   const colour = TYPE_COLOURS[s.session_type] ?? 'bg-gray-500 text-white'
                   const o = new Date(s.opens_at)
                   const c = s.closes_at ? new Date(s.closes_at) : null
-                  const time = `${o.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}${c ? `–${c.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : ''}`
+                  const time = `${o.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}${c ? `–${c.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}` : ''}`
                   const matchDetail = s.session_type === 'match' ? (matchByDate[s.scheduled_date as string] ?? null) : null
                   const blockHref = matchDetail ? `/admin/match-events/${matchDetail.id}` : s.session_type === 'match' ? '/admin/match-events' : null
 
