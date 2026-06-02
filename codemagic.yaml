@@ -142,12 +142,18 @@ workflows:
 
       - name: Build release AAB
         script: |
+          # @capacitor-community/background-geolocation@1.2.x references the deprecated
+          # proguard-android.txt in its build.gradle (inside node_modules). Gradle 10 /
+          # AGP 8+ reject this. Patch the file in node_modules before Gradle evaluates it.
+          PLUGIN_GRADLE="node_modules/@capacitor-community/background-geolocation/android/build.gradle"
+          if [ -f "$PLUGIN_GRADLE" ]; then
+            sed -i '' 's/proguard-android\.txt/proguard-android-optimize.txt/g' "$PLUGIN_GRADLE"
+            echo "Patched $PLUGIN_GRADLE"
+          else
+            echo "WARNING: $PLUGIN_GRADLE not found — skipping patch"
+          fi
           cd android
           chmod +x gradlew
-          # @capacitor-community/background-geolocation@1.2.x uses the deprecated
-          # proguard-android.txt which Gradle 10 / AGP 8+ rejects. Patch it in place.
-          find . -name "*.gradle" -exec sed -i '' \
-            's/proguard-android\.txt/proguard-android-optimize.txt/g' {} +
           ./gradlew bundleRelease \
             -Pandroid.injected.signing.store.file=/tmp/tranmere.keystore \
             -Pandroid.injected.signing.store.password="$CM_KEYSTORE_PASSWORD" \
