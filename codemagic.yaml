@@ -138,11 +138,10 @@ workflows:
 
       - name: Decode keystore
         script: |
-          # Use printf to avoid any trailing-newline issues with echo on some shells
+          # Decode and expose as CM_KEYSTORE_PATH so build.gradle reads it via
+          # System.getenv() — avoids bash -P injection which mangles special chars
           printf '%s' "$CM_KEYSTORE" | base64 --decode > /tmp/tranmere.keystore
-          # Verify the keystore is readable with the provided credentials.
-          # This surfaces the exact failure (store password / alias / key password)
-          # in the log rather than a cryptic Gradle signReleaseBundle error.
+          echo "CM_KEYSTORE_PATH=/tmp/tranmere.keystore" >> $CM_ENV
           echo "=== Keystore verification ==="
           keytool -list \
             -keystore /tmp/tranmere.keystore \
@@ -164,11 +163,10 @@ workflows:
           fi
           cd android
           chmod +x gradlew
-          ./gradlew bundleRelease \
-            -Pandroid.injected.signing.store.file=/tmp/tranmere.keystore \
-            -Pandroid.injected.signing.store.password="$CM_KEYSTORE_PASSWORD" \
-            -Pandroid.injected.signing.key.alias="$CM_KEY_ALIAS" \
-            -Pandroid.injected.signing.key.password="$CM_KEY_PASSWORD"
+          # Signing credentials are read directly by build.gradle via System.getenv()
+          # (CM_KEYSTORE_PATH, CM_KEYSTORE_PASSWORD, CM_KEY_ALIAS, CM_KEY_PASSWORD).
+          # Do NOT pass them as -P args — bash mangles special characters like ! in passwords.
+          ./gradlew bundleRelease
 
     artifacts:
       - android/app/build/outputs/bundle/release/app-release.aab
