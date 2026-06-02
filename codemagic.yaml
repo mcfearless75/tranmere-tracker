@@ -138,7 +138,17 @@ workflows:
 
       - name: Decode keystore
         script: |
-          echo "$CM_KEYSTORE" | base64 --decode > /tmp/tranmere.keystore
+          # Use printf to avoid any trailing-newline issues with echo on some shells
+          printf '%s' "$CM_KEYSTORE" | base64 --decode > /tmp/tranmere.keystore
+          # Verify the keystore is readable with the provided credentials.
+          # This surfaces the exact failure (store password / alias / key password)
+          # in the log rather than a cryptic Gradle signReleaseBundle error.
+          echo "=== Keystore verification ==="
+          keytool -list \
+            -keystore /tmp/tranmere.keystore \
+            -storepass "$CM_KEYSTORE_PASSWORD" \
+            -alias "$CM_KEY_ALIAS" 2>&1 || true
+          echo "=== End verification ==="
 
       - name: Build release AAB
         script: |
