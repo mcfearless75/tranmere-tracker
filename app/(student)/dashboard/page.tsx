@@ -5,6 +5,9 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { PushOptIn } from '@/components/PushOptIn'
 import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, CalendarDays, AlertTriangle, Brain, ChevronRight, Target } from 'lucide-react'
+import { StudentCharts } from '@/components/charts/StudentCharts'
+import { buildAttendanceWeeks, buildAttendanceDrillDown } from '@/lib/charts/attendanceUtils'
+import { buildAcademicCounts } from '@/lib/charts/academicUtils'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +52,7 @@ export default async function DashboardPage() {
   const tomorrow = tomorrowDate.toISOString().split('T')[0]
   const in14 = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]
   const ago30 = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
+  const ago56 = new Date(Date.now() - 56 * 86400000).toISOString().split('T')[0]
 
   // Run all independent queries in parallel — ~4x faster than sequential
   const [
@@ -64,6 +68,8 @@ export default async function DashboardPage() {
     { data: overdueAssignments },
     { data: mySubmissions },
     { data: cachedReport },
+    { data: chartAttended },
+    { data: chartScheduled },
   ] = await Promise.all([
     supabase
       .from('assignments')
@@ -138,6 +144,18 @@ export default async function DashboardPage() {
       .select('report_json, generated_at')
       .eq('student_id', user!.id)
       .maybeSingle(),
+    // Charts: 8-week attendance for bar chart
+    supabase
+      .from('daily_attendance')
+      .select('attendance_date')
+      .eq('student_id', user!.id)
+      .gte('attendance_date', ago56)
+      .lte('attendance_date', today),
+    supabase
+      .from('attendance_sessions')
+      .select('scheduled_date')
+      .gte('scheduled_date', ago56)
+      .lte('scheduled_date', today),
   ])
 
   const totalCalories = todayFood?.reduce((sum, r) => sum + r.calories, 0) ?? 0
@@ -180,6 +198,16 @@ export default async function DashboardPage() {
     elite:      { label: 'Elite',      bg: 'bg-yellow-100', text: 'text-yellow-700' },
   }
   const ratingCfg = reportData?.overall_rating ? ratingLabel[reportData.overall_rating] : null
+
+  // Charts data
+  const attendanceWeeks = buildAttendanceWeeks(chartAttended ?? [], chartScheduled ?? [])
+  const attendanceDrill = buildAttendanceDrillDown(chartAttended ?? [], chartScheduled ?? [])
+  const academicCounts = buildAcademicCounts(
+    (mySubmissions ?? []).map(s => ({
+      assignment_id: s.assignment_id,
+      status: s.status as 'not_started' | 'in_progress' | 'submitted' | 'graded',
+    }))
+  )
 
   const firstName = profile?.name?.split(' ')[0] ?? 'Player'
   const courseName = (profile?.courses as any)?.name ?? ''
@@ -521,6 +549,13 @@ export default async function DashboardPage() {
           </Card>
         )}
       </div>
+
+      {/* ═══════════ CHARTS: ATTENDANCE + ACADEMIC PROGRESS ═══════════ */}
+      <StudentCharts
+        attendanceWeeks={attendanceWeeks}
+        attendanceDrill={attendanceDrill}
+        academicCounts={academicCounts}
+      />
 
       {/* Quick links — mobile access for Training & Nutrition (not in bottom nav) */}
       <div className="md:hidden">
