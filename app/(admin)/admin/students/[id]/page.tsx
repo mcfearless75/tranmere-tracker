@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import Link from 'next/link'
-import { ArrowLeft, Route, Gauge, Zap, Trophy, ClipboardList, Plus, CheckCircle2, Clock } from 'lucide-react'
+import { ArrowLeft, Route, Gauge, Zap, Trophy, ClipboardList, Plus, CheckCircle2, Clock, Printer } from 'lucide-react'
 import { UnitProgress } from './UnitProgress'
 import { AdminActions } from './AdminActions'
 import { AiInsights } from './AiInsights'
@@ -252,14 +252,23 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
                       </p>
                     )}
                   </div>
-                  <span className={`shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full ${
-                    r.status === 'complete'   ? 'bg-emerald-100 text-emerald-700' :
-                    r.status === 'submitted'  ? 'bg-blue-100 text-blue-700' :
-                    'bg-gray-100 text-gray-600'
-                  }`}>
-                    {r.status === 'complete'  ? <CheckCircle2 size={11} /> : <Clock size={11} />}
-                    {r.status}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Link
+                      href={`/admin/students/${student.id}/review/${r.id}/print`}
+                      className="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-tranmere-blue"
+                      title="Print / Save PDF"
+                    >
+                      <Printer size={12} />
+                    </Link>
+                    <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full ${
+                      r.status === 'complete'   ? 'bg-emerald-100 text-emerald-700' :
+                      r.status === 'submitted'  ? 'bg-blue-100 text-blue-700' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {r.status === 'complete'  ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+                      {r.status}
+                    </span>
+                  </div>
                 </li>
               ))}
             </ul>
