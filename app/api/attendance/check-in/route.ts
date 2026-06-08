@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { notifyParentsOfCheckIn } from '@/lib/attendance/parentNotifyUtils'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -47,6 +49,9 @@ export async function POST(request: Request) {
   if (error) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 400 })
   }
+
+  // Fire-and-forget: notify parents — must not block or break the check-in response
+  void notifyParentsOfCheckIn(createAdminClient(), user.id, phase, 'checked_in')
 
   return NextResponse.json({ ok: true, id: data })
 }
