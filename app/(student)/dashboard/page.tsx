@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Image from 'next/image'
 import Link from 'next/link'
 import { PushOptIn } from '@/components/PushOptIn'
-import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, CalendarDays, AlertTriangle, Brain, ChevronRight, Target } from 'lucide-react'
+import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, CalendarDays, AlertTriangle, Brain, ChevronRight, Target, ClipboardList, BookOpen, GraduationCap, ShieldCheck, CheckSquare } from 'lucide-react'
 import { StudentCharts } from '@/components/charts/StudentCharts'
 import { buildAttendanceWeeks, buildAttendanceDrillDown } from '@/lib/charts/attendanceUtils'
 import { buildAcademicCounts } from '@/lib/charts/academicUtils'
@@ -568,6 +568,43 @@ export default async function DashboardPage() {
         attendanceDrill={attendanceDrill}
         academicCounts={academicCounts}
       />
+
+      {/* ═══════════ MY TOOLS ═══════════ */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-0.5">My Tools</p>
+        <div className="grid grid-cols-3 gap-2">
+          <Link href="/idp" className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-1">
+            <ClipboardList size={18} className="text-blue-600" />
+            <span className="text-xs font-semibold text-gray-800">Development Plan</span>
+            <span className="text-[10px] text-gray-500">Your IDP &amp; targets</span>
+          </Link>
+          <Link href="/portfolio" className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-1">
+            <BookOpen size={18} className="text-purple-600" />
+            <span className="text-xs font-semibold text-gray-800">Portfolio</span>
+            <span className="text-[10px] text-gray-500">Evidence &amp; achievements</span>
+          </Link>
+          <Link href="/goals" className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-1">
+            <Target size={18} className="text-green-600" />
+            <span className="text-xs font-semibold text-gray-800">Goals</span>
+            <span className="text-[10px] text-gray-500">Track your progress</span>
+          </Link>
+          <Link href="/learning-hub" className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-1">
+            <GraduationCap size={18} className="text-amber-500" />
+            <span className="text-xs font-semibold text-gray-800">Learning Hub</span>
+            <span className="text-[10px] text-gray-500">Study resources</span>
+          </Link>
+          <Link href="/myconcern" className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-1">
+            <ShieldCheck size={18} className="text-rose-500" />
+            <span className="text-xs font-semibold text-gray-800">Report a Concern</span>
+            <span className="text-[10px] text-gray-500">Confidential support</span>
+          </Link>
+          <Link href="/targets" className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-1">
+            <CheckSquare size={18} className="text-indigo-600" />
+            <span className="text-xs font-semibold text-gray-800">Review Targets</span>
+            <span className="text-[10px] text-gray-500">Actions from reviews</span>
+          </Link>
+        </div>
+      </div>
 
       {/* Quick links — mobile access for Training & Nutrition (not in bottom nav) */}
       <div className="md:hidden">
