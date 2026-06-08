@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { MacroProgress } from '@/components/nutrition/MacroProgress'
 import { NutritionClient } from './NutritionClient'
+import { HydrationTracker } from '@/components/hydration/HydrationTracker'
 import { sumMacros } from '@/lib/utils'
 
 export default async function NutritionPage() {
@@ -9,7 +10,7 @@ export default async function NutritionPage() {
 
   const today = new Date().toISOString().split('T')[0]
 
-  const [{ data: logs }, { data: goals }] = await Promise.all([
+  const [{ data: logs }, { data: goals }, { data: hydrationLogs }] = await Promise.all([
     supabase
       .from('nutrition_logs')
       .select('*')
@@ -21,14 +22,23 @@ export default async function NutritionPage() {
       .select('*')
       .eq('student_id', user!.id)
       .maybeSingle(),
+    supabase
+      .from('hydration_logs')
+      .select('amount_ml')
+      .eq('student_id', user!.id)
+      .eq('logged_date', today),
   ])
 
   const totals = sumMacros(logs ?? [])
   const targets = goals ?? { calories: 2500, protein_g: 150, carbs_g: 300, fat_g: 80 }
+  const initialTotalMl = (hydrationLogs ?? []).reduce((sum, row) => sum + row.amount_ml, 0)
 
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold text-tranmere-blue">Nutrition</h1>
+
+      {/* Hydration tracker */}
+      <HydrationTracker initialTotalMl={initialTotalMl} />
 
       {/* Daily macro summary */}
       <div className="bg-white rounded-xl border p-4 space-y-3">
