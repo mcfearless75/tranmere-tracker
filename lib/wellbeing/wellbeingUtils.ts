@@ -35,6 +35,24 @@ export function getRedFlags(responses: SurveyResponse[]): SurveyResponse[] {
   )
 }
 
+export type SurveyTrendPoint = {
+  sentAt: string
+  avg: number
+}
+
+/** Converts an array of surveys (each with responses) into avg-score trend points */
+export function buildWellbeingTrend(
+  surveys: Array<{ sent_at: string; wellbeing_responses: { score: number }[] }>
+): SurveyTrendPoint[] {
+  return surveys.map(s => {
+    const scores = s.wellbeing_responses.map(r => r.score)
+    const avg = scores.length > 0
+      ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 10) / 10
+      : 0
+    return { sentAt: s.sent_at, avg }
+  })
+}
+
 /** Validates all 5 survey questions are answered with scores 1-5 */
 export function validateSurveyAnswers(answers: Record<string, number>): boolean {
   return SURVEY_QUESTIONS.every(q => {

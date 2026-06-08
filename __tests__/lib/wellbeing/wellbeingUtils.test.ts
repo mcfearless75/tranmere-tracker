@@ -2,6 +2,7 @@ import {
   isFortnightlyWeek,
   getRedFlags,
   validateSurveyAnswers,
+  buildWellbeingTrend,
   SURVEY_QUESTIONS,
 } from '@/lib/wellbeing/wellbeingUtils'
 
@@ -120,5 +121,53 @@ describe('validateSurveyAnswers', () => {
 
   it('returns false for empty object', () => {
     expect(validateSurveyAnswers({})).toBe(false)
+  })
+})
+
+describe('buildWellbeingTrend', () => {
+  it('returns empty array for empty input', () => {
+    expect(buildWellbeingTrend([])).toEqual([])
+  })
+
+  it('calculates correct average for a single survey', () => {
+    const result = buildWellbeingTrend([{
+      sent_at: '2026-01-01',
+      wellbeing_responses: [{ score: 4 }, { score: 2 }],
+    }])
+    expect(result).toEqual([{ sentAt: '2026-01-01', avg: 3 }])
+  })
+
+  it('returns avg 0 for a survey with no responses', () => {
+    const result = buildWellbeingTrend([{ sent_at: '2026-01-01', wellbeing_responses: [] }])
+    expect(result[0].avg).toBe(0)
+  })
+
+  it('rounds to one decimal place', () => {
+    const result = buildWellbeingTrend([{
+      sent_at: '2026-01-01',
+      // (1+2+5)/3 = 2.666... → 2.7
+      wellbeing_responses: [{ score: 1 }, { score: 2 }, { score: 5 }],
+    }])
+    expect(result[0].avg).toBe(2.7)
+  })
+
+  it('preserves sent_at in output', () => {
+    const result = buildWellbeingTrend([{
+      sent_at: '2026-06-01T09:00:00Z',
+      wellbeing_responses: [{ score: 3 }],
+    }])
+    expect(result[0].sentAt).toBe('2026-06-01T09:00:00Z')
+  })
+
+  it('handles multiple surveys correctly', () => {
+    const result = buildWellbeingTrend([
+      { sent_at: '2026-01-01', wellbeing_responses: [{ score: 5 }] },
+      { sent_at: '2026-01-15', wellbeing_responses: [{ score: 3 }] },
+      { sent_at: '2026-02-01', wellbeing_responses: [{ score: 1 }] },
+    ])
+    expect(result).toHaveLength(3)
+    expect(result[0].avg).toBe(5)
+    expect(result[1].avg).toBe(3)
+    expect(result[2].avg).toBe(1)
   })
 })

@@ -1,7 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { getRedFlags, SURVEY_QUESTIONS } from '@/lib/wellbeing/wellbeingUtils'
+import { getRedFlags, buildWellbeingTrend, SURVEY_QUESTIONS } from '@/lib/wellbeing/wellbeingUtils'
+import { WellbeingSparkline } from '@/components/wellbeing/WellbeingSparkline'
 import { AlertTriangle } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -13,7 +14,7 @@ export default async function AdminWellbeingPage() {
 
   const admin = createAdminClient()
 
-  // Latest completed survey per student with their responses
+  // Fetch recent surveys — enough to build a 3-survey trend per student
   const { data: surveys } = await admin
     .from('wellbeing_surveys')
     .select(`
@@ -22,7 +23,7 @@ export default async function AdminWellbeingPage() {
       wellbeing_responses(question_key, score, note)
     `)
     .order('sent_at', { ascending: false })
-    .limit(100)
+    .limit(200)
 
   type Survey = {
     id: string
@@ -35,14 +36,16 @@ export default async function AdminWellbeingPage() {
 
   const rows = (surveys ?? []) as unknown as Survey[]
 
-  // Deduplicate: latest survey per student
-  const seen = new Set<string>()
-  const latest = rows.filter(r => {
-    const name = r.users?.name ?? r.id
-    if (seen.has(name)) return false
-    seen.add(name)
-    return true
-  })
+  // Group by student — keep up to 3 surveys per student (already sorted newest first)
+  const byStudent = new Map<string, Survey[]>()
+  for (const r of rows) {
+    const key = r.users?.name ?? r.id
+    if (!byStudent.has(key)) byStudent.set(key, [])
+    const group = byStudent.get(key)!
+    if (group.length < 3) group.push(r)
+  }
+
+  const studentGroups = Array.from(byStudent.values())
 
   return (
     <div className="space-y-5 p-4">
@@ -51,29 +54,33 @@ export default async function AdminWellbeingPage() {
         <p className="text-sm text-muted-foreground">Latest survey results — red flags highlighted</p>
       </div>
 
-      {latest.length === 0 ? (
+      {studentGroups.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">No surveys sent yet.</p>
       ) : (
         <div className="space-y-3">
-          {latest.map(survey => {
+          {studentGroups.map(group => {
+            const survey = group[0] // latest
             const flags = getRedFlags(survey.wellbeing_responses)
-            const hasFlagred = flags.length > 0
+            const hasFlagged = flags.length > 0
             const avgScore = survey.wellbeing_responses.length > 0
               ? Math.round(survey.wellbeing_responses.reduce((s, r) => s + r.score, 0) / survey.wellbeing_responses.length * 10) / 10
               : null
+
+            // Build trend from the group (oldest → newest for left-to-right progression)
+            const trendData = buildWellbeingTrend([...group].reverse())
 
             return (
               <div
                 key={survey.id}
                 className={`rounded-2xl border p-4 space-y-3 ${
-                  hasFlagred ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white'
+                  hasFlagged ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white'
                 }`}
               >
                 {/* Header row */}
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-2">
-                      {hasFlagred && <AlertTriangle size={14} className="text-red-600 shrink-0" />}
+                      {hasFlagged && <AlertTriangle size={14} className="text-red-600 shrink-0" />}
                       <p className="font-semibold text-sm text-gray-900">{survey.users?.name ?? 'Unknown'}</p>
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -87,17 +94,21 @@ export default async function AdminWellbeingPage() {
                       </span>
                     </p>
                   </div>
-                  {avgScore !== null && (
-                    <span className={`text-lg font-bold ${
-                      avgScore >= 4 ? 'text-emerald-600' : avgScore >= 3 ? 'text-amber-500' : 'text-red-600'
-                    }`}>
-                      {avgScore}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-3 shrink-0">
+                    {/* Sparkline trend — only shown when 2+ surveys exist */}
+                    <WellbeingSparkline data={trendData} />
+                    {avgScore !== null && (
+                      <span className={`text-lg font-bold ${
+                        avgScore >= 4 ? 'text-emerald-600' : avgScore >= 3 ? 'text-amber-500' : 'text-red-600'
+                      }`}>
+                        {avgScore}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Red flags */}
-                {hasFlagred && (
+                {hasFlagged && (
                   <div className="rounded-xl bg-red-100 border border-red-200 px-3 py-2 text-xs text-red-700 font-medium space-y-0.5">
                     {flags.map(f => {
                       const q = SURVEY_QUESTIONS.find(sq => sq.key === f.question_key)
