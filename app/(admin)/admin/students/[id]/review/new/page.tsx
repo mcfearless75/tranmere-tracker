@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
-import { REVIEW_QUESTIONS, SCALE_QUESTIONS, validateReviewAnswers } from '@/lib/learnerReview/reviewUtils'
+import { REVIEW_QUESTIONS, validateReviewAnswers } from '@/lib/learnerReview/reviewUtils'
 import { ArrowLeft, Loader2, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 
@@ -43,7 +43,6 @@ export default function NewLearnerReviewPage({ params, searchParams }: Props) {
 
   const canSave   = validateReviewAnswers(answers)
   const isSaved   = !!reviewId
-  const isScaleQ  = (key: string) => SCALE_QUESTIONS.some(q => q.key === key)
 
   async function handleSave() {
     setSaving(true)

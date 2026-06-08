@@ -15,7 +15,7 @@ export function WellbeingSparkline({ data }: Props) {
         <LineChart data={data}>
           <Tooltip
             contentStyle={{ fontSize: 10, padding: '2px 6px', borderRadius: 6 }}
-            formatter={(v: number) => [`${v}/5`, 'Avg']}
+            formatter={(v) => [`${v}/5`, 'Avg']}
             labelFormatter={() => ''}
           />
           <Line

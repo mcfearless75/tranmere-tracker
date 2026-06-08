@@ -146,13 +146,6 @@ export default async function DashboardPage() {
       .select('report_json, generated_at')
       .eq('student_id', user!.id)
       .maybeSingle(),
-    // Open wellbeing survey — show prompt card if one is waiting
-    supabase
-      .from('wellbeing_surveys')
-      .select('id')
-      .eq('student_id', user!.id)
-      .eq('status', 'open')
-      .maybeSingle(),
     // Charts: 8-week attendance for bar chart
     supabase
       .from('daily_attendance')
@@ -165,6 +158,13 @@ export default async function DashboardPage() {
       .select('scheduled_date')
       .gte('scheduled_date', ago56)
       .lte('scheduled_date', today),
+    // Open wellbeing survey — show prompt card if one is waiting
+    supabase
+      .from('wellbeing_surveys')
+      .select('id')
+      .eq('student_id', user!.id)
+      .eq('status', 'open')
+      .maybeSingle(),
   ])
 
   const totalCalories = todayFood?.reduce((sum, r) => sum + r.calories, 0) ?? 0

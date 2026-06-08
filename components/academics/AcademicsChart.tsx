@@ -6,9 +6,18 @@ import {
   Cell,
   Tooltip,
   ResponsiveContainer,
-  TooltipProps,
 } from 'recharts'
 import { GradeBreakdown } from '@/lib/academics/academicsUtils'
+
+interface TooltipEntry {
+  name?: string
+  value?: number
+}
+
+interface CustomTooltipProps {
+  active?: boolean
+  payload?: TooltipEntry[]
+}
 
 interface AcademicsChartProps {
   breakdown: GradeBreakdown
@@ -21,7 +30,7 @@ const CHART_DATA_KEYS = [
   { key: 'notSubmitted' as const, label: 'Not submitted', color: '#d1d5db' },
 ]
 
-function CustomTooltip({ active, payload }: TooltipProps<number, string>) {
+function CustomTooltip({ active, payload }: CustomTooltipProps) {
   if (!active || !payload?.length) return null
   const item = payload[0]
   return (

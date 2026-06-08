@@ -24,8 +24,8 @@ export function PerformanceSparkline({ data }: PerformanceSparklineProps) {
     <ResponsiveContainer width="100%" height={100}>
       <LineChart data={data}>
         <Tooltip
-          formatter={(value: number) => [`${value.toFixed(1)} km`, 'Distance']}
-          labelFormatter={(label: string) => label}
+          formatter={(value) => [`${Number(value).toFixed(1)} km`, 'Distance']}
+          labelFormatter={(label) => label}
           contentStyle={{ fontSize: 12, borderRadius: 8 }}
         />
         <Line

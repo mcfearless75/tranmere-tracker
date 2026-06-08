@@ -39,7 +39,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       )
     }
 
-    const rows = (data as AssignmentJoinRow[] | null) ?? []
+    const rows = (data as unknown as AssignmentJoinRow[] | null) ?? []
 
     const normalised = rows.map((row) => ({
       student_id: row.student_id,
