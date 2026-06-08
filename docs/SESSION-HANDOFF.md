@@ -3,10 +3,21 @@
 _Last updated: 2026-06-08. Paste the "Kickoff prompt" below into a new chat._
 
 ## Current State
-- **master @ `6703865`** — pushed, clean working tree.
-- **Build: green** — `next build` passes (63 pages, 0 type errors, 0 lint errors).
-- **Tests: 301 passing** across 25 suites (`npm test`).
-- **All SQL migrations run** in Supabase up to `029_goals.sql`.
+- **master @ `e69f826`** — pushed, clean working tree.
+- **Build: green** — `next build` passes (0 type errors, 0 lint errors, 4 pre-existing warnings).
+- **Tests: 366 passing** across 35 suites (`npm test`).
+- **Migrations run in Supabase up to `029_goals.sql`.**
+  ⚠️ **`030_safeguarding.sql` and `031_integrations.sql` are committed but NOT yet run.**
+  Run both in the Supabase SQL editor — until then `/admin/safeguarding` and
+  `/admin/integrations` show a "migration needed" notice (no crash).
+
+## Shipped 2026-06-08 (multi-agent gap-fill wave, commit `e69f826`)
+- **Safeguarding workflow** — concerns + notes, status/severity, red-flag surfacing from wellbeing (migration 030). Admin nav added.
+- **Integration scaffolding** — typed adapter registry + masked admin config UI for Moodle/VEO/Catapult/GURU/Sports Session Planner (migration 031). Secrets service-role only, never sent to client. Admin nav added. Drop real vendor calls into the marked TODO blocks once creds exist — no signature changes.
+- **VEO + Catapult** student access pages (pending credentials), wired into dashboard "My Tools".
+- **Parent announcements feed** — reuses existing broadcast data (no new table), added to both parent navs.
+- **Meal photo upload** — client-side validation + compression before the AI route.
+- Jest: added a `fetch` stub in `jest.setup.ts` (plain fn, build-safe) and `@jest-environment node` for the route-handler test.
 
 ## Shipped this session (two multi-agent waves)
 **Wave 1 — new feature areas (migrations 027–029):**
@@ -31,11 +42,15 @@ data, so the wellbeing card checked the wrong data. Reordered + fixed unused
 `isScaleQ` that was breaking the Vercel build.
 
 ## What's left
-**External-API blocked (deferred):** VEO, Catapult, GURU, Moodle API,
-Sports Session Planner, Google email access.
+**Credential-gated (scaffolding now built — paste keys into `/admin/integrations`):**
+VEO, Catapult, GURU, Moodle REST sync, Sports Session Planner. Each adapter
+throws "not configured" until its key is saved + provider enabled. Google email
+access still needs an OAuth client.
+Needed: Moodle WS token, VEO API key, Catapult API token + org ID, GURU key, SSP key, Google OAuth client.
 **Future (explicitly deferred):** youth football section, bursary management,
 recruitment portal.
-The platform's own (non-integration) feature set is functionally complete.
+The platform's own (non-integration) feature set is functionally complete; the
+remaining integrations are gated on third-party credentials, not code.
 
 ## Working rules (project)
 - `@supabase/ssr` only; `createClient()` server, `createAdminClient()` service role.
@@ -45,5 +60,6 @@ The platform's own (non-integration) feature set is functionally complete.
 - After any wave: `npm test` + `npx next build` before pushing.
 
 ## Kickoff prompt (paste into new chat)
-> Tranmere Tracker. master @ 6703865, build green, 301 tests passing, migrations
-> through 029 run. Read docs/SESSION-HANDOFF.md for full state. Today I want to: [TASK].
+> Tranmere Tracker. master @ e69f826, build green, 366 tests passing, migrations
+> through 029 run (030/031 committed, awaiting run). Read docs/SESSION-HANDOFF.md
+> for full state. Today I want to: [TASK].
