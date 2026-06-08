@@ -5,6 +5,7 @@ import {
   validateReviewAnswers,
   extractScaleAnswers,
   buildReviewSummaryPrompt,
+  canMarkComplete,
 } from '@/lib/learnerReview/reviewUtils'
 
 describe('REVIEW_QUESTIONS', () => {
@@ -118,6 +119,28 @@ describe('extractScaleAnswers', () => {
     for (const q of TEXT_QUESTIONS) {
       expect(scales).not.toHaveProperty(q.key)
     }
+  })
+})
+
+describe('canMarkComplete', () => {
+  it('returns { ok: true } for submitted status', () => {
+    expect(canMarkComplete('submitted')).toEqual({ ok: true })
+  })
+
+  it('returns { ok: false } with error for already complete', () => {
+    const result = canMarkComplete('complete')
+    expect(result.ok).toBe(false)
+    expect(result.error).toBeTruthy()
+  })
+
+  it('returns { ok: false } with error for draft status', () => {
+    const result = canMarkComplete('draft')
+    expect(result.ok).toBe(false)
+    expect(result.error).toBeTruthy()
+  })
+
+  it('returns { ok: false } for unknown status', () => {
+    expect(canMarkComplete('pending').ok).toBe(false)
   })
 })
 

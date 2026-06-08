@@ -5,6 +5,7 @@ import { UnitProgress } from './UnitProgress'
 import { AdminActions } from './AdminActions'
 import { AiInsights } from './AiInsights'
 import { PlayerAttributesForm } from '@/components/PlayerAttributesForm'
+import { MarkReviewCompleteButton } from './MarkReviewCompleteButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -253,6 +254,9 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    {r.status === 'submitted' && (
+                      <MarkReviewCompleteButton reviewId={r.id} />
+                    )}
                     <Link
                       href={`/admin/students/${student.id}/review/${r.id}/print`}
                       className="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-tranmere-blue"

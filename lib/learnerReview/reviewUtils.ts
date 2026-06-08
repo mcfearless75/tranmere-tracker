@@ -17,6 +17,12 @@ export type ReviewKey = ReviewQuestion['key']
 export const SCALE_QUESTIONS = REVIEW_QUESTIONS.filter(q => q.type === 'scale')
 export const TEXT_QUESTIONS  = REVIEW_QUESTIONS.filter(q => q.type === 'text')
 
+export function canMarkComplete(currentStatus: string): { ok: boolean; error?: string } {
+  if (currentStatus === 'complete') return { ok: false, error: 'Already marked complete' }
+  if (currentStatus !== 'submitted') return { ok: false, error: 'Only submitted reviews can be marked complete' }
+  return { ok: true }
+}
+
 export function validateReviewAnswers(answers: Record<string, string | number>): boolean {
   for (const q of REVIEW_QUESTIONS) {
     const val = answers[q.key]
