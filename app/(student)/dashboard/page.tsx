@@ -8,6 +8,7 @@ import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, Cale
 import { StudentCharts } from '@/components/charts/StudentCharts'
 import { buildAttendanceWeeks, buildAttendanceDrillDown } from '@/lib/charts/attendanceUtils'
 import { buildAcademicCounts } from '@/lib/charts/academicUtils'
+import { WellbeingPromptCard } from '@/components/wellbeing/WellbeingPromptCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,6 +71,7 @@ export default async function DashboardPage() {
     { data: cachedReport },
     { data: chartAttended },
     { data: chartScheduled },
+    { data: openSurvey },
   ] = await Promise.all([
     supabase
       .from('assignments')
@@ -143,6 +145,13 @@ export default async function DashboardPage() {
       .from('ai_player_reports')
       .select('report_json, generated_at')
       .eq('student_id', user!.id)
+      .maybeSingle(),
+    // Open wellbeing survey — show prompt card if one is waiting
+    supabase
+      .from('wellbeing_surveys')
+      .select('id')
+      .eq('student_id', user!.id)
+      .eq('status', 'open')
       .maybeSingle(),
     // Charts: 8-week attendance for bar chart
     supabase
@@ -402,6 +411,9 @@ export default async function DashboardPage() {
           )}
         </div>
       )}
+
+      {/* ═══════════ WELLBEING PROMPT ═══════════ */}
+      {openSurvey && <WellbeingPromptCard />}
 
       {/* ═══════════ AI REPORT SUMMARY ═══════════ */}
       <Link
