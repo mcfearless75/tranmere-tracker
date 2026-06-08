@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, BookOpen, Bell, BarChart2, GraduationCap, LogOut, Calendar, Star, Wifi, Activity, LayoutGrid, Plug, MessageSquare, Megaphone, Home, ClipboardList } from 'lucide-react'
+import { Users, BookOpen, Bell, BarChart2, GraduationCap, LogOut, Calendar, Star, Wifi, Activity, LayoutGrid, Plug, MessageSquare, Megaphone, Home, ClipboardList, ShieldAlert, Network } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
 
@@ -21,7 +21,9 @@ const nav = [
   { href: '/admin/broadcast', label: 'Broadcast', icon: Megaphone },
   { href: '/admin/notifications', label: 'Notifications', icon: Bell },
   { href: '/admin/reports', label: 'Reports', icon: BarChart2 },
+  { href: '/admin/safeguarding', label: 'Safeguarding', icon: ShieldAlert, teacherHidden: true },
   { href: '/admin/lti', label: 'Moodle / LTI', icon: Plug },
+  { href: '/admin/integrations', label: 'Integrations', icon: Network, teacherHidden: true },
 ]
 
 type Props = { userName: string; avatarUrl: string | null; role: string }

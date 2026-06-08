@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Camera, Sparkles, Check, X, Loader2 } from 'lucide-react'
+import { validateImageFile, compressImage } from './mealPhoto'
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 
@@ -32,12 +33,21 @@ export function MealPhotoUpload({ studentId }: Props) {
     if (!file) return
     setError(null)
     setEstimate(null)
+
+    const valid = validateImageFile(file)
+    if (!valid.ok) {
+      setError(valid.error)
+      if (fileRef.current) fileRef.current.value = ''
+      return
+    }
+
     setPreview(URL.createObjectURL(file))
     setBusy(true)
 
     try {
+      const upload = await compressImage(file)
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', upload)
       const res = await fetch('/api/ai/meal-photo', { method: 'POST', body: fd })
       const data: { error?: string; estimate?: Estimate } = await res.json()
       if (data.error || !data.estimate) {

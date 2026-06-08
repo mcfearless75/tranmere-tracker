@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import Image from 'next/image'
-import { X, Users, BookOpen, Bell, BarChart2, GraduationCap, LogOut, Calendar, Star, Wifi, Activity, LayoutGrid, Plug, MessageSquare, Megaphone, Home, MoreHorizontal, ClipboardList } from 'lucide-react'
+import { X, Users, BookOpen, Bell, BarChart2, GraduationCap, LogOut, Calendar, Star, Wifi, Activity, LayoutGrid, Plug, MessageSquare, Megaphone, Home, MoreHorizontal, ClipboardList, ShieldAlert, Network } from 'lucide-react'
 import { signOut } from '@/app/(auth)/login/actions'
 
 const nav = [
@@ -22,7 +22,9 @@ const nav = [
   { href: '/admin/broadcast', label: 'Broadcast', icon: Megaphone },
   { href: '/admin/notifications', label: 'Notifications', icon: Bell },
   { href: '/admin/reports', label: 'Reports', icon: BarChart2 },
+  { href: '/admin/safeguarding', label: 'Safeguarding', icon: ShieldAlert, teacherHidden: true },
   { href: '/admin/lti', label: 'Moodle / LTI', icon: Plug },
+  { href: '/admin/integrations', label: 'Integrations', icon: Network, teacherHidden: true },
 ]
 
 type Props = { userName: string; avatarUrl: string | null; role: string }

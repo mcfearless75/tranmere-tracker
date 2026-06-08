@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, ClipboardList, BookOpen, Calendar, MessageSquare } from 'lucide-react'
+import { Home, ClipboardList, BookOpen, Calendar, MessageSquare, Megaphone } from 'lucide-react'
 
 const nav = [
   { href: '/parent/dashboard', label: 'Overview', icon: Home },
   { href: '/parent/attendance', label: 'Attendance', icon: ClipboardList },
   { href: '/parent/coursework', label: 'Coursework', icon: BookOpen },
+  { href: '/parent/announcements', label: 'News', icon: Megaphone },
   { href: '/parent/matches', label: 'Matches', icon: Calendar },
   { href: '/parent/messages', label: 'Messages', icon: MessageSquare },
 ]

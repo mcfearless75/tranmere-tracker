@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, ClipboardList, BookOpen, Calendar, MessageSquare, LogOut } from 'lucide-react'
+import { Home, ClipboardList, BookOpen, Calendar, MessageSquare, Megaphone, LogOut } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
 
@@ -11,6 +11,7 @@ const nav = [
   { href: '/parent/attendance', label: 'Attendance', icon: ClipboardList },
   { href: '/parent/coursework', label: 'Coursework', icon: BookOpen },
   { href: '/parent/matches', label: 'Matches', icon: Calendar },
+  { href: '/parent/announcements', label: 'Announcements', icon: Megaphone },
   { href: '/parent/messages', label: 'Messages', icon: MessageSquare },
 ]
 

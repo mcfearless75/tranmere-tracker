@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Image from 'next/image'
 import Link from 'next/link'
 import { PushOptIn } from '@/components/PushOptIn'
-import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, CalendarDays, AlertTriangle, Brain, ChevronRight, Target, ClipboardList, BookOpen, GraduationCap, ShieldCheck, CheckSquare } from 'lucide-react'
+import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, CalendarDays, AlertTriangle, Brain, ChevronRight, Target, ClipboardList, BookOpen, GraduationCap, ShieldCheck, CheckSquare, Video, Satellite } from 'lucide-react'
 import { StudentCharts } from '@/components/charts/StudentCharts'
 import { buildAttendanceWeeks, buildAttendanceDrillDown } from '@/lib/charts/attendanceUtils'
 import { buildAcademicCounts } from '@/lib/charts/academicUtils'
@@ -602,6 +602,16 @@ export default async function DashboardPage() {
             <CheckSquare size={18} className="text-indigo-600" />
             <span className="text-xs font-semibold text-gray-800">Review Targets</span>
             <span className="text-[10px] text-gray-500">Actions from reviews</span>
+          </Link>
+          <Link href="/veo" className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-1">
+            <Video size={18} className="text-sky-600" />
+            <span className="text-xs font-semibold text-gray-800">VEO</span>
+            <span className="text-[10px] text-gray-500">Match analysis clips</span>
+          </Link>
+          <Link href="/catapult" className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-1">
+            <Satellite size={18} className="text-teal-600" />
+            <span className="text-xs font-semibold text-gray-800">Catapult</span>
+            <span className="text-[10px] text-gray-500">GPS performance data</span>
           </Link>
         </div>
       </div>
