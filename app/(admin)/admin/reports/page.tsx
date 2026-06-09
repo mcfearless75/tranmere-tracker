@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Activity, Heart, Wrench, ArrowRight } from 'lucide-react'
+import { Activity, Heart, Wrench, ArrowRight, Sparkles } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
@@ -12,6 +12,14 @@ export default async function ReportsHubPage() {
     .select('*', { count: 'exact', head: true })
 
   const tiles = [
+    {
+      href: '/admin/reports/ai-cohort',
+      icon: Sparkles,
+      title: 'AI Cohort Report',
+      desc: 'Claude-written executive summary across attendance, GPS, wellbeing and match form',
+      gradient: 'from-indigo-500 to-fuchsia-600',
+      stat: 'AI-generated · All / Y1 / Y2',
+    },
     {
       href: '/admin/reports/squad',
       icon: Activity,
