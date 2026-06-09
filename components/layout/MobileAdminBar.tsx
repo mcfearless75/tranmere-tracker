@@ -4,17 +4,16 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import Image from 'next/image'
-import { X, Users, BookOpen, Bell, BarChart2, GraduationCap, LogOut, Calendar, Star, Wifi, Activity, LayoutGrid, Plug, MessageSquare, Megaphone, Home, MoreHorizontal, ClipboardList, ShieldAlert, Network } from 'lucide-react'
+import { X, Users, Bell, BarChart2, GraduationCap, LogOut, Calendar, Wifi, Activity, LayoutGrid, Plug, MessageSquare, Megaphone, Home, MoreHorizontal, ClipboardList, ShieldAlert, Network } from 'lucide-react'
 import { signOut } from '@/app/(auth)/login/actions'
+import { MOODLE_URL } from '@/lib/config/moodle'
 
 const nav = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: Home },
   { href: '/admin/users', label: 'Users', icon: Users },
-  { href: '/admin/courses', label: 'Courses', icon: GraduationCap },
-  { href: '/admin/assignments', label: 'Assignments', icon: BookOpen },
+  { href: MOODLE_URL, label: 'Moodle', icon: GraduationCap, external: true },
   { href: '/admin/match-events', label: 'Match Squads', icon: Calendar, teacherHidden: true },
   { href: '/admin/formation', label: 'Formation', icon: LayoutGrid, teacherHidden: true },
-  { href: '/admin/grade-submissions', label: 'Grade Work', icon: Star },
   { href: '/admin/gps-dashboard', label: 'Squad GPS', icon: Activity, teacherHidden: true },
   { href: '/admin/gps-import', label: 'GPS Import', icon: Wifi, teacherHidden: true },
   { href: '/admin/attendance', label: 'Attendance', icon: ClipboardList },
@@ -80,12 +79,19 @@ export function MobileAdminBar({ userName, avatarUrl, role }: Props) {
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto mt-2 pb-4">
-          {visibleNav.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href}
-              className={`flex items-center gap-3 px-3 py-3 rounded-lg text-sm transition-colors ${pathname.startsWith(href) ? 'bg-white/20 font-semibold' : 'active:bg-white/10 text-blue-100'}`}>
-              <Icon size={18} />{label}
-            </Link>
-          ))}
+          {visibleNav.map(({ href, label, icon: Icon, external }) => {
+            const active = !external && pathname.startsWith(href)
+            const className = `flex items-center gap-3 px-3 py-3 rounded-lg text-sm transition-colors ${active ? 'bg-white/20 font-semibold' : 'active:bg-white/10 text-blue-100'}`
+            return external ? (
+              <a key={href} href={href} target="_blank" rel="noopener noreferrer" className={className}>
+                <Icon size={18} />{label}
+              </a>
+            ) : (
+              <Link key={href} href={href} className={className}>
+                <Icon size={18} />{label}
+              </Link>
+            )
+          })}
         </nav>
 
         <div className="p-3 border-t border-blue-800 pb-20">
@@ -109,11 +115,11 @@ export function MobileAdminBar({ userName, avatarUrl, role }: Props) {
           <MessageSquare size={20} strokeWidth={pathname.startsWith('/chat') ? 2.5 : 1.5} />
           <span className="text-[10px] font-medium">Chat</span>
         </Link>
-        <Link href="/admin/grade-submissions"
-          className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${pathname.startsWith('/admin/grade-submissions') ? 'text-white' : 'text-blue-300'}`}>
-          <Star size={20} strokeWidth={pathname.startsWith('/admin/grade-submissions') ? 2.5 : 1.5} />
-          <span className="text-[10px] font-medium">Grades</span>
-        </Link>
+        <a href={MOODLE_URL} target="_blank" rel="noopener noreferrer"
+          className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-blue-300 active:text-white">
+          <GraduationCap size={20} strokeWidth={1.5} />
+          <span className="text-[10px] font-medium">Moodle</span>
+        </a>
         {isTeacher ? (
           <Link href="/admin/attendance"
             className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${pathname.startsWith('/admin/attendance') ? 'text-white' : 'text-blue-300'}`}>

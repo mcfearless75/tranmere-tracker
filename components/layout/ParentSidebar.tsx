@@ -2,14 +2,15 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, ClipboardList, BookOpen, Calendar, MessageSquare, Megaphone, LogOut } from 'lucide-react'
+import { Home, ClipboardList, GraduationCap, Calendar, MessageSquare, Megaphone, LogOut } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
+import { MOODLE_URL } from '@/lib/config/moodle'
 
 const nav = [
   { href: '/parent/dashboard', label: 'Overview', icon: Home },
   { href: '/parent/attendance', label: 'Attendance', icon: ClipboardList },
-  { href: '/parent/coursework', label: 'Coursework', icon: BookOpen },
+  { href: MOODLE_URL, label: 'Moodle', icon: GraduationCap, external: true },
   { href: '/parent/matches', label: 'Matches', icon: Calendar },
   { href: '/parent/announcements', label: 'Announcements', icon: Megaphone },
   { href: '/parent/messages', label: 'Messages', icon: MessageSquare },
@@ -39,20 +40,23 @@ export function ParentSidebar({ userName, avatarUrl }: Props) {
 
       {/* Nav */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {nav.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-              pathname.startsWith(href)
-                ? 'bg-white/20 font-semibold'
-                : 'hover:bg-white/10 text-blue-100'
-            }`}
-          >
-            <Icon size={16} />
-            {label}
-          </Link>
-        ))}
+        {nav.map(({ href, label, icon: Icon, external }) => {
+          const active = !external && pathname.startsWith(href)
+          const className = `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+            active ? 'bg-white/20 font-semibold' : 'hover:bg-white/10 text-blue-100'
+          }`
+          return external ? (
+            <a key={href} href={href} target="_blank" rel="noopener noreferrer" className={className}>
+              <Icon size={16} />
+              {label}
+            </a>
+          ) : (
+            <Link key={href} href={href} className={className}>
+              <Icon size={16} />
+              {label}
+            </Link>
+          )
+        })}
       </nav>
 
       {/* Logged-in user card */}

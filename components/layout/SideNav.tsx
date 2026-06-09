@@ -1,13 +1,14 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, BookOpen, Apple, Dumbbell, Trophy, User, LogOut, Activity, MessageSquare, Brain } from 'lucide-react'
+import { Home, GraduationCap, Apple, Dumbbell, Trophy, User, LogOut, Activity, MessageSquare, Brain } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
+import { MOODLE_URL } from '@/lib/config/moodle'
 
 const nav = [
   { href: '/dashboard', label: 'Home', icon: Home },
-  { href: '/coursework', label: 'BTEC Coursework', icon: BookOpen },
+  { href: MOODLE_URL, label: 'Moodle', icon: GraduationCap, external: true },
   { href: '/nutrition', label: 'Nutrition', icon: Apple },
   { href: '/gps', label: 'GPS Dashboard', icon: Activity },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
@@ -59,18 +60,18 @@ export function SideNav({ userName, avatarUrl, role }: {
 
       {/* Nav links */}
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {nav.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + '/')
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                active
-                  ? 'bg-white/20 text-white'
-                  : 'text-white/60 hover:bg-white/10 hover:text-white'
-              }`}
-            >
+        {nav.map(({ href, label, icon: Icon, external }) => {
+          const active = !external && (pathname === href || pathname.startsWith(href + '/'))
+          const className = `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+            active ? 'bg-white/20 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'
+          }`
+          return external ? (
+            <a key={href} href={href} target="_blank" rel="noopener noreferrer" className={className}>
+              <Icon size={18} strokeWidth={1.5} />
+              {label}
+            </a>
+          ) : (
+            <Link key={href} href={href} className={className}>
               <Icon size={18} strokeWidth={active ? 2.5 : 1.5} />
               {label}
             </Link>
