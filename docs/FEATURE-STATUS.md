@@ -59,7 +59,7 @@ _All six configured at `/admin/integrations`; adapters throw "not configured" un
 Termly auto-scheduling (cron) · 10-question review · attendance/punctuality auto-pulled · actions/targets · stored history · AI summaries · PDF export.
 
 ## AI Review Summary
-Attendance ✅ · **Academic progress ⚠️ stale (Moodle now)** · Football development ✅ · Wellbeing ✅ · Future aspirations ✅ · Support needs ✅ · Agreed actions/targets ✅.
+Attendance ✅ · Academic progress 🔗 section removed (now on Moodle) · Football development ✅ · Wellbeing ✅ · Future aspirations ✅ · Support needs ✅ · Agreed actions/targets ✅.
 
 ## Parent / Guardian
 | Feature | Status |
@@ -73,7 +73,7 @@ Attendance ✅ · **Academic progress ⚠️ stale (Moodle now)** · Football de
 | Announcements & notifications | ✅ (announcements feed built this session) |
 
 ## Automated Processes (live crons)
-attendance-report AM/PM ✅ · refresh-reports ✅ (academic part stale) · check-in-nudges ✅ · session-reminders ✅ · wellbeing-survey ✅ · schedule-reviews (termly) ✅ · **academic-alerts ⚠️ stale — reads in-app coursework now on Moodle.**
+attendance-report AM/PM ✅ · refresh-reports ✅ · check-in-nudges ✅ · session-reminders ✅ · wellbeing-survey ✅ · schedule-reviews (termly) ✅. _(academic-alerts cron removed — coursework is on Moodle.)_
 
 ## Future Development — ⏳ deferred
 Youth football section · Bursary management · Recruitment portal.
@@ -85,10 +85,9 @@ Youth football section · Bursary management · Recruitment portal.
 **1. Your action — credentials (unlocks the 🔑 items):**
 Moodle WS token · VEO API key · Catapult API token + org ID · GURU key · Sports Session Planner key · Google OAuth client. These light up: Moodle/VEO/Catapult/GURU/SSP data sync, staff VEO/Catapult management, parent Moodle engagement.
 
-**2. My action — Moodle-pivot cleanup (decisions):**
-- `academic-alerts` cron — disable or re-point at Moodle.
-- AI review/report "academic progress" section — drop or feed from Moodle.
-- Staff "academic monitoring" + parent "academic progress" — rely on Moodle link, or build a Moodle-API-fed view (needs creds).
+**2. My action — Moodle-pivot cleanup:**
+- ✅ DONE: `academic-alerts` cron removed; AI learner-review academic section + stale coursework data removed.
+- Remaining: staff "academic monitoring" + parent "academic progress" — currently rely on the Moodle link; a Moodle-API-fed view would need credentials (item 1).
 
 **3. Not built:** Google email access (needs Google Workspace OAuth).
 
