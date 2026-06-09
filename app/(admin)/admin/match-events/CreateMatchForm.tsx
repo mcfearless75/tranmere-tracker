@@ -1,4 +1,5 @@
 'use client'
+import { YearBadge } from '@/components/YearBadge'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -6,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 
-type Student = { id: string; name: string }
+type Student = { id: string; name: string; year_group: number }
 type Props = { students: Student[]; coachId: string }
 
 export function CreateMatchForm({ students, coachId }: Props) {
@@ -99,7 +100,10 @@ export function CreateMatchForm({ students, coachId }: Props) {
                   : 'bg-white text-gray-700 border-gray-200 hover:border-tranmere-blue'
               }`}
             >
-              {s.name}
+              <span className="flex items-center justify-between gap-1.5">
+                <span className="truncate">{s.name}</span>
+                <YearBadge year={s.year_group} />
+              </span>
             </button>
           ))}
         </div>

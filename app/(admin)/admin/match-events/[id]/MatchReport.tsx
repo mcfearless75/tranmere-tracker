@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Crown, CheckCircle2, XCircle, Clock, Save, Bell, Check, Target, Shield, Sparkles } from 'lucide-react'
+import { YearBadge } from '@/components/YearBadge'
 
 type Match = {
   id: string
@@ -32,7 +33,7 @@ type SquadRow = {
   minutes_played: number | null
   yellow_card: boolean
   red_card: boolean
-  users: { name: string; avatar_url: string | null } | null
+  users: { name: string; avatar_url: string | null; year_group?: number } | null
 }
 
 const statusIcon = (s: string) =>
@@ -313,6 +314,7 @@ export function MatchReport({ match, squad }: { match: Match; squad: SquadRow[] 
                         </Link>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           {statusIcon(s.status)}
+                          <YearBadge year={s.users?.year_group} />
                           {s.position && <span className="font-mono bg-gray-100 px-1.5 rounded">{s.position}</span>}
                           {isMotm && <span className="text-amber-600 font-semibold flex items-center gap-0.5"><Crown size={11} /> MOTM</span>}
                         </div>

@@ -19,7 +19,7 @@ export default async function MatchDetailPage({ params }: { params: { id: string
 
   const { data: squad } = await supabase
     .from('match_squads')
-    .select('id, player_id, status, position, coach_rating, coach_notes, goals, assists, minutes_played, yellow_card, red_card, users:player_id(name, avatar_url)')
+    .select('id, player_id, status, position, coach_rating, coach_notes, goals, assists, minutes_played, yellow_card, red_card, users:player_id(name, avatar_url, year_group)')
     .eq('match_id', params.id)
 
   return (

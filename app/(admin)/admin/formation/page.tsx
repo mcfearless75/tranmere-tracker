@@ -7,7 +7,7 @@ export default async function FormationPage({ searchParams }: { searchParams: { 
   const supabase = createAdminClient()
 
   const [{ data: students }, { data: matches }] = await Promise.all([
-    supabase.from('users').select('id, name, avatar_url').eq('role', 'student').order('name'),
+    supabase.from('users').select('id, name, avatar_url, year_group').eq('role', 'student').order('name'),
     supabase.from('match_events').select('id, match_date, opponent, status').order('match_date', { ascending: false }).limit(20),
   ])
 

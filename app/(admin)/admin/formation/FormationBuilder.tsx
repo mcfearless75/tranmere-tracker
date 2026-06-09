@@ -1,4 +1,5 @@
 'use client'
+import { YearBadge } from '@/components/YearBadge'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -7,7 +8,7 @@ import { FORMATIONS, FORMATION_NAMES, Slot } from '@/components/pitch/formations
 import { createClient } from '@/lib/supabase/client'
 import { RotateCcw, Save, Check, Users } from 'lucide-react'
 
-type Student = { id: string; name: string; avatar_url: string | null }
+type Student = { id: string; name: string; avatar_url: string | null; year_group: number }
 type Match = { id: string; match_date: string; opponent: string; status: string }
 type Placement = { slotId: string; playerId: string; playerName: string; avatarUrl?: string | null }
 
@@ -252,6 +253,7 @@ export function FormationBuilder({ students, matches, selectedMatchId, initialSq
                         </span>
                       )}
                       <span className="flex-1 text-sm font-semibold truncate">{shortName}</span>
+                      <YearBadge year={s.year_group} />
                     </button>
                   )
                 })}

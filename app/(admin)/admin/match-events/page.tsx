@@ -15,7 +15,7 @@ export default async function MatchEventsPage() {
   const [{ data: students }, { data: matches }] = await Promise.all([
     supabase
       .from('users')
-      .select('id, name')
+      .select('id, name, year_group')
       .eq('role', 'student')
       .order('name'),
     supabase
