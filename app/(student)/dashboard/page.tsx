@@ -8,7 +8,6 @@ import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, Cale
 import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
 import { StudentCharts } from '@/components/charts/StudentCharts'
 import { buildAttendanceWeeks, buildAttendanceDrillDown } from '@/lib/charts/attendanceUtils'
-import { buildAcademicCounts } from '@/lib/charts/academicUtils'
 import { WellbeingPromptCard } from '@/components/wellbeing/WellbeingPromptCard'
 
 export const dynamic = 'force-dynamic'
@@ -65,7 +64,6 @@ export default async function DashboardPage() {
     { data: tomorrowSessions },
     { data: attendedDays },
     { data: scheduledDays },
-    { data: mySubmissions },
     { data: cachedReport },
     { data: chartAttended },
     { data: chartScheduled },
@@ -119,11 +117,6 @@ export default async function DashboardPage() {
       .select('scheduled_date')
       .gte('scheduled_date', ago30)
       .lte('scheduled_date', today),
-    // Student's own submissions — drives the academic progress chart
-    supabase
-      .from('submissions')
-      .select('assignment_id, status')
-      .eq('student_id', user!.id),
     // AI report cache — show summary on dashboard if <24h old
     supabase
       .from('ai_player_reports')
@@ -187,12 +180,6 @@ export default async function DashboardPage() {
   // Charts data
   const attendanceWeeks = buildAttendanceWeeks(chartAttended ?? [], chartScheduled ?? [])
   const attendanceDrill = buildAttendanceDrillDown(chartAttended ?? [], chartScheduled ?? [])
-  const academicCounts = buildAcademicCounts(
-    (mySubmissions ?? []).map(s => ({
-      assignment_id: s.assignment_id,
-      status: s.status as 'not_started' | 'in_progress' | 'submitted' | 'graded',
-    }))
-  )
 
   const firstName = profile?.name?.split(' ')[0] ?? 'Player'
   const courseName = (profile?.courses as any)?.name ?? ''
@@ -505,11 +492,10 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {/* ═══════════ CHARTS: ATTENDANCE + ACADEMIC PROGRESS ═══════════ */}
+      {/* ═══════════ CHARTS: ATTENDANCE ═══════════ */}
       <StudentCharts
         attendanceWeeks={attendanceWeeks}
         attendanceDrill={attendanceDrill}
-        academicCounts={academicCounts}
       />
 
       {/* ═══════════ MY TOOLS ═══════════ */}

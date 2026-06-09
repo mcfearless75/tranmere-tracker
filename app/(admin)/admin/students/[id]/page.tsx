@@ -1,7 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import Link from 'next/link'
 import { ArrowLeft, Route, Gauge, Zap, Trophy, ClipboardList, Plus, CheckCircle2, Clock, Printer } from 'lucide-react'
-import { UnitProgress } from './UnitProgress'
 import { AdminActions } from './AdminActions'
 import { AiInsights } from './AiInsights'
 import { PlayerAttributesForm } from '@/components/PlayerAttributesForm'
@@ -29,27 +28,12 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
     )
   }
 
-  // All units for this student's course, plus assignments & submissions
+  // GPS, matches & learner reviews (BTEC coursework now lives in Moodle)
   const [
-    { data: units },
-    { data: assignments },
-    { data: submissions },
     { data: gpsSessions },
     { data: matches },
     { data: reviews },
   ] = await Promise.all([
-    supabase
-      .from('btec_units')
-      .select('id, unit_number, unit_name')
-      .eq('course_id', student.course_id)
-      .order('unit_number'),
-    supabase
-      .from('assignments')
-      .select('id, unit_id, title, due_date, grade_target'),
-    supabase
-      .from('submissions')
-      .select('id, assignment_id, status, grade, feedback, submitted_at')
-      .eq('student_id', studentId),
     supabase
       .from('gps_sessions')
       .select('id, session_date, session_label, total_distance_m, max_speed_kmh, sprint_count')
@@ -69,22 +53,6 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
       .order('created_at', { ascending: false })
       .limit(10),
   ])
-
-  // Compute overall stats
-  const allSubs = submissions ?? []
-  const gradeCounts = {
-    Distinction: allSubs.filter(s => s.grade === 'Distinction').length,
-    Merit: allSubs.filter(s => s.grade === 'Merit').length,
-    Pass: allSubs.filter(s => s.grade === 'Pass').length,
-    Refer: allSubs.filter(s => s.grade === 'Refer').length,
-  }
-  const submitted = allSubs.filter(s => ['submitted', 'graded'].includes(s.status)).length
-  const totalCourseAssignments = (assignments ?? []).filter(a =>
-    (units ?? []).some(u => u.id === a.unit_id)
-  ).length
-  const progressPct = totalCourseAssignments > 0
-    ? Math.round((submitted / totalCourseAssignments) * 100)
-    : 0
 
   const initials = student.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) ?? 'S'
   const courseName = (student.courses as any)?.name ?? 'No course assigned'
@@ -128,38 +96,6 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
           />
 
           <AiInsights studentId={student.id} studentName={student.name ?? 'Student'} />
-
-          {/* Progress summary */}
-          <div className="rounded-2xl border bg-white p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold">Coursework Progress</h2>
-              <p className="text-2xl font-bold text-tranmere-blue">{progressPct}%</p>
-            </div>
-            <div className="h-3 rounded-full bg-gray-100 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-tranmere-blue to-blue-500 transition-all duration-700"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-            <div className="grid grid-cols-4 gap-2 pt-2">
-              <GradePill label="Distinction" count={gradeCounts.Distinction} colour="purple" />
-              <GradePill label="Merit" count={gradeCounts.Merit} colour="blue" />
-              <GradePill label="Pass" count={gradeCounts.Pass} colour="green" />
-              <GradePill label="Pending" count={totalCourseAssignments - submitted} colour="amber" />
-            </div>
-          </div>
-
-          {/* Units accordion */}
-          <div className="space-y-2">
-            <h2 className="font-semibold px-1">BTEC Units &amp; Assignments</h2>
-            <UnitProgress
-              studentId={student.id}
-              studentName={student.name ?? ''}
-              units={units ?? []}
-              assignments={assignments ?? []}
-              submissions={submissions ?? []}
-            />
-          </div>
 
           {/* Bottom row — GPS & Matches */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -282,21 +218,6 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
 
       {/* Admin actions — shown for all users */}
       <AdminActions userId={student.id} userName={student.name ?? 'User'} email={student.email ?? ''} />
-    </div>
-  )
-}
-
-function GradePill({ label, count, colour }: { label: string; count: number; colour: 'purple' | 'blue' | 'green' | 'amber' }) {
-  const colours = {
-    purple: 'bg-purple-50 text-purple-700',
-    blue: 'bg-blue-50 text-blue-700',
-    green: 'bg-green-50 text-green-700',
-    amber: 'bg-amber-50 text-amber-700',
-  }[colour]
-  return (
-    <div className={`rounded-lg px-2 py-2 text-center ${colours}`}>
-      <p className="text-lg font-bold">{count}</p>
-      <p className="text-[10px] font-medium uppercase tracking-wide">{label}</p>
     </div>
   )
 }
