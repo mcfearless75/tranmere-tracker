@@ -1,9 +1,10 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { LoginForm } from './LoginForm'
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
 import { ShieldCheck, User } from 'lucide-react'
 
-export default function LoginPage({ searchParams }: { searchParams: { next?: string } }) {
+export default function LoginPage({ searchParams }: { searchParams: { next?: string; error?: string } }) {
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-tranmere-blue p-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-8 space-y-6">
@@ -17,6 +18,23 @@ export default function LoginPage({ searchParams }: { searchParams: { next?: str
           />
           <h1 className="text-2xl font-bold text-tranmere-blue">Tranmere Tracker</h1>
           <p className="text-sm text-muted-foreground">Sign in to your account</p>
+        </div>
+
+        {searchParams.error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
+            {searchParams.error}
+          </div>
+        )}
+
+        <GoogleSignInButton next={searchParams.next} />
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-200"></div>
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span className="bg-white px-3 text-muted-foreground">or sign in with email</span>
+          </div>
         </div>
 
         <LoginForm next={searchParams.next} />
