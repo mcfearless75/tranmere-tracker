@@ -3,8 +3,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Calendar, CheckCircle, Clock, MessageSquare, Activity, LayoutGrid, Star, Users, AlertCircle } from 'lucide-react'
+import { Calendar, Clock, MessageSquare, Activity, LayoutGrid, Users, GraduationCap } from 'lucide-react'
 import { PushOptIn } from '@/components/PushOptIn'
+import { MOODLE_TEACHER_URL } from '@/lib/config/moodle'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,21 +52,10 @@ const firstName = profile.name?.split(' ')[0] ?? 'Coach'
     totalStudents = (studentCount as any)?.length ?? 0
   }
 
-  // ── TEACHER: Coursework overview ──────────────────────────────────────
-  let assignments: any[] = []
-  const submissionsByAssignment: Record<string, number> = {}
-
+  // ── TEACHER: Student count for headline tile ──────────────────────────
   if (isTeacher) {
-    const [{ data: assignmentData }, { data: studentCount }, { data: subData }] = await Promise.all([
-      admin.from('assignments').select('id, title, due_date, unit_id').order('due_date', { ascending: false }).limit(20),
-      admin.from('users').select('id', { count: 'exact' }).eq('role', 'student'),
-      admin.from('submissions').select('assignment_id'),
-    ])
-    assignments = assignmentData ?? []
+    const { data: studentCount } = await admin.from('users').select('id', { count: 'exact' }).eq('role', 'student')
     totalStudents = (studentCount as any)?.length ?? 0
-    for (const s of subData ?? []) {
-      submissionsByAssignment[s.assignment_id] = (submissionsByAssignment[s.assignment_id] ?? 0) + 1
-    }
   }
 
   return (
@@ -156,10 +146,10 @@ const firstName = profile.name?.split(' ')[0] ?? 'Coach'
                 <Activity size={20} className="text-tranmere-blue" />
                 <span className="text-[11px] font-medium leading-tight">Squad GPS</span>
               </Link>
-              <Link href="/admin/grade-submissions" className="flex flex-col items-center gap-2 rounded-xl border bg-gray-50 hover:bg-tranmere-blue/5 p-3 transition-colors text-center">
-                <Star size={20} className="text-tranmere-blue" />
-                <span className="text-[11px] font-medium leading-tight">Grade Work</span>
-              </Link>
+              <a href={MOODLE_TEACHER_URL} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-2 rounded-xl border bg-gray-50 hover:bg-tranmere-blue/5 p-3 transition-colors text-center">
+                <GraduationCap size={20} className="text-tranmere-blue" />
+                <span className="text-[11px] font-medium leading-tight">Go to Moodle</span>
+              </a>
             </div>
           </div>
 
@@ -180,82 +170,40 @@ const firstName = profile.name?.split(' ')[0] ?? 'Coach'
       )}
 
       {/* ── TEACHER VIEW ── */}
-      {isTeacher && (() => {
-        const overdueCount = assignments.filter(a => new Date(a.due_date) < new Date()).length
-        const needsGradingCount = assignments.filter(a => {
-          const submitted = submissionsByAssignment[a.id] ?? 0
-          return submitted > 0 && submitted < totalStudents
-        }).length
-        const totalSubmissions = Object.values(submissionsByAssignment).reduce((acc, n) => acc + n, 0)
-        const maxPossible = assignments.length * totalStudents
-
-        return (
-          <>
+      {isTeacher && (
+        <>
             {/* Headline stats */}
-            <div className="grid grid-cols-3 gap-2">
-              <Link href="/admin/assignments" className="rounded-2xl border bg-white p-3 text-center hover:bg-tranmere-blue/5 transition-colors">
-                <p className="text-2xl font-bold text-tranmere-blue">{assignments.length}</p>
-                <p className="text-[11px] text-muted-foreground">Assignments</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Link href="/admin/users" className="rounded-2xl border bg-white p-4 text-center hover:bg-tranmere-blue/5 hover:border-tranmere-blue/30 transition-colors group">
+                <p className="text-3xl font-bold text-tranmere-blue">{totalStudents}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 flex items-center justify-center gap-1 group-hover:text-tranmere-blue">
+                  <Users size={11} /> Students →
+                </p>
               </Link>
-              <Link href="/admin/users" className="rounded-2xl border bg-white p-3 text-center hover:bg-tranmere-blue/5 transition-colors">
-                <p className="text-2xl font-bold text-tranmere-blue">{totalStudents}</p>
-                <p className="text-[11px] text-muted-foreground">Students</p>
-              </Link>
-              <Link href="/admin/grade-submissions" className={`rounded-2xl border p-3 text-center transition-colors ${overdueCount > 0 ? 'bg-red-50 border-red-200 hover:bg-red-100' : 'bg-white hover:bg-tranmere-blue/5'}`}>
-                <p className={`text-2xl font-bold ${overdueCount > 0 ? 'text-red-600' : 'text-tranmere-blue'}`}>{overdueCount}</p>
-                <p className={`text-[11px] ${overdueCount > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>Overdue</p>
+              <Link href="/admin/match-events" className="rounded-2xl border bg-white p-4 text-center hover:bg-tranmere-blue/5 hover:border-tranmere-blue/30 transition-colors group">
+                <p className="text-3xl font-bold text-tranmere-blue">{upcomingMatches?.length ?? 0}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 flex items-center justify-center gap-1 group-hover:text-tranmere-blue">
+                  <Calendar size={11} /> Fixtures Ahead →
+                </p>
               </Link>
             </div>
 
-            {/* Grading alert */}
-            {needsGradingCount > 0 && (
-              <Link href="/admin/grade-submissions" className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 hover:bg-amber-100 transition-colors">
-                <AlertCircle size={18} className="text-amber-600 shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-amber-800">{needsGradingCount} assignments need grading</p>
-                  <p className="text-xs text-amber-600">{totalSubmissions} submissions received so far</p>
-                </div>
-                <span className="text-xs text-amber-700 font-medium">Grade →</span>
-              </Link>
-            )}
-
-            {/* Submission progress */}
-            <div className="rounded-2xl border bg-white divide-y overflow-hidden">
-              <div className="px-4 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CheckCircle size={15} className="text-tranmere-blue" />
-                  <p className="font-semibold text-sm">Submission Progress</p>
-                </div>
-                {maxPossible > 0 && (
-                  <span className="text-xs text-muted-foreground">{Math.round((totalSubmissions / maxPossible) * 100)}% overall</span>
-                )}
+            {/* Coursework now lives in Moodle */}
+            <a
+              href={MOODLE_TEACHER_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 rounded-2xl border bg-white p-4 hover:bg-tranmere-blue/5 hover:border-tranmere-blue/30 transition-colors group"
+            >
+              <div className="w-10 h-10 rounded-full bg-tranmere-blue/10 flex items-center justify-center">
+                <GraduationCap size={18} className="text-tranmere-blue" />
               </div>
-              {assignments.slice(0, 8).map(a => {
-                const submitted = submissionsByAssignment[a.id] ?? 0
-                const pct = totalStudents > 0 ? Math.round((submitted / totalStudents) * 100) : 0
-                const daysLeft = Math.ceil((new Date(a.due_date).getTime() - Date.now()) / 86400000)
-                const overdue = daysLeft < 0
-                return (
-                  <div key={a.id} className="px-4 py-3 space-y-1">
-                    <div className="flex justify-between items-start gap-2">
-                      <p className="text-sm font-medium truncate">{a.title}</p>
-                      <span className={`text-[10px] font-medium shrink-0 px-1.5 py-0.5 rounded-full ${overdue ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {overdue ? `${Math.abs(daysLeft)}d overdue` : daysLeft === 0 ? 'Due today' : `${daysLeft}d left`}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-gray-100 rounded-full h-1.5">
-                        <div className={`h-1.5 rounded-full ${pct === 100 ? 'bg-green-500' : overdue && pct < 80 ? 'bg-red-400' : 'bg-tranmere-blue'}`} style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className="text-[11px] text-muted-foreground shrink-0">{submitted}/{totalStudents}</span>
-                    </div>
-                  </div>
-                )
-              })}
-              <div className="px-4 py-3">
-                <Link href="/admin/grade-submissions" className="text-xs text-tranmere-blue underline underline-offset-2">Grade submissions →</Link>
+              <div className="flex-1">
+                <p className="font-semibold text-sm group-hover:text-tranmere-blue">Go to Moodle</p>
+                <p className="text-xs text-muted-foreground">Coursework, assignments &amp; grading</p>
               </div>
-            </div>
+              <span className="text-xs text-tranmere-blue font-medium">Open →</span>
+            </a>
 
             {/* Match schedule */}
             {upcomingMatches && upcomingMatches.length > 0 && (
@@ -270,9 +218,8 @@ const firstName = profile.name?.split(' ')[0] ?? 'Coach'
                 <Link href="/admin/match-events" className="text-xs text-tranmere-blue underline underline-offset-2">All fixtures →</Link>
               </div>
             )}
-          </>
-        )
-      })()}
+        </>
+      )}
 
       {/* Chat shortcut */}
       <Link href="/chat" className="flex items-center gap-3 rounded-2xl border bg-white p-4 hover:bg-gray-50 transition-colors">

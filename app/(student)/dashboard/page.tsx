@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Image from 'next/image'
 import Link from 'next/link'
 import { PushOptIn } from '@/components/PushOptIn'
-import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, CalendarDays, AlertTriangle, Brain, ChevronRight, Target, ClipboardList, BookOpen, GraduationCap, ShieldCheck, CheckSquare, Video, Satellite } from 'lucide-react'
+import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, CalendarDays, Brain, ChevronRight, Target, ClipboardList, BookOpen, GraduationCap, ShieldCheck, CheckSquare, Video, Satellite } from 'lucide-react'
+import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
 import { StudentCharts } from '@/components/charts/StudentCharts'
 import { buildAttendanceWeeks, buildAttendanceDrillDown } from '@/lib/charts/attendanceUtils'
 import { buildAcademicCounts } from '@/lib/charts/academicUtils'
@@ -51,13 +52,11 @@ export default async function DashboardPage() {
   const today = new Date().toISOString().split('T')[0]
   const tomorrowDate = new Date(Date.now() + 86400000)
   const tomorrow = tomorrowDate.toISOString().split('T')[0]
-  const in14 = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]
   const ago30 = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
   const ago56 = new Date(Date.now() - 56 * 86400000).toISOString().split('T')[0]
 
   // Run all independent queries in parallel — ~4x faster than sequential
   const [
-    { data: upcoming },
     { data: todayFood },
     { data: squadRaw },
     { data: lastTraining },
@@ -66,20 +65,12 @@ export default async function DashboardPage() {
     { data: tomorrowSessions },
     { data: attendedDays },
     { data: scheduledDays },
-    { data: overdueAssignments },
     { data: mySubmissions },
     { data: cachedReport },
     { data: chartAttended },
     { data: chartScheduled },
     { data: openSurvey },
   ] = await Promise.all([
-    supabase
-      .from('assignments')
-      .select('id, title, due_date')
-      .gte('due_date', today)
-      .lte('due_date', in14)
-      .order('due_date')
-      .limit(3),
     supabase
       .from('nutrition_logs')
       .select('calories')
@@ -128,14 +119,7 @@ export default async function DashboardPage() {
       .select('scheduled_date')
       .gte('scheduled_date', ago30)
       .lte('scheduled_date', today),
-    // Overdue assignments (due before today)
-    supabase
-      .from('assignments')
-      .select('id, title, due_date')
-      .lt('due_date', today)
-      .order('due_date', { ascending: false })
-      .limit(10),
-    // Student's own submissions — to cross-check overdue
+    // Student's own submissions — drives the academic progress chart
     supabase
       .from('submissions')
       .select('assignment_id, status')
@@ -180,14 +164,6 @@ export default async function DashboardPage() {
   const attendancePct = scheduledDates.size > 0
     ? Math.round(presentDates.size / scheduledDates.size * 100)
     : null
-
-  // Overdue = past due_date + no submitted/graded submission
-  const submittedIds = new Set(
-    (mySubmissions ?? [])
-      .filter(s => ['submitted', 'graded'].includes(s.status))
-      .map(s => s.assignment_id)
-  )
-  const overdueUnsubmitted = (overdueAssignments ?? []).filter(a => !submittedIds.has(a.id))
 
   // Does tomorrow have a match session?
   const tomorrowHasMatch = (tomorrowSessions ?? []).some(s => s.session_type === 'match')
@@ -384,34 +360,6 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {/* ═══════════ OVERDUE WARNING ═══════════ */}
-      {overdueUnsubmitted.length > 0 && (
-        <div className="rounded-2xl bg-red-50 border border-red-200 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle size={15} className="text-red-600 shrink-0" />
-            <p className="text-sm font-semibold text-red-700">
-              {overdueUnsubmitted.length} overdue assignment{overdueUnsubmitted.length > 1 ? 's' : ''} — not yet submitted
-            </p>
-          </div>
-          <div className="space-y-1">
-            {overdueUnsubmitted.slice(0, 3).map(a => {
-              const daysAgo = Math.ceil((Date.now() - new Date(a.due_date).getTime()) / 86400000)
-              return (
-                <Link key={a.id} href="/coursework" className="flex justify-between items-center text-xs py-0.5">
-                  <span className="text-red-700 font-medium truncate pr-2">{a.title}</span>
-                  <span className="text-red-500 shrink-0">{daysAgo}d overdue</span>
-                </Link>
-              )
-            })}
-          </div>
-          {overdueUnsubmitted.length > 3 && (
-            <Link href="/coursework" className="text-xs text-red-600 underline mt-1 inline-block">
-              +{overdueUnsubmitted.length - 3} more →
-            </Link>
-          )}
-        </div>
-      )}
-
       {/* ═══════════ WELLBEING PROMPT ═══════════ */}
       {openSurvey && <WellbeingPromptCard />}
 
@@ -456,29 +404,24 @@ export default async function DashboardPage() {
         </div>
       </Link>
 
-      {/* ═══════════ UPCOMING DEADLINES ═══════════ */}
-      <Card>
-        <CardHeader className="pb-2 pt-4">
-          <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-            Upcoming Deadlines
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 pb-4">
-          {upcoming?.length ? upcoming.map(a => {
-            const daysLeft = Math.ceil((new Date(a.due_date).getTime() - Date.now()) / 86400000)
-            return (
-              <Link key={a.id} href="/coursework" className="flex justify-between items-center text-sm py-1">
-                <span className="font-medium truncate pr-2">{a.title}</span>
-                <span className={`shrink-0 text-xs font-medium ${daysLeft <= 3 ? 'text-red-600' : 'text-muted-foreground'}`}>
-                  {daysLeft === 0 ? 'Today' : daysLeft === 1 ? 'Tomorrow' : `${daysLeft}d`}
-                </span>
-              </Link>
-            )
-          }) : (
-            <p className="text-sm text-muted-foreground">No deadlines in the next 14 days</p>
-          )}
-        </CardContent>
-      </Card>
+      {/* ═══════════ MOODLE ═══════════ */}
+      <a
+        href={MOODLE_STUDENT_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block rounded-2xl bg-white border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow group"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+            <GraduationCap size={20} className="text-amber-500" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-gray-800">Go to Moodle</p>
+            <p className="text-xs text-muted-foreground">Your coursework &amp; assignments</p>
+          </div>
+          <ChevronRight size={16} className="text-muted-foreground group-hover:text-tranmere-blue transition-colors shrink-0" />
+        </div>
+      </a>
 
       {/* Upcoming matches */}
       {mySquadEntries && mySquadEntries.length > 0 && (

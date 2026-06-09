@@ -1,11 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
+import { GraduationCap } from 'lucide-react'
+import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
 
 export const dynamic = 'force-dynamic'
 
 interface SessionRow { id: string; session_label: string; session_type: string; opens_at: string; closes_at: string }
-interface DeadlineRow { id: string; title: string; due_date: string }
 interface MatchSquadRow {
   status: string
   coach_rating: number | null
@@ -24,7 +25,6 @@ interface StudentData {
   attendancePct: number | null
   presentCount: number
   scheduledCount: number
-  upcomingDeadlines: DeadlineRow[] | null
   nextMatch: MatchSquadRow | null
 }
 
@@ -45,8 +45,8 @@ function AttendanceBar({ pct }: { pct: number | null }) {
   )
 }
 
-function StudentOverviewCard({ student, today }: { student: StudentData; today: string }) {
-  const { profile, todaySessions, attendancePct, presentCount, scheduledCount, upcomingDeadlines, nextMatch } = student
+function StudentOverviewCard({ student }: { student: StudentData }) {
+  const { profile, todaySessions, attendancePct, presentCount, scheduledCount, nextMatch } = student
   const name = profile?.name ?? 'Unknown Student'
   const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
 
@@ -91,27 +91,24 @@ function StudentOverviewCard({ student, today }: { student: StudentData; today: 
         )}
       </div>
 
-      {/* Upcoming deadlines */}
+      {/* Coursework on Moodle */}
       <div>
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Upcoming Deadlines</p>
-        {upcomingDeadlines && upcomingDeadlines.length > 0 ? (
-          <ul className="space-y-1">
-            {upcomingDeadlines.map(d => {
-              const daysLeft = Math.ceil((new Date(d.due_date).getTime() - new Date(today).getTime()) / 86400000)
-              const urgency = daysLeft <= 2 ? 'text-red-600' : daysLeft <= 5 ? 'text-amber-600' : 'text-gray-500'
-              return (
-                <li key={d.id} className="flex items-center justify-between text-sm">
-                  <span className="text-gray-700 truncate flex-1 mr-2">{d.title}</span>
-                  <span className={`text-xs font-medium shrink-0 ${urgency}`}>
-                    {daysLeft === 0 ? 'Due today' : daysLeft === 1 ? 'Due tomorrow' : `${daysLeft}d left`}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-        ) : (
-          <p className="text-sm text-gray-400">No deadlines in the next 14 days</p>
-        )}
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Coursework</p>
+        <a
+          href={MOODLE_STUDENT_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-between gap-3 rounded-lg border border-tranmere-blue/20 bg-tranmere-blue/5 px-4 py-3 transition-colors hover:bg-tranmere-blue/10"
+        >
+          <span className="flex items-center gap-3">
+            <GraduationCap className="h-5 w-5 text-tranmere-blue" />
+            <span>
+              <span className="block text-sm font-medium text-gray-900">Go to Moodle</span>
+              <span className="block text-xs text-gray-500">Assignments, deadlines and coursework</span>
+            </span>
+          </span>
+          <span className="text-xs font-medium text-tranmere-blue">Open &rarr;</span>
+        </a>
       </div>
 
       {/* Next match */}
@@ -164,7 +161,6 @@ export default async function ParentDashboardPage() {
 
   const today = new Date().toISOString().split('T')[0]
   const ago30 = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
-  const in14 = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]
 
   const studentsData: StudentData[] = await Promise.all(studentIds.map(async (sid) => {
     const [
@@ -172,14 +168,12 @@ export default async function ParentDashboardPage() {
       { data: todaySessions },
       { data: attendedDays },
       { data: scheduledDays },
-      { data: upcomingDeadlines },
       { data: nextMatch },
     ] = await Promise.all([
       admin.from('users').select('name, avatar_url, position').eq('id', sid).single(),
       admin.from('attendance_sessions').select('id, session_label, session_type, opens_at, closes_at').eq('scheduled_date', today).order('opens_at'),
       admin.from('daily_attendance').select('attendance_date').eq('student_id', sid).gte('attendance_date', ago30).lte('attendance_date', today),
       admin.from('attendance_sessions').select('scheduled_date').gte('scheduled_date', ago30).lte('scheduled_date', today),
-      admin.from('assignments').select('id, title, due_date').gte('due_date', today).lte('due_date', in14).order('due_date').limit(3),
       admin.from('match_squads').select('status, coach_rating, match_events(opponent, match_date, location)').eq('player_id', sid).not('match_events', 'is', null).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     ])
 
@@ -194,7 +188,6 @@ export default async function ParentDashboardPage() {
       attendancePct,
       presentCount: presentDates.size,
       scheduledCount: scheduledDates.size,
-      upcomingDeadlines: upcomingDeadlines as DeadlineRow[] | null,
       nextMatch: nextMatch as MatchSquadRow | null,
     }
   }))
@@ -203,7 +196,7 @@ export default async function ParentDashboardPage() {
     <div className="space-y-6">
       <h1 className="text-xl font-bold text-tranmere-blue">Overview</h1>
       {studentsData.map(student => (
-        <StudentOverviewCard key={student.id} student={student} today={today} />
+        <StudentOverviewCard key={student.id} student={student} />
       ))}
     </div>
   )

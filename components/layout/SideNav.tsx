@@ -4,11 +4,11 @@ import { usePathname } from 'next/navigation'
 import { Home, GraduationCap, Apple, Dumbbell, Trophy, User, LogOut, Activity, MessageSquare, Brain } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
-import { MOODLE_URL } from '@/lib/config/moodle'
+import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
 
 const nav = [
   { href: '/dashboard', label: 'Home', icon: Home },
-  { href: MOODLE_URL, label: 'Moodle', icon: GraduationCap, external: true },
+  { href: MOODLE_STUDENT_URL, label: 'Moodle', icon: GraduationCap, external: true },
   { href: '/nutrition', label: 'Nutrition', icon: Apple },
   { href: '/gps', label: 'GPS Dashboard', icon: Activity },
   { href: '/chat', label: 'Chat', icon: MessageSquare },

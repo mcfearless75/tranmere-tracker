@@ -5,12 +5,12 @@ import { usePathname } from 'next/navigation'
 import { Users, Bell, BarChart2, GraduationCap, LogOut, Calendar, Wifi, Activity, LayoutGrid, Plug, MessageSquare, Megaphone, Home, ClipboardList, ShieldAlert, Network } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
-import { MOODLE_URL } from '@/lib/config/moodle'
+import { MOODLE_TEACHER_URL } from '@/lib/config/moodle'
 
 const nav = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: Home },
   { href: '/admin/users', label: 'Users', icon: Users },
-  { href: MOODLE_URL, label: 'Moodle', icon: GraduationCap, external: true },
+  { href: MOODLE_TEACHER_URL, label: 'Moodle', icon: GraduationCap, external: true },
   { href: '/admin/match-events', label: 'Match Squads', icon: Calendar, teacherHidden: true },
   { href: '/admin/formation', label: 'Formation', icon: LayoutGrid, teacherHidden: true },
   { href: '/admin/gps-dashboard', label: 'Squad GPS', icon: Activity, teacherHidden: true },
