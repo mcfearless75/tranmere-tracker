@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { GraduationCap, Activity, BookOpen, Heart, Wrench, ArrowRight } from 'lucide-react'
+import { Activity, Heart, Wrench, ArrowRight } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
@@ -7,27 +7,11 @@ export const dynamic = 'force-dynamic'
 export default async function ReportsHubPage() {
   const supabase = createAdminClient()
 
-  const [
-    { count: studentCount },
-    { count: assignmentCount },
-    { count: submissionCount },
-    { count: gpsCount },
-  ] = await Promise.all([
-    supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'student'),
-    supabase.from('assignments').select('*', { count: 'exact', head: true }),
-    supabase.from('submissions').select('*', { count: 'exact', head: true }),
-    supabase.from('gps_sessions').select('*', { count: 'exact', head: true }),
-  ])
+  const { count: gpsCount } = await supabase
+    .from('gps_sessions')
+    .select('*', { count: 'exact', head: true })
 
   const tiles = [
-    {
-      href: '/admin/reports/progress',
-      icon: GraduationCap,
-      title: 'Student Progress',
-      desc: 'Grade heatmap across all units, at-risk flags, individual drill-down',
-      gradient: 'from-blue-500 to-indigo-600',
-      stat: `${studentCount ?? 0} students tracked`,
-    },
     {
       href: '/admin/reports/squad',
       icon: Activity,
@@ -35,14 +19,6 @@ export default async function ReportsHubPage() {
       desc: 'GPS trends, match ratings, top/bottom performers with team baselines',
       gradient: 'from-orange-500 to-red-600',
       stat: `${gpsCount ?? 0} GPS sessions recorded`,
-    },
-    {
-      href: '/admin/reports/coursework',
-      icon: BookOpen,
-      title: 'Coursework Analytics',
-      desc: 'Submission rates per unit, overdue assignments, grade distribution',
-      gradient: 'from-purple-500 to-pink-600',
-      stat: `${submissionCount ?? 0} submissions across ${assignmentCount ?? 0} assignments`,
     },
     {
       href: '/admin/reports/engagement',
@@ -67,7 +43,7 @@ export default async function ReportsHubPage() {
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold text-tranmere-blue">Reports</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Deep insights across coursework, GPS, matches, and engagement.
+          Deep insights across GPS, matches, and engagement.
         </p>
       </div>
 
