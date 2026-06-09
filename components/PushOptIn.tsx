@@ -219,7 +219,7 @@ export function PushOptIn() {
           Enabling…
         </>
       ) : (
-        '🔔 Enable deadline notifications'
+        '🔔 Enable notifications'
       )}
     </button>
   )

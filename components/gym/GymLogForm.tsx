@@ -10,6 +10,7 @@ interface GymLogFormProps {
 export function GymLogForm({ onLogged }: GymLogFormProps) {
   const [exercise, setExercise] = useState('')
   const [customExercise, setCustomExercise] = useState('')
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [sets, setSets] = useState('')
   const [reps, setReps] = useState('')
   const [weightKg, setWeightKg] = useState('')
@@ -33,6 +34,7 @@ export function GymLogForm({ onLogged }: GymLogFormProps) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         exercise: resolvedExercise,
+        logged_date: date,
         sets: sets ? parseInt(sets, 10) : null,
         reps: reps ? parseInt(reps, 10) : null,
         weight_kg: weightKg ? parseFloat(weightKg) : null,
@@ -87,6 +89,18 @@ export function GymLogForm({ onLogged }: GymLogFormProps) {
           />
         </div>
       )}
+
+      {/* Date */}
+      <div>
+        <label className="block text-xs font-semibold text-gray-600 mb-1">Date</label>
+        <input
+          type="date"
+          value={date}
+          max={new Date().toISOString().split('T')[0]}
+          onChange={e => setDate(e.target.value)}
+          className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-tranmere-blue/30"
+        />
+      </div>
 
       {/* Sets / Reps / Weight row */}
       <div className="grid grid-cols-3 gap-3">
