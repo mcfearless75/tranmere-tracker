@@ -53,8 +53,6 @@ export function buildReviewSummaryPrompt(
   answers: Record<string, string | number>,
   context?: {
     attendancePct?: number
-    submittedUnits?: number
-    totalUnits?: number
     wellbeingScores?: Record<string, number>
   }
 ): string {
@@ -74,9 +72,6 @@ export function buildReviewSummaryPrompt(
     lines.push('')
     lines.push('Additional data from the platform:')
     if (context.attendancePct !== undefined) lines.push(`- Attendance this term: ${context.attendancePct}%`)
-    if (context.submittedUnits !== undefined && context.totalUnits !== undefined) {
-      lines.push(`- Coursework: ${context.submittedUnits}/${context.totalUnits} units submitted`)
-    }
     if (context.wellbeingScores) {
       const entries = Object.entries(context.wellbeingScores).map(([k, v]) => `${k}: ${v}/5`).join(', ')
       lines.push(`- Latest wellbeing scores: ${entries}`)
@@ -86,11 +81,10 @@ export function buildReviewSummaryPrompt(
   lines.push('')
   lines.push('Write a structured summary with these sections:')
   lines.push('1. Attendance & Punctuality')
-  lines.push('2. Academic Progress')
-  lines.push('3. Football Development')
-  lines.push('4. Wellbeing & Pastoral')
-  lines.push('5. Support Needs')
-  lines.push('6. Agreed Actions & Targets')
+  lines.push('2. Football Development')
+  lines.push('3. Wellbeing & Pastoral')
+  lines.push('4. Support Needs')
+  lines.push('5. Agreed Actions & Targets')
   lines.push('')
   lines.push('Be concise, professional, and specific. Use the data above. Maximum 400 words.')
 

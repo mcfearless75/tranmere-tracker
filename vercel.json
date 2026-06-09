@@ -31,10 +31,6 @@
     {
       "path": "/api/cron/schedule-reviews",
       "schedule": "0 8 1 9,1,4 *"
-    },
-    {
-      "path": "/api/cron/academic-alerts",
-      "schedule": "0 7 * * 1-5"
     }
   ]
 }

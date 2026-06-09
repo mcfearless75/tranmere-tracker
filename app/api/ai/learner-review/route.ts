@@ -48,15 +48,6 @@ export async function POST(req: NextRequest) {
       if (totalScheduled > 0) attendancePct = Math.round((totalAttended / totalScheduled) * 100)
     }
 
-    // Pull coursework stats
-    const { data: submissions } = await admin
-      .from('submissions')
-      .select('status')
-      .eq('student_id', student_id)
-
-    const submittedUnits = (submissions ?? []).filter(s => ['submitted', 'graded'].includes(s.status)).length
-    const totalUnits     = (submissions ?? []).length
-
     // Pull latest wellbeing scores
     const { data: wellbeingSurvey } = await admin
       .from('wellbeing_surveys')
@@ -80,8 +71,6 @@ export async function POST(req: NextRequest) {
 
     const prompt = buildReviewSummaryPrompt(student_name, term, answers, {
       attendancePct,
-      submittedUnits,
-      totalUnits,
       wellbeingScores,
     })
 
@@ -103,7 +92,7 @@ export async function POST(req: NextRequest) {
     const summaryJson = {
       text: summaryText,
       generated_at: new Date().toISOString(),
-      context: { attendancePct, submittedUnits, totalUnits },
+      context: { attendancePct },
     }
 
     // Persist to the review row
