@@ -60,6 +60,8 @@ remaining integrations are gated on third-party credentials, not code.
 - After any wave: `npm test` + `npx next build` before pushing.
 
 ## Kickoff prompt (paste into new chat)
-> Tranmere Tracker. master @ e69f826, build green, 366 tests passing, migrations
-> through 029 run (030/031 committed, awaiting run). Read docs/SESSION-HANDOFF.md
-> for full state. Today I want to: [TASK].
+> Tranmere Tracker / The Solar Campus. master @ 8106272, build green, 508 tests
+> passing, migrations applied live through 036. Every line of the original spec is
+> built (see docs/FEATURE-STATUS.md) — remaining work is credential-gated
+> integrations (keys into /admin/integrations + Google OAuth client). Read
+> docs/SESSION-HANDOFF.md for full state. Today I want to: [TASK].
