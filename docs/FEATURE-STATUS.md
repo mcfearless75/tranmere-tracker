@@ -1,6 +1,6 @@
 # Tranmere Tracker / The Solar Campus — Feature Status
 
-_Last reviewed: 2026-06-09. master @ latest, build green, 366 tests passing._
+_Last reviewed: 2026-06-10. master @ 83bce59, build green, 430 tests passing. Security hardening (migration 033) + recruitment portal (034) applied live._
 
 **Legend:** ✅ Live · 🔗 Delegated to Moodle (intentional) · 🔑 Built, needs vendor credentials · ⚠️ Stale after Moodle move (needs a decision) · ❌ Not built · ⏳ Deferred
 
@@ -75,8 +75,8 @@ Attendance ✅ · Academic progress 🔗 section removed (now on Moodle) · Foot
 ## Automated Processes (live crons)
 attendance-report AM/PM ✅ · refresh-reports ✅ · check-in-nudges ✅ · session-reminders ✅ · wellbeing-survey ✅ · schedule-reviews (termly) ✅. _(academic-alerts cron removed — coursework is on Moodle.)_
 
-## Future Development — ⏳ deferred
-Youth football section · Bursary management · Recruitment portal.
+## Future Development
+Recruitment portal ✅ **built 2026-06-10** (public `/trials` intake with consent + honeypot; staff pipeline at `/admin/recruitment` with scouting notes + trial-day ratings; migration 034 applied) · Youth football section ⏳ deferred · Bursary management ⏳ deferred.
 
 ---
 
