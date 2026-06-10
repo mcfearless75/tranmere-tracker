@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, Bell, BarChart2, GraduationCap, LogOut, Calendar, Wifi, Activity, LayoutGrid, Plug, MessageSquare, Megaphone, Home, ClipboardList, ShieldAlert, Network } from 'lucide-react'
+import { Users, Bell, BarChart2, GraduationCap, LogOut, Calendar, Wifi, Activity, LayoutGrid, Plug, MessageSquare, Megaphone, Home, ClipboardList, ShieldAlert, Network, UserPlus } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
 import { MOODLE_TEACHER_URL } from '@/lib/config/moodle'
@@ -20,6 +20,7 @@ const nav = [
   { href: '/admin/broadcast', label: 'Broadcast', icon: Megaphone },
   { href: '/admin/notifications', label: 'Notifications', icon: Bell },
   { href: '/admin/reports', label: 'Reports', icon: BarChart2 },
+  { href: '/admin/recruitment', label: 'Recruitment', icon: UserPlus },
   { href: '/admin/safeguarding', label: 'Safeguarding', icon: ShieldAlert, teacherHidden: true },
   { href: '/admin/lti', label: 'Moodle / LTI', icon: Plug },
   { href: '/admin/integrations', label: 'Integrations', icon: Network, teacherHidden: true },

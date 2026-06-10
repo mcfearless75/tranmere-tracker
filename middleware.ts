@@ -1,7 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_PATHS = ['/login', '/signup', '/setup', '/api/setup', '/admin-login', '/staff-login']
+const PUBLIC_PATHS = ['/login', '/signup', '/setup', '/api/setup', '/admin-login', '/staff-login', '/trials', '/api/recruitment/apply']
+// Public paths that signed-in users may still visit (no bounce to their dashboard).
+const OPEN_TO_ALL = ['/admin-login', '/staff-login', '/trials', '/api/recruitment/apply']
 const STUDENT_PREFIXES = ['/dashboard', '/coursework', '/nutrition', '/training', '/matches', '/profile', '/gps']
 const PARENT_PREFIXES = ['/parent']
 
@@ -68,7 +70,7 @@ export async function middleware(request: NextRequest) {
     path.startsWith('/admin') ||
     STUDENT_PREFIXES.some(p => path === p || path.startsWith(p + '/')) ||
     PARENT_PREFIXES.some(p => path === p || path.startsWith(p + '/')) ||
-    (isPublic && !path.startsWith('/admin-login') && !path.startsWith('/staff-login'))
+    (isPublic && !OPEN_TO_ALL.some(p => path.startsWith(p)))
 
   if (!needsRoleCheck) return supabaseResponse
 
@@ -85,7 +87,7 @@ export async function middleware(request: NextRequest) {
   const isParent = role === 'parent'
 
   // Authenticated user on auth page → role-appropriate home
-  if (isPublic && !path.startsWith('/admin-login') && !path.startsWith('/staff-login')) {
+  if (isPublic && !OPEN_TO_ALL.some(p => path.startsWith(p))) {
     const home = isStaff ? '/admin/gps-dashboard' : isParent ? '/parent/dashboard' : '/dashboard'
     return NextResponse.redirect(new URL(home, request.url))
   }
