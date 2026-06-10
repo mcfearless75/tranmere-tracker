@@ -1,6 +1,6 @@
 # Tranmere Tracker / The Solar Campus — Feature Status
 
-_Last reviewed: 2026-06-10. master @ 83bce59, build green, 430 tests passing. Security hardening (migration 033) + recruitment portal (034) applied live._
+_Last reviewed: 2026-06-10. Build green, 508 tests passing. Migrations applied live through 036 (033 security hardening, 034 recruitment, 035 bursaries, 036 youth). **Every line of the original spec is now built** — remaining work is credential-gated integrations only._
 
 **Legend:** ✅ Live · 🔗 Delegated to Moodle (intentional) · 🔑 Built, needs vendor credentials · ⚠️ Stale after Moodle move (needs a decision) · ❌ Not built · ⏳ Deferred
 
@@ -75,8 +75,10 @@ Attendance ✅ · Academic progress 🔗 section removed (now on Moodle) · Foot
 ## Automated Processes (live crons)
 attendance-report AM/PM ✅ · refresh-reports ✅ · check-in-nudges ✅ · session-reminders ✅ · wellbeing-survey ✅ · schedule-reviews (termly) ✅. _(academic-alerts cron removed — coursework is on Moodle.)_
 
-## Future Development
-Recruitment portal ✅ **built 2026-06-10** (public `/trials` intake with consent + honeypot; staff pipeline at `/admin/recruitment` with scouting notes + trial-day ratings; migration 034 applied) · Youth football section ⏳ deferred · Bursary management ⏳ deferred.
+## Future Development — ✅ ALL BUILT (2026-06-10)
+- **Recruitment portal** — public `/trials` intake (consent + honeypot) · staff pipeline at `/admin/recruitment` with scouting notes + trial-day ratings (migration 034).
+- **Youth football section** — `/admin/youth`: staff-managed squads (U9–U18, 31-Aug age rule), player rosters with parent/guardian contact + consent + medical notes (**no logins for youth players** — they're children), fixtures with results (migration 036). Staff-wide access.
+- **Bursary management** — `/admin/bursaries`: awards (weekly/monthly/termly; termly = 1 Sep/1 Jan/1 Apr), auto-generated payment schedules, mark paid/skipped with audit (who + when), running totals (migration 035). **Admin-only** — coaches/teachers cannot see amounts (RLS-enforced).
 
 ---
 
