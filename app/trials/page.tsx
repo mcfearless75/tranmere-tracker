@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import Link from 'next/link'
 import type { Metadata } from 'next'
 import { TrialApplicationForm } from '@/components/recruitment/TrialApplicationForm'
 
@@ -52,7 +53,8 @@ export default function TrialsPage() {
 
         <p className="text-center text-xs text-muted-foreground">
           Applications from players under 18 must include parent/guardian consent. Your details are
-          only used by our recruitment staff to arrange trials.
+          only used by our recruitment staff to arrange trials. See our{' '}
+          <Link href="/privacy" className="underline">privacy notice</Link>.
         </p>
       </div>
     </div>

@@ -64,6 +64,10 @@ export default function LoginPage({ searchParams }: { searchParams: { next?: str
             Staff / Student
           </Link>
         </div>
+
+        <p className="text-center text-[11px] text-muted-foreground">
+          <Link href="/privacy" className="underline">Privacy notice</Link>
+        </p>
       </div>
     </div>
   )
