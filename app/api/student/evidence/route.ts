@@ -20,10 +20,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'file and assignment_id required' }, { status: 400 })
   }
 
+  // Only safe, non-executable types: an HTML/SVG file served from storage
+  // could run script in the viewer's browser (stored XSS).
+  const ALLOWED_MIME = /^(image\/(jpeg|png|gif|webp|heic|heif)|application\/pdf|video\/(mp4|quicktime|webm)|audio\/(mpeg|mp4|wav))$/
+  if (!ALLOWED_MIME.test(file.type)) {
+    return NextResponse.json({ error: 'File type not allowed. Use images, PDF, video or audio.' }, { status: 400 })
+  }
+
   const admin = createAdminClient()
 
-  // Ensure bucket exists (idempotent)
-  await admin.storage.createBucket('coursework', { public: true, fileSizeLimit: 20 * 1024 * 1024 }).catch(() => {})
+  // Ensure bucket exists (idempotent). Private: files are served via signed URLs.
+  await admin.storage.createBucket('coursework', { public: false, fileSizeLimit: 20 * 1024 * 1024 }).catch(() => {})
 
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80)
   const path = `${user.id}/${assignmentId}-${Date.now()}-${safeName}`
@@ -35,7 +42,13 @@ export async function POST(request: Request) {
 
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 })
 
-  const { data: urlData } = admin.storage.from('coursework').getPublicUrl(path)
+  // 7-day signed URL — the bucket is no longer public.
+  const { data: urlData, error: signErr } = await admin.storage
+    .from('coursework')
+    .createSignedUrl(path, 7 * 24 * 60 * 60)
+  if (signErr || !urlData) {
+    return NextResponse.json({ error: 'Could not create file link' }, { status: 500 })
+  }
 
   // Ensure submission row exists, bump status to at least 'in_progress'
   const { data: existing } = await admin
@@ -67,7 +80,7 @@ export async function POST(request: Request) {
     submission_id: submissionId,
     student_id: user.id,
     kind,
-    url: urlData.publicUrl,
+    url: urlData.signedUrl,
     filename: file.name,
   }).select('*').single()
 

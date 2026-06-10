@@ -32,6 +32,7 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
   const [aiTyping, setAiTyping] = useState(false)
   const [typingUsers, setTypingUsers] = useState<string[]>([])
   const [attachment, setAttachment] = useState<{ file: File; preview: string | null } | null>(null)
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
@@ -84,6 +85,36 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, aiTyping, typingUsers])
 
+  // The chat-attachments bucket is private: attachment_url holds a storage
+  // path, and viewing rights come from the bucket's RLS policy. Resolve
+  // signed URLs for any paths we haven't resolved yet (http = legacy URLs).
+  useEffect(() => {
+    const paths = messages
+      .map(m => m.attachment_url)
+      .filter((u): u is string => !!u && !u.startsWith('http') && !signedUrls[u])
+    if (paths.length === 0) return
+    let cancelled = false
+    Promise.all(
+      paths.map(async p => {
+        const { data } = await supabase.storage.from('chat-attachments').createSignedUrl(p, 3600)
+        return [p, data?.signedUrl ?? ''] as const
+      }),
+    ).then(entries => {
+      if (cancelled) return
+      setSignedUrls(prev => {
+        const next = { ...prev }
+        for (const [p, u] of entries) if (u) next[p] = u
+        return next
+      })
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages])
+
+  function attachmentSrc(url: string): string | null {
+    return url.startsWith('http') ? url : signedUrls[url] ?? null
+  }
+
   function handleDraftChange(value: string) {
     setDraft(value)
     if (roomKind === 'bot' || !canSend) return
@@ -107,8 +138,8 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
     const path = `${currentUserId}/${Date.now()}.${ext}`
     const { data, error } = await supabase.storage.from('chat-attachments').upload(path, file)
     if (error || !data) return null
-    const { data: { publicUrl } } = supabase.storage.from('chat-attachments').getPublicUrl(data.path)
-    return { url: publicUrl, kind: file.type.startsWith('image/') ? 'image' : 'file' }
+    // Private bucket: store the storage path; render resolves a signed URL.
+    return { url: data.path, kind: file.type.startsWith('image/') ? 'image' : 'file' }
   }
 
   async function send() {
@@ -209,14 +240,14 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
                     {isBot ? 'AI Coach' : (sender?.name ?? '?')}
                   </p>
                 )}
-                {m.attachment_kind === 'image' && m.attachment_url && (
+                {m.attachment_kind === 'image' && m.attachment_url && attachmentSrc(m.attachment_url) && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={m.attachment_url} alt="attachment" className="rounded-lg max-w-full mb-1 max-h-60 object-cover" />
+                  <img src={attachmentSrc(m.attachment_url)!} alt="attachment" className="rounded-lg max-w-full mb-1 max-h-60 object-cover" />
                 )}
-                {m.attachment_kind === 'file' && m.attachment_url && (
-                  <a href={m.attachment_url} target="_blank" rel="noreferrer"
+                {m.attachment_kind === 'file' && m.attachment_url && attachmentSrc(m.attachment_url) && (
+                  <a href={attachmentSrc(m.attachment_url)!} target="_blank" rel="noreferrer"
                     className={`underline text-xs flex items-center gap-1 mb-1 ${mine ? 'text-blue-200' : 'text-tranmere-blue'}`}>
-                    📎 {decodeURIComponent(m.attachment_url.split('/').pop() ?? 'file')}
+                    📎 {decodeURIComponent(m.attachment_url.split('/').pop()?.split('?')[0] ?? 'file')}
                   </a>
                 )}
                 {m.body && <p className="whitespace-pre-wrap">{m.body}</p>}

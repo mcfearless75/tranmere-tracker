@@ -11,7 +11,8 @@ export async function signIn(_prevState: { error: string } | null, formData: For
   })
   if (error) return { error: error.message }
   const next = formData.get('next') as string | null
-  redirect(next && next.startsWith('/') ? next : '/')
+  // Reject '//evil.com' (protocol-relative) as well as absolute URLs.
+  redirect(next && next.startsWith('/') && !next.startsWith('//') ? next : '/')
 }
 
 export async function signOut() {

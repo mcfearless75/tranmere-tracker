@@ -13,8 +13,11 @@ export function GoogleSignInButton({ next }: Props) {
     setError(null)
     setLoading(true)
     const supabase = createClient()
+    // Same-site paths only: '//evil.com' passes startsWith('/') but is a
+    // protocol-relative external URL, so it must be rejected too.
+    const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : null
     const redirectTo = `${window.location.origin}/auth/callback${
-      next ? `?next=${encodeURIComponent(next)}` : ''
+      safeNext ? `?next=${encodeURIComponent(safeNext)}` : ''
     }`
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',

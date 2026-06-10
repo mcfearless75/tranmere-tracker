@@ -18,7 +18,8 @@ export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url)
   const code = searchParams.get('code')
   const nextParam = searchParams.get('next')
-  const next = nextParam && nextParam.startsWith('/') ? nextParam : '/'
+  // Reject '//evil.com' (protocol-relative) as well as absolute URLs.
+  const next = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : '/'
 
   if (!code) {
     return loginError(origin, 'Sign-in was cancelled or failed. Please try again.')
