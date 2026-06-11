@@ -32,8 +32,8 @@ export default function PrivacyPage() {
         </div>
 
         <Section title="Who we are">
-          The Solar Campus (formerly Tranmere Tracker) is a performance and education
-          platform for academy students, their parents and guardians, and academy staff.
+          Tranmere Tracker — the platform at The Solar Campus — is a performance and
+          education platform for academy students, their parents and guardians, and academy staff.
           It is operated on behalf of the academy. Questions about this notice or your
           data: <a className="text-tranmere-blue underline" href="mailto:paulmc18@gmail.com">contact us</a>.
         </Section>

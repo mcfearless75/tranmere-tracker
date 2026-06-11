@@ -50,7 +50,14 @@ login. The 23 students already on `@tranmere.academy` are fine.
 ## To change the allowed domains
 Edit `ALLOWED_EMAIL_DOMAINS` in `lib/config/auth.ts` and redeploy.
 
-## Later (cosmetic)
-Consent-screen branding verification (shows "The Solar Campus" name reliably)
-needs a homepage + privacy policy + ToS link on thesolarcampus.com — submit via
-Google Auth Platform → Branding once that site exists.
+## Branding verification — ✅ COMPLETE (2026-06-12)
+Consent-screen branding is **verified and published**: "The Solar Campus" shows
+to users. Achieved with: homepage `https://thesolarcampus.com` (GitHub Pages
+landing), privacy `https://app.thesolarcampus.com/privacy`, domain ownership
+verified in Search Console (paulmc18 account), and the Rovers crest logo
+REMOVED (Google flagged it as brand impersonation — re-adding it would need
+Google's brand-authorisation process with club documentation).
+
+Note: `thesolarcampus.com` shows "Invalid Configuration" on the Vercel domains
+page — that is expected and harmless; the apex deliberately points at GitHub
+Pages, not Vercel. The app lives at `app.thesolarcampus.com` (connected, valid).
