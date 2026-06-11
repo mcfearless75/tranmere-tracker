@@ -1,4 +1,5 @@
 import { AdminSidebar } from '@/components/layout/AdminSidebar'
+import { InstallGuide } from '@/components/pwa/InstallGuide'
 import { MobileAdminBar } from '@/components/layout/MobileAdminBar'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -25,6 +26,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-[100dvh] bg-gray-50 relative overflow-hidden">
+      <InstallGuide />
       {/* Watermark */}
       <div className="pointer-events-none fixed inset-0 flex items-center justify-center z-0 opacity-[0.035]">
         {/* eslint-disable-next-line @next/next/no-img-element */}

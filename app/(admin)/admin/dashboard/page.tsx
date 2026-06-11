@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Calendar, Clock, MessageSquare, Activity, LayoutGrid, Users, GraduationCap } from 'lucide-react'
 import { PushOptIn } from '@/components/PushOptIn'
+import { InstallAppButton } from '@/components/pwa/InstallGuide'
 import { MOODLE_TEACHER_URL } from '@/lib/config/moodle'
 
 export const dynamic = 'force-dynamic'
@@ -136,7 +137,10 @@ const firstName = profile.name?.split(' ')[0] ?? 'Coach'
 
           {/* Quick actions */}
           <div className="rounded-2xl border bg-white p-4 space-y-3">
-            <p className="font-semibold text-sm">Quick Actions</p>
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-sm">Quick Actions</p>
+              <InstallAppButton />
+            </div>
             <div className="grid grid-cols-3 gap-2">
               <Link href="/admin/formation" className="flex flex-col items-center gap-2 rounded-xl border bg-gray-50 hover:bg-tranmere-blue/5 p-3 transition-colors text-center">
                 <LayoutGrid size={20} className="text-tranmere-blue" />

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { ProfileClient } from './ProfileClient'
 import { PlayerAttributesForm } from '@/components/PlayerAttributesForm'
+import { InstallAppButton } from '@/components/pwa/InstallGuide'
 
 export default async function ProfilePage() {
   const supabase = createClient()
@@ -62,6 +63,11 @@ export default async function ProfilePage() {
           }}
         />
       )}
+
+      {/* Hidden automatically when already installed or in the native app */}
+      <div className="flex justify-center pb-2">
+        <InstallAppButton />
+      </div>
     </div>
   )
 }

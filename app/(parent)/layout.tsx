@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { ParentSidebar } from '@/components/layout/ParentSidebar'
+import { InstallGuide } from '@/components/pwa/InstallGuide'
 import { MobileParentBar } from '@/components/layout/MobileParentBar'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
@@ -25,6 +26,7 @@ export default async function ParentLayout({ children }: { children: React.React
 
   return (
     <div className="min-h-[100dvh] bg-gray-50 relative overflow-hidden">
+      <InstallGuide />
       {/* Watermark */}
       <div className="pointer-events-none fixed inset-0 flex items-center justify-center z-0 opacity-[0.04]">
         <img
