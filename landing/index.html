@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tranmere Tracker — The Performance Platform Built for the Club</title>
+  <meta name="description" content="One platform for player performance, match analysis, GPS data, AI coaching insight and parent communication. Built around Tranmere Rovers.">
+  <meta property="og:title" content="Tranmere Tracker — Every player. Every match. One platform.">
+  <meta property="og:description" content="Match tracking, GPS data, AI coaching insight, QR check-in and parent communication in a single app.">
+  <meta property="og:image" content="https://thesolarcampus.com/icon-512.png">
+  <meta property="og:url" content="https://thesolarcampus.com/">
+  <link rel="icon" href="icon-192.png">
+  <style>
+    :root {
+      --navy: #021333;
+      --blue: #003087;
+      --gold: #D4AF37;
+      --gold-hover: #e8c757;
+      --text-soft: rgba(219, 234, 254, 0.85);
+      --text-muted: rgba(219, 234, 254, 0.7);
+      --line: rgba(255, 255, 255, 0.1);
+      --surface: rgba(255, 255, 255, 0.04);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--navy);
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+    /* Crest watermark + glow */
+    .watermark {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none; z-index: 0;
+    }
+    .watermark img {
+      width: 140vmin; height: 140vmin;
+      object-fit: contain;
+      opacity: 0.05;
+      filter: grayscale(1);
+    }
+    .glow {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 48, 135, 0.55), transparent 60%),
+        radial-gradient(ellipse 60% 40% at 50% 110%, rgba(212, 175, 55, 0.08), transparent 60%);
+    }
+    .page { position: relative; z-index: 1; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+    /* Header */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      max-width: 1100px; margin: 0 auto; padding: 24px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+    .brand img { width: 40px; height: 40px; }
+    .brand .gold { color: var(--gold); }
+    .btn-ghost {
+      display: inline-block; padding: 8px 20px; border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: rgba(255, 255, 255, 0.9); font-size: 14px; font-weight: 500;
+      text-decoration: none; cursor: pointer;
+      transition: color 0.2s, border-color 0.2s, background-color 0.2s;
+    }
+    .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+    .btn-ghost:focus-visible, .btn-gold:focus-visible, a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+    /* Hero */
+    .hero { max-width: 820px; margin: 0 auto; padding: 64px 24px 80px; text-align: center; }
+    .motto {
+      display: inline-block; margin-bottom: 20px; padding: 6px 16px; border-radius: 999px;
+      border: 1px solid rgba(212, 175, 55, 0.4); background: rgba(212, 175, 55, 0.1);
+      color: var(--gold); font-size: 12px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.2em;
+    }
+    h1 { font-size: clamp(36px, 7vw, 60px); font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; text-wrap: balance; }
+    h1 .gold { display: block; color: var(--gold); }
+    .hero p.sub { margin: 24px auto 0; max-width: 600px; font-size: 18px; color: var(--text-soft); text-wrap: pretty; }
+    .cta-row { margin-top: 40px; display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
+    .btn-gold {
+      display: inline-block; padding: 16px 32px; border-radius: 999px;
+      background: var(--gold); color: var(--navy);
+      font-size: 16px; font-weight: 600; text-decoration: none; cursor: pointer;
+      box-shadow: 0 10px 30px rgba(212, 175, 55, 0.2);
+      transition: background-color 0.2s;
+    }
+    .btn-gold:hover { background: var(--gold-hover); }
+    .btn-outline {
+      display: inline-block; padding: 16px 32px; border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.25); color: #fff;
+      font-size: 16px; font-weight: 600; text-decoration: none; cursor: pointer;
+      transition: border-color 0.2s, background-color 0.2s;
+    }
+    .btn-outline:hover { border-color: rgba(255, 255, 255, 0.6); background: rgba(255, 255, 255, 0.05); }
+
+    /* Stats */
+    .stats { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); }
+    .stats dl {
+      max-width: 1100px; margin: 0 auto; padding: 40px 24px;
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; text-align: center;
+    }
+    .stats dd { font-size: 30px; font-weight: 700; color: var(--gold); }
+    .stats dt { margin-top: 4px; font-size: 14px; color: var(--text-muted); line-height: 1.4; }
+
+    /* Features */
+    .features { max-width: 1100px; margin: 0 auto; padding: 80px 24px; }
+    .features h2, .final h2 { font-size: clamp(28px, 4.5vw, 38px); font-weight: 700; letter-spacing: -0.02em; text-align: center; text-wrap: balance; }
+    .features .lead { margin: 16px auto 0; max-width: 600px; text-align: center; color: var(--text-muted); }
+    .grid { margin-top: 48px; display: grid; gap: 20px; grid-template-columns: 1fr; }
+    .card {
+      border: 1px solid var(--line); border-radius: 16px; background: var(--surface);
+      padding: 24px; transition: border-color 0.2s, background-color 0.2s;
+    }
+    .card:hover { border-color: rgba(212, 175, 55, 0.5); background: rgba(255, 255, 255, 0.07); }
+    .card .icon {
+      display: inline-flex; margin-bottom: 16px; padding: 12px; border-radius: 12px;
+      background: var(--blue); color: var(--gold);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    }
+    .card .icon svg { width: 24px; height: 24px; }
+    .card h3 { font-size: 18px; font-weight: 600; }
+    .card p { margin-top: 8px; font-size: 14px; color: var(--text-muted); }
+
+    /* Audiences */
+    .audiences { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); }
+    .audiences .inner {
+      max-width: 1100px; margin: 0 auto; padding: 64px 24px;
+      display: grid; gap: 32px; grid-template-columns: 1fr;
+    }
+    .audiences h3 { font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; color: var(--gold); }
+    .audiences p { margin-top: 12px; color: var(--text-soft); }
+
+    /* Final CTA */
+    .final { max-width: 760px; margin: 0 auto; padding: 96px 24px; text-align: center; }
+    .final p { margin-top: 16px; font-size: 18px; color: var(--text-soft); }
+    .final .btn-gold { margin-top: 32px; padding: 16px 40px; }
+
+    /* Footer */
+    footer { border-top: 1px solid var(--line); }
+    footer .inner {
+      max-width: 1100px; margin: 0 auto; padding: 32px 24px;
+      display: flex; flex-direction: column; align-items: center; gap: 16px;
+      font-size: 14px; color: rgba(219, 234, 254, 0.6);
+    }
+    footer a { color: inherit; text-decoration: none; transition: color 0.2s; }
+    footer a:hover { color: var(--gold); }
+    footer .links { display: flex; gap: 24px; }
+
+    @media (min-width: 640px) {
+      .hero { padding-top: 96px; }
+      .stats dl { grid-template-columns: repeat(4, 1fr); }
+      .grid { grid-template-columns: repeat(2, 1fr); }
+      footer .inner { flex-direction: row; justify-content: space-between; }
+    }
+    @media (min-width: 1024px) {
+      .grid { grid-template-columns: repeat(3, 1fr); }
+      .audiences .inner { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="watermark" aria-hidden="true"><img src="icon-512.png" alt=""></div>
+  <div class="glow" aria-hidden="true"></div>
+
+  <div class="page">
+    <header>
+      <div class="brand">
+        <img src="icon-192.png" alt="Tranmere Rovers crest" width="40" height="40">
+        <span>Tranmere <span class="gold">Tracker</span></span>
+      </div>
+      <a class="btn-ghost" href="https://app.thesolarcampus.com/login">Sign in</a>
+    </header>
+
+    <section class="hero">
+      <p class="motto">Ubi fides ibi lux et robur</p>
+      <h1>Every player. Every match.<span class="gold">One platform.</span></h1>
+      <p class="sub">
+        Tranmere Tracker brings match tracking, GPS data, AI coaching insight, QR check-in and
+        parent communication into a single app — built around how a football club actually runs.
+      </p>
+      <div class="cta-row">
+        <a class="btn-gold" href="https://app.thesolarcampus.com">Open the App</a>
+        <a class="btn-outline" href="#features">See What It Does</a>
+      </div>
+    </section>
+
+    <section class="stats" aria-label="Platform highlights">
+      <dl>
+        <div><dd>One</dd><dt>platform for the whole club</dt></div>
+        <div><dd>4</dd><dt>tailored views — player, parent, coach, admin</dt></div>
+        <div><dd>90s</dd><dt>from final whistle to AI match report</dt></div>
+        <div><dd>0</dd><dt>spreadsheets left behind</dt></div>
+      </dl>
+    </section>
+
+    <section class="features" id="features">
+      <h2>Run the club from one place</h2>
+      <p class="lead">
+        No more juggling spreadsheets, group chats and paper registers. Everything a modern
+        football operation needs, under one badge.
+      </p>
+      <div class="grid">
+        <div class="card">
+          <span class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>
+            </svg>
+          </span>
+          <h3>Match &amp; Player Tracking</h3>
+          <p>Every fixture, every minute, every rating — logged once and visible to coaches, players and parents instantly.</p>
+        </div>
+        <div class="card">
+          <span class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM21 14v.01M14 21v.01M21 21v.01M17.5 17.5h.01"/>
+            </svg>
+          </span>
+          <h3>QR Check-In</h3>
+          <p>Players scan in at training and matchday. Attendance, punctuality and availability handled without a clipboard in sight.</p>
+        </div>
+        <div class="card">
+          <span class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 17l5-5 4 4 8-8"/><path d="M14 8h6v6"/>
+            </svg>
+          </span>
+          <h3>GPS &amp; Load Data</h3>
+          <p>Distance, sprints and workload per session — trends charted over the season so nothing creeps up unseen.</p>
+        </div>
+        <div class="card">
+          <span class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3a6 6 0 0 1 6 6c0 2.5-1.5 4-2.5 5.5-.5.8-.5 1.5-.5 2.5h-6c0-1-.05-1.7-.55-2.5C7.45 13 6 11.5 6 9a6 6 0 0 1 6-6z"/><path d="M9.5 20h5M10.5 22.5h3"/>
+            </svg>
+          </span>
+          <h3>AI Coaching Insight</h3>
+          <p>Claude-powered analysis turns raw numbers into plain-English coaching notes after every match.</p>
+        </div>
+        <div class="card">
+          <span class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 11.5a8.38 8.38 0 0 1-9 8.4 8.5 8.5 0 0 1-3.2-.6L3 21l1.7-5.8A8.38 8.38 0 0 1 3.6 11.5a8.5 8.5 0 0 1 8.7-8.5 8.38 8.38 0 0 1 8.7 8.5z"/>
+            </svg>
+          </span>
+          <h3>Team Chat &amp; Push Alerts</h3>
+          <p>Squad rooms, broadcast channels and push notifications — selection news lands on every phone at once.</p>
+        </div>
+        <div class="card">
+          <span class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </span>
+          <h3>Parents in the Loop</h3>
+          <p>Dedicated parent views for progress, fixtures and coursework — fewer phone calls, better trust.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="audiences">
+      <div class="inner">
+        <div>
+          <h3>For Coaches</h3>
+          <p>Selection, sessions and player development backed by data you already collect — not extra admin.</p>
+        </div>
+        <div>
+          <h3>For Players</h3>
+          <p>See your ratings, GPS numbers and progress in one place. Know exactly what to work on next.</p>
+        </div>
+        <div>
+          <h3>For Parents</h3>
+          <p>Fixtures, progress and club news on your phone — without chasing anyone for an update.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="final">
+      <h2>Ready to see it on the pitch?</h2>
+      <p>The platform is live, in use, and built to grow with the club.</p>
+      <a class="btn-gold" href="https://app.thesolarcampus.com">Open Tranmere Tracker</a>
+    </section>
+
+    <footer>
+      <div class="inner">
+        <p>Tranmere Tracker — football performance platform</p>
+        <div class="links">
+          <a href="https://app.thesolarcampus.com/privacy">Privacy</a>
+          <a href="https://app.thesolarcampus.com/login">Sign in</a>
+        </div>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

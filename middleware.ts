@@ -1,9 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_PATHS = ['/login', '/signup', '/setup', '/api/setup', '/admin-login', '/staff-login', '/trials', '/api/recruitment/apply', '/privacy']
+const PUBLIC_PATHS = ['/login', '/signup', '/setup', '/api/setup', '/admin-login', '/staff-login', '/trials', '/api/recruitment/apply', '/privacy', '/welcome']
 // Public paths that signed-in users may still visit (no bounce to their dashboard).
-const OPEN_TO_ALL = ['/admin-login', '/staff-login', '/trials', '/api/recruitment/apply', '/privacy']
+const OPEN_TO_ALL = ['/admin-login', '/staff-login', '/trials', '/api/recruitment/apply', '/privacy', '/welcome']
 const STUDENT_PREFIXES = ['/dashboard', '/coursework', '/nutrition', '/training', '/matches', '/profile', '/gps']
 const PARENT_PREFIXES = ['/parent']
 
