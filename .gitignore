@@ -71,3 +71,5 @@ android/build/
 
 # Generated PWA worker hashes (auto-regenerated)
 public/worker-*.js
+
+.vercel
