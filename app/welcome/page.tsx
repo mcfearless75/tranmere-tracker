@@ -239,7 +239,7 @@ export default function WelcomePage() {
         {/* Footer */}
         <footer className="border-t border-white/10">
           <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 text-sm text-blue-100/60 sm:flex-row">
-            <p>Tranmere Tracker — football performance platform</p>
+            <p>Tranmere Tracker — football performance platform · based at The Solar Campus</p>
             <div className="flex gap-6">
               <Link href="/privacy" className="transition-colors duration-200 hover:text-[#D4AF37]">
                 Privacy
