@@ -39,7 +39,8 @@
       pointer-events: none; z-index: 0;
     }
     .watermark img {
-      width: 140vmin; height: 140vmin;
+      width: auto; height: min(92vh, 92vw);
+      aspect-ratio: 1 / 1;
       object-fit: contain;
       opacity: 0.05;
       filter: grayscale(1);

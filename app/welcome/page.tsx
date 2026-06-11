@@ -101,16 +101,14 @@ export default function WelcomePage() {
     <main className="relative min-h-screen overflow-hidden bg-[#021333] text-white">
       {/* Crest watermark */}
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 flex items-center justify-center">
-        <div className="relative h-[140vmin] w-[140vmin] opacity-[0.05]">
-          <Image
-            src="/icons/icon-512.png"
-            alt=""
-            fill
-            sizes="140vmin"
-            className="object-contain grayscale"
-            priority
-          />
-        </div>
+        <Image
+          src="/icons/icon-512.png"
+          alt=""
+          width={512}
+          height={512}
+          className="h-[min(92vh,92vw)] w-auto object-contain opacity-[0.05] grayscale"
+          priority
+        />
       </div>
 
       {/* Soft brand glow */}
