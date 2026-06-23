@@ -104,36 +104,23 @@ export function PushOptIn() {
     }
 
     try {
-      let reg = await navigator.serviceWorker.getRegistration('/')
-      if (!reg) {
-        reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      // Ensure SW is registered — next-pwa does this on page load, but may
+      // not have completed if the user taps the button very quickly.
+      if (!await navigator.serviceWorker.getRegistration('/')) {
+        await navigator.serviceWorker.register('/sw.js', { scope: '/' })
       }
 
-      if (!reg.active) {
-        if (reg.waiting) {
-          reg.waiting.postMessage({ type: 'SKIP_WAITING' })
-        }
-
-        await Promise.race([
-          new Promise<void>(resolve => {
-            navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })
-            const sw = reg!.installing ?? reg!.waiting
-            if (sw) {
-              sw.addEventListener('statechange', function handler() {
-                if (sw.state === 'activated') {
-                  sw.removeEventListener('statechange', handler)
-                  resolve()
-                }
-              })
-            }
-          }),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Service worker install timed out')), 15000)
-          ),
-        ])
-
-        reg = (await navigator.serviceWorker.getRegistration('/')) ?? reg
-      }
+      // navigator.serviceWorker.ready is the reliable, race-condition-free way
+      // to wait for an active SW. The previous statechange approach had a gap
+      // on Android where the SW could transition between install → activating
+      // before the listener was attached, leaving sw null and the race never
+      // resolving → the 15 s timeout fired.
+      const reg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Service worker install timed out')), 15000)
+        ),
+      ])
 
       const existing = await reg.pushManager.getSubscription()
       if (existing) {
