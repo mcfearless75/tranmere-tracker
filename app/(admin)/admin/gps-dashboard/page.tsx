@@ -29,6 +29,7 @@ export default async function GpsDashboardPage() {
       .select('player_id, total_distance_m, max_speed_kmh, sprint_count, player_load, session_date, users:player_id(name)')
       .gte('session_date', weekAgo)
       .order('session_date', { ascending: false })
+      .limit(1000) // safety cap: ~30 players x 7 days x multiple sessions still fits
     sessions = res.data
     sessErr = res.error as any
   } catch (err: any) {

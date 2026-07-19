@@ -1,6 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { validateSurveyAnswers, SURVEY_QUESTIONS } from '@/lib/wellbeing/wellbeingUtils'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { sendPushNotificationToUser } from '@/lib/webpush'
+import { validateSurveyAnswers, getRedFlags, SURVEY_QUESTIONS } from '@/lib/wellbeing/wellbeingUtils'
+
+/**
+ * Alert staff (admins, coaches, teachers) that a submission contained a
+ * safeguarding red flag. Students and parents are never notified.
+ * Best effort — errors are swallowed so the submission always succeeds.
+ */
+async function notifyStaffOfRedFlag(studentId: string): Promise<void> {
+  try {
+    const adminClient = createAdminClient()
+
+    const { data: student } = await adminClient
+      .from('users')
+      .select('name')
+      .eq('id', studentId)
+      .maybeSingle()
+
+    const { data: staff } = await adminClient
+      .from('users')
+      .select('id')
+      .in('role', ['admin', 'coach', 'teacher'])
+    if (!staff?.length) return
+
+    const studentName = student?.name ?? 'A student'
+    await Promise.allSettled(
+      staff.map(s =>
+        sendPushNotificationToUser(
+          adminClient,
+          s.id,
+          'Wellbeing alert',
+          `${studentName}'s latest wellbeing survey needs attention.`,
+          '/admin/wellbeing',
+        )
+      )
+    )
+  } catch {
+    // Never let notification failures affect the submission
+  }
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -58,6 +98,16 @@ export async function POST(request: NextRequest) {
     .from('wellbeing_surveys')
     .update({ status: 'completed', completed_at: new Date().toISOString() })
     .eq('id', survey_id)
+
+  // Red-flag check: awaited, not fire-and-forget — serverless suspends after the
+  // response, so an unawaited safeguarding push can silently never send. The
+  // helper swallows its own errors, so awaiting can never fail the submission.
+  const redFlags = getRedFlags(
+    SURVEY_QUESTIONS.map(q => ({ question_key: q.key, score: answers[q.key] }))
+  )
+  if (redFlags.length > 0) {
+    await notifyStaffOfRedFlag(user.id)
+  }
 
   return NextResponse.json({ success: true })
 }

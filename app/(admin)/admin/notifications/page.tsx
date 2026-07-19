@@ -10,10 +10,11 @@ export default async function NotificationsPage() {
     supabase
       .from('users')
       .select('id, name, role, course_id, avatar_url')
-      .order('name'),
-    supabase.from('courses').select('id, name').order('name'),
-    supabase.from('push_subscriptions').select('user_id'),
-    supabase.from('native_push_tokens').select('user_id'),
+      .order('name')
+      .limit(500), // safety cap — academy roster is far smaller
+    supabase.from('courses').select('id, name').order('name').limit(100),
+    supabase.from('push_subscriptions').select('user_id').limit(2000),
+    supabase.from('native_push_tokens').select('user_id').limit(2000),
   ])
 
   // A user is "subscribed" if they have web push OR a native FCM token

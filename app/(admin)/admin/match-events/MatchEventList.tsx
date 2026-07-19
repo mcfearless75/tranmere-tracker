@@ -92,6 +92,7 @@ export function MatchEventList({ matches }: { matches: Match[] }) {
         </div>
 
         {m.match_squads.length > 0 && (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-muted-foreground border-b">
@@ -149,6 +150,7 @@ export function MatchEventList({ matches }: { matches: Match[] }) {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     )
