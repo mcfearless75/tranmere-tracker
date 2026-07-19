@@ -1,5 +1,4 @@
-import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/server'
+import { requireStaff } from '@/lib/auth/requireRole'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -56,9 +55,9 @@ function parseDate(v: string): string | null {
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requireStaff()
+  if (!auth.ok) return auth.response
+  const { user, admin: adminClient } = auth.ctx
 
   const form = await request.formData()
   const file = form.get('file') as File | null
@@ -91,10 +90,6 @@ export async function POST(request: Request) {
   }
 
   // Load all students to match by name
-  const adminClient = createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
   const { data: students } = await adminClient.from('users').select('id, name').eq('role', 'student')
   const studentMap: Record<string, string> = {}
   students?.forEach(s => { studentMap[s.name.toLowerCase().trim()] = s.id })

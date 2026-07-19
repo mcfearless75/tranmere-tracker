@@ -37,7 +37,7 @@ export default async function ParentAnnouncementsPage() {
   if (roomIds.length > 0) {
     const { data: rawMessages } = await admin
       .from('chat_messages')
-      .select('id, content, created_at, room_id, users(name)')
+      .select('id, body, created_at, room_id, users(name)')
       .in('room_id', roomIds)
       .order('created_at', { ascending: false })
       .limit(MAX_MESSAGES)
@@ -48,7 +48,7 @@ export default async function ParentAnnouncementsPage() {
         : (m.users as { name: string | null } | null)
       return {
         id: m.id as string,
-        content: m.content as string | null,
+        content: m.body as string | null,
         created_at: m.created_at as string,
         room_name: roomNameById.get(m.room_id as string) ?? null,
         sender_name: sender?.name ?? null,

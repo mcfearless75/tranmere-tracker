@@ -34,14 +34,14 @@ export default async function ParentMessagesPage() {
   if (roomIds.length > 0) {
     const { data: rawMessages } = await admin
       .from('chat_messages')
-      .select('id, content, created_at, sender_id, users(name)')
+      .select('id, body, created_at, sender_id, users(name)')
       .in('room_id', roomIds)
       .order('created_at', { ascending: false })
       .limit(20)
 
     messages = (rawMessages ?? []).map(m => ({
       id: m.id as string,
-      content: m.content as string,
+      content: m.body as string,
       created_at: m.created_at as string,
       sender: (Array.isArray(m.users) ? m.users[0] as { name: string | null } : m.users as { name: string | null } | null) ?? null,
     }))

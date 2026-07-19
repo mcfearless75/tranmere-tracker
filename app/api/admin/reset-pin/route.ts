@@ -1,19 +1,14 @@
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { requireStaff } from '@/lib/auth/requireRole'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: Request) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+const STAFF_TARGET_ROLES = new Set(['coach', 'teacher', 'admin'])
 
-  const admin = createAdminClient()
-  const { data: profile } = await admin.from('users').select('role').eq('id', user.id).single()
-  if (!profile || !['admin', 'coach', 'teacher'].includes(profile.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+export async function POST(request: Request) {
+  const auth = await requireStaff()
+  if (!auth.ok) return auth.response
+  const { role: callerRole, admin } = auth.ctx
 
   const { userId, newPin } = await request.json()
   if (!userId || !newPin) {
@@ -21,6 +16,14 @@ export async function POST(request: Request) {
   }
   if (!/^\d{5,6}$/.test(newPin)) {
     return NextResponse.json({ error: 'PIN must be 5 or 6 digits' }, { status: 400 })
+  }
+
+  // Privilege-escalation guard: only an admin may reset a staff/admin account's
+  // PIN. Prevents a coach/teacher from resetting the superuser and taking over.
+  const { data: target } = await admin.from('users').select('role, email').eq('id', userId).maybeSingle()
+  if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  if ((STAFF_TARGET_ROLES.has(target.role) || target.email === 'superuser@tranmeretracker.internal') && callerRole !== 'admin') {
+    return NextResponse.json({ error: 'Only an admin can reset a staff account PIN' }, { status: 403 })
   }
 
   const { error } = await admin.auth.admin.updateUserById(userId, { password: newPin })

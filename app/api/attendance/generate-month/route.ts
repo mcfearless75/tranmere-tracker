@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { requireStaff } from '@/lib/auth/requireRole'
 import { NextResponse } from 'next/server'
 
 function makePin(): string {
@@ -7,16 +6,15 @@ function makePin(): string {
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+  const auth = await requireStaff()
+  if (!auth.ok) return auth.response
+  const { user, admin: adminClient } = auth.ctx
 
   const { templateId, year, month } = await request.json() as {
     templateId: string
     year: number
     month: number
   }
-  const adminClient = createAdminClient()
 
   const { data: slots } = await adminClient
     .from('schedule_slots')
