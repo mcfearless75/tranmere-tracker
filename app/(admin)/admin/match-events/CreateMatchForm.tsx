@@ -57,6 +57,17 @@ export function CreateMatchForm({ students, coachId }: Props) {
     if (squadError) {
       setMessage({ text: squadError.message, ok: false })
     } else {
+      // Fire-and-forget push to the invited players — never blocks the UI
+      void fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'New match published',
+          body: `You've been invited to the squad vs ${opponent} on ${date}`,
+          targetUserIds: Array.from(selected),
+          url: '/matches',
+        }),
+      }).catch(() => { /* notification failure must not break match creation */ })
       setMessage({ text: `Match vs ${opponent} created — ${selected.size} player(s) notified`, ok: true })
       setDate(''); setOpponent(''); setLocation(''); setNotes('')
       setSelected(new Set())

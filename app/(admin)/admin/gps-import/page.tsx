@@ -36,7 +36,7 @@ export default async function GpsImportPage() {
       {sessions && sessions.length > 0 && (
         <div>
           <h2 className="font-semibold mb-3">Recent Imports</h2>
-          <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="bg-white rounded-xl border overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-xs text-muted-foreground">
                 <tr>
