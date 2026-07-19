@@ -1,42 +1,12 @@
 'use client'
 
-import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts'
+// Recharts is heavy — load it client-side only, on demand
+import dynamic from 'next/dynamic'
 
-interface SparklinePoint {
-  date: string
-  distanceKm: number
-}
-
-interface PerformanceSparklineProps {
-  data: SparklinePoint[]
-}
-
-export function PerformanceSparkline({ data }: PerformanceSparklineProps) {
-  if (data.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-[100px] text-xs text-muted-foreground">
-        No GPS data yet
-      </div>
-    )
+export const PerformanceSparkline = dynamic(
+  () => import('./PerformanceSparklineInner').then(m => m.PerformanceSparkline),
+  {
+    ssr: false,
+    loading: () => <div className="h-[100px] w-full animate-pulse rounded-lg bg-gray-100" />,
   }
-
-  return (
-    <ResponsiveContainer width="100%" height={100}>
-      <LineChart data={data}>
-        <Tooltip
-          formatter={(value) => [`${Number(value).toFixed(1)} km`, 'Distance']}
-          labelFormatter={(label) => label}
-          contentStyle={{ fontSize: 12, borderRadius: 8 }}
-        />
-        <Line
-          type="monotone"
-          dataKey="distanceKm"
-          stroke="#1d4ed8"
-          strokeWidth={2}
-          dot={false}
-          activeDot={{ r: 4 }}
-        />
-      </LineChart>
-    </ResponsiveContainer>
-  )
-}
+)

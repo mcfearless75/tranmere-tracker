@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { Download, Filter, Route, Gauge, Zap } from 'lucide-react'
 import { toCSV, downloadCSV } from '@/lib/csv'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Cell } from 'recharts'
+import { SquadReportCharts } from './SquadReportCharts'
 
 type Student = { id: string; name: string | null; avatar_url: string | null }
 type GpsRow = { player_id: string; session_date: string; session_label: string | null; total_distance_m: number | null; max_speed_kmh: number | null; sprint_count: number | null; player_load: number | null }
@@ -123,57 +123,13 @@ export function SquadReportClient({ students, gps, matches }: { students: Studen
         <KpiCard label="GPS Sessions" value={filteredGps.length.toString()} />
       </div>
 
-      {/* DISTANCE CHART */}
-      {distanceChart.length > 0 && (
-        <div className="rounded-2xl border bg-white p-5">
-          <p className="font-semibold mb-1">Average Distance Per Session</p>
-          <p className="text-xs text-muted-foreground mb-3">
-            Red line = team baseline ({(teamAvg.distance / 1000).toFixed(2)} km). Bars below the line need conditioning focus.
-          </p>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={distanceChart} margin={{ top: 8, right: 8, bottom: 40, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} angle={-35} textAnchor="end" interval={0} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} unit=" km" axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 14px rgba(0,0,0,0.1)', fontSize: 12 }} />
-                <ReferenceLine y={+(teamAvg.distance / 1000).toFixed(2)} stroke="#dc2626" strokeDasharray="4 4" />
-                <Bar dataKey="avgKm" radius={[4, 4, 0, 0]}>
-                  {distanceChart.map((e, i) => (
-                    <Cell key={i} fill={e.belowBaseline ? '#f87171' : '#003087'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      {/* SPEED CHART */}
-      {speedChart.length > 0 && (
-        <div className="rounded-2xl border bg-white p-5">
-          <p className="font-semibold mb-1">Top Speed Ranking</p>
-          <p className="text-xs text-muted-foreground mb-3">
-            Red line = team baseline ({teamAvg.maxSpeed.toFixed(1)} km/h).
-          </p>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={speedChart} margin={{ top: 8, right: 8, bottom: 40, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} angle={-35} textAnchor="end" interval={0} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} unit=" km/h" axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 14px rgba(0,0,0,0.1)', fontSize: 12 }} />
-                <ReferenceLine y={+teamAvg.maxSpeed.toFixed(1)} stroke="#dc2626" strokeDasharray="4 4" />
-                <Bar dataKey="speed" radius={[4, 4, 0, 0]}>
-                  {speedChart.map((e, i) => (
-                    <Cell key={i} fill={e.belowBaseline ? '#fdba74' : '#f97316'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
+      {/* PERFORMANCE CHARTS (recharts loaded on demand) */}
+      <SquadReportCharts
+        distanceChart={distanceChart}
+        speedChart={speedChart}
+        teamAvgDistance={teamAvg.distance}
+        teamAvgMaxSpeed={teamAvg.maxSpeed}
+      />
 
       {/* PLAYER TABLE */}
       <div className="rounded-2xl border bg-white overflow-hidden">
