@@ -1,33 +1,27 @@
-import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase/server'
+import { requireStaff } from '@/lib/auth/requireRole'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+const CREATABLE_ROLES = ['student', 'parent', 'coach', 'teacher', 'admin'] as const
+const STAFF_TARGET_ROLES = new Set(['coach', 'teacher', 'admin'])
+
 export async function POST(request: Request) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const adminClient = createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
-  const { data: profile } = await adminClient
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile || !['admin', 'coach', 'teacher'].includes(profile.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const auth = await requireStaff()
+  if (!auth.ok) return auth.response
+  const { role: callerRole, admin: adminClient } = auth.ctx
 
   const { username, name, role, courseId, pin } = await request.json()
 
   if (!username || !name || !role || !pin) {
     return NextResponse.json({ error: 'username, name, role and pin are required' }, { status: 400 })
+  }
+  if (!CREATABLE_ROLES.includes(role)) {
+    return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
+  }
+  // Privilege-escalation guard: only an admin may create staff/admin accounts.
+  if (STAFF_TARGET_ROLES.has(role) && callerRole !== 'admin') {
+    return NextResponse.json({ error: 'Only an admin can create staff accounts' }, { status: 403 })
   }
   if (!/^\d{5,6}$/.test(pin)) {
     return NextResponse.json({ error: 'PIN must be 5 or 6 digits' }, { status: 400 })

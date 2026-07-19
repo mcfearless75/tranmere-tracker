@@ -3,6 +3,18 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { sendPushNotification } from '@/lib/webpush'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+/** True if userId is a member of roomId. Guards actions that touch a room. */
+async function isRoomMember(admin: SupabaseClient, roomId: string, userId: string): Promise<boolean> {
+  const { data } = await admin
+    .from('chat_members')
+    .select('user_id')
+    .eq('room_id', roomId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  return !!data
+}
 
 /** Find or create a 1-to-1 DM room between the current user and another user. */
 export async function getOrCreateDM(otherUserId: string): Promise<string | { error: string }> {
@@ -94,7 +106,7 @@ export async function markRead(roomId: string) {
 /** Fire a push notification to other room members when a new message arrives */
 export async function notifyRoomMembers(
   roomId: string,
-  senderName: string,
+  _senderName: string,
   preview: string,
 ): Promise<void> {
   const supabase = createClient()
@@ -103,6 +115,10 @@ export async function notifyRoomMembers(
 
   const admin = createAdminClient()
 
+  // Caller must belong to the room they are notifying — prevents push spoofing
+  // to arbitrary rooms/users.
+  if (!await isRoomMember(admin, roomId, user.id)) return
+
   const { data: members } = await admin
     .from('chat_members')
     .select('user_id')
@@ -110,6 +126,10 @@ export async function notifyRoomMembers(
     .neq('user_id', user.id)
 
   if (!members || members.length === 0) return
+
+  // Derive the sender name server-side; never trust the caller-supplied name.
+  const { data: sender } = await admin.from('users').select('name').eq('id', user.id).maybeSingle()
+  const senderName = sender?.name ?? 'Someone'
 
   const otherIds = members.map(m => m.user_id)
   const { data: subs } = await admin
@@ -134,6 +154,9 @@ export async function nudgeRoom(roomId: string): Promise<{ ok: boolean; error?: 
   if (!user) return { ok: false, error: 'Unauthorized' }
 
   const admin = createAdminClient()
+
+  // Caller must belong to the room they are nudging.
+  if (!await isRoomMember(admin, roomId, user.id)) return { ok: false, error: 'Not a member of this room' }
 
   // Get room label and all other members
   const [{ data: room }, { data: members }, { data: sender }] = await Promise.all([
@@ -175,6 +198,9 @@ export async function leaveOrDeleteRoom(roomId: string): Promise<{ ok: boolean; 
   if (!user) return { ok: false, error: 'Unauthorized' }
 
   const admin = createAdminClient()
+
+  // Caller must belong to the room before any destructive action.
+  if (!await isRoomMember(admin, roomId, user.id)) return { ok: false, error: 'Not a member of this room' }
 
   const { data: room } = await admin.from('chat_rooms').select('kind, created_by').eq('id', roomId).single()
   const { data: members } = await admin.from('chat_members').select('user_id').eq('room_id', roomId)

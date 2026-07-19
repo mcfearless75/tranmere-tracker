@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { requireStaff } from '@/lib/auth/requireRole'
 import { NextRequest, NextResponse } from 'next/server'
 import { canMarkComplete } from '@/lib/learnerReview/reviewUtils'
 
@@ -7,11 +6,9 @@ export async function PATCH(
   _req: NextRequest,
   { params }: { params: { reviewId: string } }
 ) {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
-
-  const admin = createAdminClient()
+  const auth = await requireStaff()
+  if (!auth.ok) return auth.response
+  const { admin } = auth.ctx
 
   const { data: review } = await admin
     .from('learner_reviews')
