@@ -30,7 +30,6 @@ const ROLE_OPTIONS = [
 ]
 
 const TEMPLATES = [
-  { icon: '📚', title: 'Coursework reminder', body: "Don't forget to submit your coursework by the deadline!" },
   { icon: '⚽', title: 'Training tomorrow', body: 'Training session tomorrow at the usual time. See you on the pitch!' },
   { icon: '🏆', title: 'Match day!', body: 'Big match today. Check your squad list and be ready.' },
   { icon: '🍎', title: 'Nutrition check-in', body: 'Have you logged your food today? Keep on top of your goals.' },

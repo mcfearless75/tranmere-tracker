@@ -4,8 +4,6 @@ import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-const GRADE_SCORE: Record<string, number> = { Distinction: 3, Merit: 2, Pass: 1, Refer: 0 }
-
 export async function POST(request: Request) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -26,16 +24,12 @@ export async function POST(request: Request) {
 
   const [
     { data: students },
-    { data: assignments },
-    { data: submissions },
     { data: gps },
     { data: matches },
     { data: nutrition },
     { data: training },
   ] = await Promise.all([
     admin.from('users').select('id, name, role, course_id, courses(name)').in('id', studentIds),
-    admin.from('assignments').select('id, unit_id, btec_units(course_id)'),
-    admin.from('submissions').select('student_id, assignment_id, status, grade').in('student_id', studentIds),
     admin.from('gps_sessions').select('player_id, session_date, total_distance_m, max_speed_kmh, sprint_count').in('player_id', studentIds).gte('session_date', since),
     admin.from('match_logs').select('student_id, match_date, goals, assists, self_rating').in('student_id', studentIds).gte('match_date', since),
     admin.from('nutrition_logs').select('student_id, logged_date').in('student_id', studentIds).gte('logged_date', since),
@@ -50,25 +44,9 @@ export async function POST(request: Request) {
       Course: (s.courses as any)?.name ?? '',
     }
 
-    const courseAssignments = (assignments ?? []).filter(a =>
-      (a.btec_units as any)?.course_id === s.course_id
-    )
-    const subs = (submissions ?? []).filter(sb => sb.student_id === s.id)
     const pGps = (gps ?? []).filter(g => g.player_id === s.id)
     const pMatches = (matches ?? []).filter(m => m.student_id === s.id)
 
-    if (metrics.includes('coursework')) {
-      const submitted = subs.filter(sb => ['submitted', 'graded'].includes(sb.status)).length
-      row['Coursework %'] = courseAssignments.length > 0
-        ? Math.round((submitted / courseAssignments.length) * 100)
-        : 0
-    }
-    if (metrics.includes('avgGrade')) {
-      const graded = subs.filter(sb => sb.grade)
-      row['Avg Grade'] = graded.length > 0
-        ? +(graded.reduce((sum, g) => sum + (GRADE_SCORE[g.grade!] ?? 0), 0) / graded.length).toFixed(2)
-        : ''
-    }
     if (metrics.includes('gps')) {
       row['GPS Sessions (30d)'] = pGps.length
     }

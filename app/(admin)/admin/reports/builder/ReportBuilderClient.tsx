@@ -9,8 +9,6 @@ type Student = { id: string; name: string | null; role: string; course_id: strin
 type Course = { id: string; name: string }
 
 const METRICS = [
-  { key: 'coursework', label: 'Coursework completion %' },
-  { key: 'avgGrade',   label: 'Average grade (Pass=1, Merit=2, Distinction=3)' },
   { key: 'gps',        label: 'GPS session count (30d)' },
   { key: 'distance',   label: 'Total distance (30d, km)' },
   { key: 'topSpeed',   label: 'Max top speed (km/h)' },
@@ -28,7 +26,7 @@ type MetricKey = typeof METRICS[number]['key']
 export function ReportBuilderClient({ students, courses }: { students: Student[]; courses: Course[] }) {
   const [roleFilter, setRoleFilter] = useState<string>('student')
   const [courseFilter, setCourseFilter] = useState<string>('all')
-  const [selectedMetrics, setSelectedMetrics] = useState<Set<MetricKey>>(new Set<MetricKey>(['coursework', 'gps', 'distance', 'matches']))
+  const [selectedMetrics, setSelectedMetrics] = useState<Set<MetricKey>>(new Set<MetricKey>(['gps', 'distance', 'matches']))
   const [loading, setLoading] = useState(false)
   const [rows, setRows] = useState<Record<string, any>[] | null>(null)
 
