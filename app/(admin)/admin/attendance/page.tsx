@@ -31,7 +31,12 @@ export default async function AttendancePage({
 
   const admin = createAdminClient()
   const today = new Date().toISOString().split('T')[0]
-  const date = searchParams.date ?? today
+  // Validate ?date= — an arbitrary string would give Invalid Date and make
+  // shiftDate() throw on toISOString(). Fall back to today.
+  const rawDate = searchParams.date
+  const date = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) && !isNaN(Date.parse(rawDate + 'T12:00:00Z'))
+    ? rawDate
+    : today
   const isToday = date === today
 
   const dateLabel = new Date(date + 'T12:00:00').toLocaleDateString('en-GB', {

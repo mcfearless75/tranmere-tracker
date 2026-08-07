@@ -34,12 +34,18 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
     )
   }
 
-  const { data: messages } = await admin
+  // Most recent 100 messages only — long-lived rooms accumulate unbounded
+  // history and loading it all blows up server render time and payload size.
+  // Query newest-first + limit, then reverse for oldest→newest display order.
+  const { data: recentMessages } = await admin
     .from('chat_messages')
     .select('id, sender_id, body, attachment_url, attachment_kind, created_at')
     .eq('room_id', params.roomId)
     .is('deleted_at', null)
-    .order('created_at')
+    .order('created_at', { ascending: false })
+    .limit(100)
+
+  const messages = (recentMessages ?? []).slice().reverse()
 
   // Room title
   let title = room.name

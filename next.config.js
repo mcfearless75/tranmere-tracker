@@ -1,8 +1,22 @@
+const defaultRuntimeCaching = require('next-pwa/cache')
+
 const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
+  // Never cache /api/* on device. next-pwa's default runtime caching includes
+  // an "apis" NetworkFirst rule that persists authenticated API responses
+  // (players' private data) in the service-worker cache for 24h — readable by
+  // the next person on a shared device. The NetworkOnly rule below matches
+  // first; the filtered defaults keep all static asset caching intact.
+  runtimeCaching: [
+    {
+      urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith('/api/'),
+      handler: 'NetworkOnly',
+    },
+    ...defaultRuntimeCaching.filter(entry => entry.options?.cacheName !== 'apis'),
+  ],
 })
 
 /** @type {import('next').NextConfig} */

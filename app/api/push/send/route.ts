@@ -2,14 +2,15 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushNotification } from '@/lib/webpush'
 import { sendFcmBatch } from '@/lib/firebase-admin'
+import { safeEqual } from '@/lib/security'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
-  // Allow automated cron/edge function calls via shared secret
-  const cronSecret = request.headers.get('x-cron-secret')
-  const isCronCall = cronSecret && cronSecret === process.env.CRON_SECRET
+  // Allow automated cron/edge function calls via shared secret.
+  // safeEqual is constant-time and fails closed when CRON_SECRET is unset.
+  const isCronCall = safeEqual(request.headers.get('x-cron-secret'), process.env.CRON_SECRET)
 
   const adminClient = createAdminClient()
 
@@ -52,6 +53,20 @@ export async function POST(request: Request) {
 
   const webSent = webResults.filter(r => r.status === 'fulfilled').length
   const webFailed = webResults.filter(r => r.status === 'rejected').length
+
+  // Prune dead subscriptions: 404/410 from the push service means the browser
+  // has expired or revoked the subscription — the row will never work again.
+  const deadEndpoints = webResults
+    .map((r, i) =>
+      r.status === 'rejected' &&
+      [404, 410].includes((r.reason as { statusCode?: number } | undefined)?.statusCode ?? 0)
+        ? (subs ?? [])[i]?.endpoint
+        : null
+    )
+    .filter((e): e is string => typeof e === 'string')
+  if (deadEndpoints.length > 0) {
+    await adminClient.from('push_subscriptions').delete().in('endpoint', deadEndpoints)
+  }
 
   // ── Native push (FCM via Firebase Admin) ──────────────────────────────────
   let fcmSent = 0

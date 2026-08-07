@@ -1,14 +1,13 @@
 // Vercel Cron: 17:30 weekdays — pushes PM checkout summary to all staff.
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushNotification } from '@/lib/webpush'
+import { verifyCronSecret } from '@/lib/security'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get('authorization')
-  const secret = process.env.CRON_SECRET
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!verifyCronSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

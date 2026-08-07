@@ -33,19 +33,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'review_id, student_id, student_name, term, answers required' }, { status: 400 })
     }
 
-    // Pull attendance stats for context
+    // Pull attendance stats for context — unique days present vs days scheduled
+    // (daily_attendance has attendance_date/am_checked_at/pm_checked_at; the
+    // scheduled days live in attendance_sessions)
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-    const { data: attendance } = await admin
-      .from('daily_attendance')
-      .select('attended, scheduled')
-      .eq('student_id', student_id)
-      .gte('date', thirtyDaysAgo)
+    const [{ data: attendedDays }, { data: scheduledDays }] = await Promise.all([
+      admin
+        .from('daily_attendance')
+        .select('attendance_date')
+        .eq('student_id', student_id)
+        .gte('attendance_date', thirtyDaysAgo),
+      admin
+        .from('attendance_sessions')
+        .select('scheduled_date')
+        .gte('scheduled_date', thirtyDaysAgo),
+    ])
 
     let attendancePct: number | undefined
-    if (attendance && attendance.length > 0) {
-      const totalScheduled = attendance.reduce((s, r) => s + (r.scheduled ? 1 : 0), 0)
-      const totalAttended  = attendance.reduce((s, r) => s + (r.attended  ? 1 : 0), 0)
-      if (totalScheduled > 0) attendancePct = Math.round((totalAttended / totalScheduled) * 100)
+    const presentDates   = new Set((attendedDays ?? []).map(r => r.attendance_date as string))
+    const scheduledDates = new Set((scheduledDays ?? []).map(r => r.scheduled_date as string))
+    if (scheduledDates.size > 0) {
+      const presentOnScheduled = [...presentDates].filter(d => scheduledDates.has(d)).length
+      attendancePct = Math.round((presentOnScheduled / scheduledDates.size) * 100)
     }
 
     // Pull latest wellbeing scores

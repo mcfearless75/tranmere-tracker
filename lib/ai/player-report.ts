@@ -328,23 +328,84 @@ Return ONLY this JSON structure:
 }
 
 /**
+ * Extract the JSON object payload from a raw model response.
+ *
+ * The model is instructed to return bare JSON, but in practice it sometimes
+ * wraps the object in markdown code fences (```json ... ```) or prefixes it
+ * with a short preamble sentence. Both make a naive JSON.parse throw.
+ * Slicing from the first '{' to the last '}' handles fences, preambles, and
+ * trailing commentary in one pass.
+ *
+ * Pure function — exported for unit testing.
+ * Throws if no JSON object can be located in the text.
+ */
+export function extractJsonObject(text: string): string {
+  // Strip leading/trailing markdown code fences first so a fence containing
+  // a stray brace can't confuse the slice below.
+  const cleaned = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '')
+
+  const first = cleaned.indexOf('{')
+  const last = cleaned.lastIndexOf('}')
+  if (first === -1 || last === -1 || last <= first) {
+    throw new Error('AI returned invalid JSON — please try again')
+  }
+  return cleaned.slice(first, last + 1)
+}
+
+/**
+ * Parse a raw model response into a PlayerReport.
+ * Pure function — exported for unit testing.
+ * Throws if the payload is not a JSON object.
+ */
+export function parsePlayerReport(text: string): PlayerReport {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(extractJsonObject(text))
+  } catch {
+    throw new Error('AI returned invalid JSON — please try again')
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error('AI returned invalid JSON — please try again')
+  }
+  return parsed as PlayerReport
+}
+
+/**
  * Call the AI with the canonical prompt and return the parsed report.
- * Throws if the model returns invalid JSON.
+ * Retries ONCE on invalid JSON (a fresh sample usually parses); any second
+ * failure — or a non-parse API error — propagates to the caller.
+ *
+ * Note on prompt caching: the system prompt here is ~120 tokens, far below
+ * the 1024-token minimum cacheable prefix for claude-sonnet-4-5, so a
+ * cache_control breakpoint would silently never cache. Not applicable here.
  */
 export async function callReportAI(prompt: string): Promise<PlayerReport> {
   const anthropic = getAnthropic()
-  const response = await anthropic.messages.create({
-    model: MODELS.sonnet,
-    max_tokens: 2000,
-    system: `You are an elite football development analyst for Tranmere Rovers Academy. You analyse young academy players' physical data, training patterns, nutrition, and GPS performance to create highly personalised development plans. Be specific, encouraging but honest, and always relate advice to the player's exact position requirements. Respond ONLY with valid JSON — no markdown, no explanation.`,
-    messages: [{ role: 'user', content: prompt }],
-  })
 
-  const text = extractText(response)
+  const attempt = async (): Promise<PlayerReport> => {
+    const response = await anthropic.messages.create({
+      model: MODELS.sonnet,
+      // 2000 was occasionally too tight for the full report JSON (truncation
+      // mid-object => unparseable). 3000 gives comfortable headroom.
+      max_tokens: 3000,
+      system: `You are an elite football development analyst for Tranmere Rovers Academy. You analyse young academy players' physical data, training patterns, nutrition, and GPS performance to create highly personalised development plans. Be specific, encouraging but honest, and always relate advice to the player's exact position requirements. Respond ONLY with valid JSON — no markdown, no explanation.`,
+      messages: [{ role: 'user', content: prompt }],
+    })
+    return parsePlayerReport(extractText(response))
+  }
+
   try {
-    return JSON.parse(text) as PlayerReport
-  } catch {
-    throw new Error('AI returned invalid JSON — please try again')
+    return await attempt()
+  } catch (err: unknown) {
+    // One retry, and only for invalid-JSON failures — API errors (rate limit,
+    // auth, network) propagate immediately rather than doubling cost.
+    if (err instanceof Error && err.message.startsWith('AI returned invalid JSON')) {
+      return attempt()
+    }
+    throw err
   }
 }
 
