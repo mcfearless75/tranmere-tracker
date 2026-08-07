@@ -1,14 +1,20 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { CheckCircle, AlertCircle, Loader2, Sun, Moon, MapPin } from 'lucide-react'
+import { CheckCircle, AlertCircle, Loader2, Sun, Moon, Utensils, MapPin, type LucideIcon } from 'lucide-react'
+import type { AttendancePhase } from '@/lib/attendance/phase'
 
-type Phase = 'am' | 'pm'
-type ScanState = 'idle' | 'locating' | 'submitting' | 'success' | 'error'
+type ScanState = 'idle' | 'locating' | 'submitting' | 'success' | 'already' | 'error'
 
 interface Props {
-  phase: Phase
+  phase: AttendancePhase
   onSuccess: (checkedAt: string) => void
+}
+
+const PHASE_UI: Record<AttendancePhase, { icon: LucideIcon; button: string; success: string }> = {
+  am:    { icon: Sun,      button: 'Morning Check-in',      success: 'Morning attendance recorded' },
+  lunch: { icon: Utensils, button: 'Lunch Check-in',        success: 'Lunch sorted ✓' },
+  pm:    { icon: Moon,     button: 'End of Day Check-out',  success: 'End of day recorded' },
 }
 
 export function InAppCheckIn({ phase, onSuccess }: Props) {
@@ -16,8 +22,8 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
   const [error, setError] = useState('')
   const geoRef = useRef<{ lat: number; lng: number; accuracy: number } | null>(null)
 
-  const PhaseIcon  = phase === 'am' ? Sun : Moon
-  const phaseLabel = phase === 'am' ? 'Morning Check-in' : 'End of Day Check-out'
+  const ui = PHASE_UI[phase]
+  const PhaseIcon = ui.icon
 
   // Start acquiring GPS as soon as component mounts — reduces wait on tap
   useEffect(() => {
@@ -68,6 +74,8 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
         }),
       })
       const json = await res.json()
+      // Duplicate tap — friendly reassurance, not an error.
+      if (json.alreadyCheckedIn) { setState('already'); return }
       if (!json.ok) { setError(json.error ?? 'Check-in failed'); setState('error'); return }
       setState('success')
       onSuccess(new Date().toISOString())
@@ -81,12 +89,20 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
     return (
       <div className="flex flex-col items-center justify-center py-8 gap-3 text-center">
         <CheckCircle size={56} className="text-green-500" />
-        <p className="text-lg font-bold text-green-700">
-          {phase === 'am' ? 'Morning' : 'Evening'} attendance recorded
-        </p>
+        <p className="text-lg font-bold text-green-700">{ui.success}</p>
         <p className="text-xs text-muted-foreground">
-          {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+          {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
         </p>
+      </div>
+    )
+  }
+
+  if (state === 'already') {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 gap-3 text-center">
+        <CheckCircle size={56} className="text-tranmere-blue" />
+        <p className="text-lg font-bold text-tranmere-blue">Already checked in for this session</p>
+        <p className="text-xs text-muted-foreground">Nothing else to do — you&apos;re all set.</p>
       </div>
     )
   }
@@ -127,12 +143,18 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
 
   // idle
   return (
-    <button
-      onClick={handleCheckIn}
-      className="w-full flex items-center justify-center gap-2.5 bg-tranmere-blue text-white font-bold py-4 rounded-2xl text-base active:scale-[0.98] transition-transform shadow-sm"
-    >
-      <PhaseIcon size={20} />
-      {phaseLabel}
-    </button>
+    <div className="space-y-2">
+      <button
+        onClick={handleCheckIn}
+        className="w-full flex items-center justify-center gap-2.5 bg-tranmere-blue text-white font-bold py-4 rounded-2xl text-base active:scale-[0.98] transition-transform shadow-sm"
+      >
+        <PhaseIcon size={20} />
+        {ui.button}
+      </button>
+      <p className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground text-center">
+        <MapPin size={12} className="shrink-0" />
+        Only works at the academy — your location is checked when you tap.
+      </p>
+    </div>
   )
 }

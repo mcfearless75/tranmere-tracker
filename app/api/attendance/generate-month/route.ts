@@ -1,9 +1,12 @@
 import { requireStaff } from '@/lib/auth/requireRole'
+import { londonWallTimeToUTC } from '@/lib/dates'
 import { NextResponse } from 'next/server'
 
 function makePin(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase().replace(/[0OIl1]/g, 'X')
 }
+
+const pad2 = (n: number) => String(n).padStart(2, '0')
 
 export async function POST(request: Request) {
   const auth = await requireStaff()
@@ -16,12 +19,15 @@ export async function POST(request: Request) {
     month: number
   }
 
-  const { data: slots } = await adminClient
+  const { data: slots, error: slotsError } = await adminClient
     .from('schedule_slots')
     .select('*')
     .eq('template_id', templateId)
 
-  if (!slots?.length) return NextResponse.json({ created: 0 })
+  if (slotsError) {
+    return NextResponse.json({ error: slotsError.message, created: 0, failed: 0 }, { status: 500 })
+  }
+  if (!slots?.length) return NextResponse.json({ created: 0, failed: 0 })
 
   const byDay: Record<number, typeof slots> = {}
   for (const slot of slots) {
@@ -29,24 +35,30 @@ export async function POST(request: Request) {
     byDay[slot.day_of_week].push(slot)
   }
 
-  const daysInMonth = new Date(year, month, 0).getDate()
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate()
   const toCreate = []
 
   for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(year, month - 1, day)
-    const dow = date.getDay()
+    // Build the London calendar date directly — no Date round-trip, so the
+    // date can never shift across a timezone boundary.
+    const dateISO = `${year}-${pad2(month)}-${pad2(day)}`
+    const dow = new Date(dateISO + 'T12:00:00Z').getUTCDay()
     const daySlots = byDay[dow]
     if (!daySlots) continue
 
     for (const slot of daySlots) {
-      const [sh, sm] = slot.start_time.substring(0, 5).split(':').map(Number)
-      const [eh, em] = slot.end_time.substring(0, 5).split(':').map(Number)
-      const opensAt   = new Date(year, month - 1, day, sh, sm, 0)
-      const closesAt  = new Date(year, month - 1, day, eh, em, 0)
-      const pin       = makePin()
+      // Slot times are London wall-clock. The old new Date(y, m, d, h, mm)
+      // ran in server-local time (UTC on Vercel), so a 09:00 slot displayed
+      // as 10:00 during BST. Convert with the correct BST/GMT offset.
+      const opensAt  = londonWallTimeToUTC(dateISO, slot.start_time.substring(0, 5))
+      const closesAt = londonWallTimeToUTC(dateISO, slot.end_time.substring(0, 5))
+      const pin      = makePin()
 
       toCreate.push({
         created_by:    user.id,
+        // Real schedule vocabulary (btec/gcse/lessons/gym/tutorial/analysis/…)
+        // — the attendance_sessions CHECK constraint was widened to match
+        // (migration 040), so pass the type straight through.
         session_type:  slot.session_type,
         session_label: slot.session_label,
         pin_code:      pin,
@@ -54,19 +66,38 @@ export async function POST(request: Request) {
         pin_expires_at: new Date(opensAt.getTime() - 1).toISOString(),
         opens_at:      opensAt.toISOString(),
         closes_at:     closesAt.toISOString(),
-        scheduled_date: date.toISOString().split('T')[0],
+        scheduled_date: dateISO,
       })
     }
   }
 
   let created = 0
+  let failed = 0
+  let firstError: string | null = null
+
   for (let i = 0; i < toCreate.length; i += 50) {
-    const { data } = await adminClient
+    const batch = toCreate.slice(i, i + 50)
+    const { data, error } = await adminClient
       .from('attendance_sessions')
-      .insert(toCreate.slice(i, i + 50))
+      .insert(batch)
       .select('id')
-    created += data?.length ?? 0
+
+    if (error) {
+      // Surface the Postgres message instead of silently discarding it —
+      // this is how 51 slots produced 0 sessions with a "success" response.
+      failed += batch.length
+      if (!firstError) firstError = error.message
+    } else {
+      created += data?.length ?? 0
+    }
   }
 
-  return NextResponse.json({ created })
+  if (failed > 0) {
+    return NextResponse.json(
+      { error: firstError, created, failed },
+      { status: 500 },
+    )
+  }
+
+  return NextResponse.json({ created, failed: 0 })
 }

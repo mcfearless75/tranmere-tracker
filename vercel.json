@@ -18,6 +18,10 @@
     },
     {
       "path": "/api/cron/check-in-nudges",
+      "schedule": "0 12 * * 1-5"
+    },
+    {
+      "path": "/api/cron/check-in-nudges",
       "schedule": "0 15 * * 1-5"
     },
     {

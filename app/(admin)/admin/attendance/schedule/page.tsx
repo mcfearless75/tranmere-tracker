@@ -35,7 +35,7 @@ export default async function SchedulePage() {
           <div>
             <h1 className="text-xl font-bold text-tranmere-blue">Weekly Schedule Builder</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Build your weekly timetable with exact session times. Save it as a template, then generate a full month of sessions in one click. Coaches activate each session on the day to open the PIN for students.
+              Build your weekly timetable with exact session times. Save it as a template, then generate a full month of sessions in one click. Sessions appear on student timetables and drive automatic reminders — daily attendance is taken by NFC tap, not per-session PINs.
             </p>
           </div>
         </div>

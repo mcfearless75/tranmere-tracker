@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { CalendarDays, CheckCircle2, Clock, Sun, Moon } from 'lucide-react'
+import { CalendarDays, CheckCircle2, Clock, Sun, Moon, Utensils, type LucideIcon } from 'lucide-react'
+import type { AttendancePhase, PhaseWindows } from '@/lib/attendance/phase'
 import { InAppCheckIn } from './InAppCheckIn'
 
 export type PlannerSession = {
@@ -14,15 +15,21 @@ export type PlannerSession = {
 
 export type DailyAttendance = {
   am_checked_at: string | null
+  lunch_checked_at: string | null
   pm_checked_at: string | null
 } | null
 
 type Props = {
-  sessions:       PlannerSession[]
-  daily:          DailyAttendance
-  today:          string
-  amWindow:       { start: string; end: string }   // 'HH:MM:SS'
-  pmWindow:       { start: string; end: string }
+  sessions: PlannerSession[]
+  daily:    DailyAttendance
+  today:    string
+  windows:  PhaseWindows
+  /**
+   * Which window is open right now, decided SERVER-SIDE in Europe/London.
+   * The device clock is never consulted — a phone set to another timezone
+   * must not disagree with the academy clock about window state.
+   */
+  serverPhase: AttendancePhase | null
 }
 
 const TYPE_CHIP: Record<string, string> = {
@@ -31,30 +38,28 @@ const TYPE_CHIP: Record<string, string> = {
   classroom: 'bg-purple-100 text-purple-700',
 }
 
+const PHASE_META: Record<AttendancePhase, { icon: LucideIcon; title: string }> = {
+  am:    { icon: Sun,      title: 'Morning' },
+  lunch: { icon: Utensils, title: 'Lunch' },
+  pm:    { icon: Moon,     title: 'End of day' },
+}
+
 function fmt(iso: string) {
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })
 }
 function fmtTime(t: string) {
   return t.substring(0, 5)
 }
-function inWindow(now: Date, startHHMMSS: string, endHHMMSS: string) {
-  const [sH, sM] = startHHMMSS.split(':').map(Number)
-  const [eH, eM] = endHHMMSS.split(':').map(Number)
-  const mins = now.getHours() * 60 + now.getMinutes()
-  return mins >= sH * 60 + sM && mins <= eH * 60 + eM
-}
 
 function PhaseCard({
-  phase, checkedAt, window, now,
+  phase, checkedAt, window, isOpen,
 }: {
-  phase: 'am' | 'pm'
+  phase: AttendancePhase
   checkedAt: string | null
   window: { start: string; end: string }
-  now: Date
+  isOpen: boolean
 }) {
-  const isOpen = inWindow(now, window.start, window.end)
-  const Icon   = phase === 'am' ? Sun : Moon
-  const title  = phase === 'am' ? 'Morning' : 'End of day'
+  const { icon: Icon, title } = PHASE_META[phase]
 
   if (checkedAt) {
     return (
@@ -87,22 +92,24 @@ function PhaseCard({
   )
 }
 
-export function StudentPlanner({ sessions, daily, today, amWindow, pmWindow }: Props) {
-  const now = new Date()
+export function StudentPlanner({ sessions, daily, today, windows, serverPhase }: Props) {
+  const now = new Date() // only used for absolute session timestamps below — never for window state
 
-  const [amCheckedAt, setAmCheckedAt] = useState<string | null>(daily?.am_checked_at ?? null)
-  const [pmCheckedAt, setPmCheckedAt] = useState<string | null>(daily?.pm_checked_at ?? null)
+  const [checkedAt, setCheckedAt] = useState<Record<AttendancePhase, string | null>>({
+    am:    daily?.am_checked_at ?? null,
+    lunch: daily?.lunch_checked_at ?? null,
+    pm:    daily?.pm_checked_at ?? null,
+  })
 
-  const amOpen = inWindow(now, amWindow.start, amWindow.end)
-  const pmOpen = inWindow(now, pmWindow.start, pmWindow.end)
-  const activePhase: 'am' | 'pm' | null =
-    amOpen && !amCheckedAt ? 'am' :
-    pmOpen && !pmCheckedAt ? 'pm' :
-    null
+  // Window-open state comes from the server (Europe/London), not the device clock.
+  const activePhase: AttendancePhase | null =
+    serverPhase && !checkedAt[serverPhase] ? serverPhase : null
 
   const dayLabel = new Date(today + 'T12:00:00').toLocaleDateString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long',
   })
+
+  const phases: AttendancePhase[] = ['am', 'lunch', 'pm']
 
   return (
     <div className="space-y-5 max-w-md mx-auto pb-10">
@@ -116,17 +123,24 @@ export function StudentPlanner({ sessions, daily, today, amWindow, pmWindow }: P
         </div>
       </div>
 
-      {/* AM / PM status cards */}
+      {/* AM / Lunch / PM status cards */}
       <div className="flex gap-3">
-        <PhaseCard phase="am" checkedAt={amCheckedAt} window={amWindow} now={now} />
-        <PhaseCard phase="pm" checkedAt={pmCheckedAt} window={pmWindow} now={now} />
+        {phases.map(p => (
+          <PhaseCard
+            key={p}
+            phase={p}
+            checkedAt={checkedAt[p]}
+            window={windows[p]}
+            isOpen={serverPhase === p}
+          />
+        ))}
       </div>
 
       {/* In-app check-in — shown when a window is open and not yet checked in */}
       {activePhase && (
         <InAppCheckIn
           phase={activePhase}
-          onSuccess={ts => activePhase === 'am' ? setAmCheckedAt(ts) : setPmCheckedAt(ts)}
+          onSuccess={ts => setCheckedAt(prev => ({ ...prev, [activePhase]: ts }))}
         />
       )}
 

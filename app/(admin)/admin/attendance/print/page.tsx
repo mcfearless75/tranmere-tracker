@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { londonDateISO } from '@/lib/dates'
 import { redirect } from 'next/navigation'
 import Image from 'next/image'
 import { PrintToolbar } from './PrintToolbar'
@@ -13,14 +14,14 @@ function fmtTime(iso: string | null) {
 export default async function PrintAttendancePage({
   searchParams,
 }: {
-  searchParams: { date?: string; phase?: 'am' | 'pm' | 'both' }
+  searchParams: { date?: string; phase?: 'am' | 'lunch' | 'pm' | 'both' }
 }) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const today = new Date().toISOString().split('T')[0]
+  const today = londonDateISO()
   const date  = searchParams.date  ?? today
   const phase = searchParams.phase ?? 'both'
 
@@ -32,7 +33,7 @@ export default async function PrintAttendancePage({
     admin.from('users').select('id, name').eq('role', 'student').order('name'),
     admin
       .from('daily_attendance')
-      .select('student_id, am_checked_at, pm_checked_at, am_is_flagged, pm_is_flagged, am_flag_reason, pm_flag_reason')
+      .select('student_id, am_checked_at, lunch_checked_at, pm_checked_at, am_is_flagged, lunch_is_flagged, pm_is_flagged, am_flag_reason, lunch_flag_reason, pm_flag_reason')
       .eq('attendance_date', date),
   ])
 
@@ -41,27 +42,33 @@ export default async function PrintAttendancePage({
   const rows = (students ?? []).map(s => {
     const r = recMap.get(s.id)
     return {
-      name: s.name,
-      am:   r?.am_checked_at ?? null,
-      pm:   r?.pm_checked_at ?? null,
-      am_flagged: r?.am_is_flagged ?? false,
-      pm_flagged: r?.pm_is_flagged ?? false,
-      am_reason:  r?.am_flag_reason ?? null,
-      pm_reason:  r?.pm_flag_reason ?? null,
+      name:  s.name,
+      am:    r?.am_checked_at ?? null,
+      lunch: r?.lunch_checked_at ?? null,
+      pm:    r?.pm_checked_at ?? null,
+      am_flagged:    r?.am_is_flagged ?? false,
+      lunch_flagged: r?.lunch_is_flagged ?? false,
+      pm_flagged:    r?.pm_is_flagged ?? false,
+      am_reason:    r?.am_flag_reason ?? null,
+      lunch_reason: r?.lunch_flag_reason ?? null,
+      pm_reason:    r?.pm_flag_reason ?? null,
     }
   })
 
-  const amIn  = rows.filter(r => r.am).length
-  const pmOut = rows.filter(r => r.pm).length
+  const amIn    = rows.filter(r => r.am).length
+  const lunchIn = rows.filter(r => r.lunch).length
+  const pmOut   = rows.filter(r => r.pm).length
   const generatedAt = new Date().toLocaleString('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
   })
 
-  const showAm = phase === 'am' || phase === 'both'
-  const showPm = phase === 'pm' || phase === 'both'
-  const title  = phase === 'am' ? 'Morning Attendance Report'
-              : phase === 'pm' ? 'End-of-Day Attendance Report'
-              :                   'Daily Attendance Report'
+  const showAm    = phase === 'am'    || phase === 'both'
+  const showLunch = phase === 'lunch' || phase === 'both'
+  const showPm    = phase === 'pm'    || phase === 'both'
+  const title  = phase === 'am'    ? 'Morning Attendance Report'
+              : phase === 'lunch' ? 'Lunch Attendance Report'
+              : phase === 'pm'    ? 'End-of-Day Attendance Report'
+              :                     'Daily Attendance Report'
 
   return (
     <div className="bg-white text-black min-h-screen p-6 max-w-[210mm] mx-auto print:p-0 print:max-w-none">
@@ -105,7 +112,7 @@ export default async function PrintAttendancePage({
       </section>
 
       {/* Summary */}
-      <section className={`grid ${showAm && showPm ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mb-5`}>
+      <section className={`grid ${phase === 'both' ? 'grid-cols-4' : 'grid-cols-2'} gap-3 mb-5`}>
         <div className="border border-black/20 rounded-lg p-3">
           <p className="text-[10px] uppercase tracking-wider text-gray-500">Total students</p>
           <p className="text-2xl font-bold">{rows.length}</p>
@@ -114,6 +121,12 @@ export default async function PrintAttendancePage({
           <div className="border border-black/20 rounded-lg p-3">
             <p className="text-[10px] uppercase tracking-wider text-gray-500">Checked in (AM)</p>
             <p className="text-2xl font-bold">{amIn} <span className="text-sm text-gray-400 font-normal">/ {rows.length}</span></p>
+          </div>
+        )}
+        {showLunch && (
+          <div className="border border-black/20 rounded-lg p-3">
+            <p className="text-[10px] uppercase tracking-wider text-gray-500">Lunch check-in</p>
+            <p className="text-2xl font-bold">{lunchIn} <span className="text-sm text-gray-400 font-normal">/ {rows.length}</span></p>
           </div>
         )}
         {showPm && (
@@ -131,6 +144,7 @@ export default async function PrintAttendancePage({
             <th className="py-2 pr-2">#</th>
             <th className="py-2 pr-2">Student</th>
             {showAm && <th className="py-2 pr-2 text-center">AM In</th>}
+            {showLunch && <th className="py-2 pr-2 text-center">Lunch</th>}
             {showPm && <th className="py-2 pr-2 text-center">PM Out</th>}
             <th className="py-2 pr-2">Notes</th>
           </tr>
@@ -139,6 +153,7 @@ export default async function PrintAttendancePage({
           {rows.map((r, i) => {
             const note = [
               r.am_flagged ? `AM: ${r.am_reason}` : null,
+              r.lunch_flagged ? `Lunch: ${r.lunch_reason}` : null,
               r.pm_flagged ? `PM: ${r.pm_reason}` : null,
             ].filter(Boolean).join('; ')
             return (
@@ -148,6 +163,11 @@ export default async function PrintAttendancePage({
                 {showAm && (
                   <td className={`py-1.5 pr-2 text-center font-mono ${!r.am ? 'text-red-600 font-bold' : ''}`}>
                     {r.am ? fmtTime(r.am) : 'MISSING'}
+                  </td>
+                )}
+                {showLunch && (
+                  <td className={`py-1.5 pr-2 text-center font-mono ${!r.lunch ? 'text-red-600 font-bold' : ''}`}>
+                    {r.lunch ? fmtTime(r.lunch) : 'MISSING'}
                   </td>
                 )}
                 {showPm && (
