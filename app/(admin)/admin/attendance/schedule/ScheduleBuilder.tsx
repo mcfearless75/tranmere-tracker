@@ -88,6 +88,7 @@ export function ScheduleBuilder({ templateId: initId, initialSlots }: Props) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   })
   const [genResult, setGenResult] = useState<string | null>(null)
+  const [genError, setGenError]   = useState<string | null>(null)
 
   const daySlots = slots[activeDay] ?? []
 
@@ -127,7 +128,7 @@ export function ScheduleBuilder({ templateId: initId, initialSlots }: Props) {
 
   const generateMonth = async () => {
     if (!templateId) { alert('Save the template first'); return }
-    setGenerating(true); setGenResult(null)
+    setGenerating(true); setGenResult(null); setGenError(null)
     try {
       const [year, month] = genMonth.split('-').map(Number)
       const res = await fetch('/api/attendance/generate-month', {
@@ -137,8 +138,17 @@ export function ScheduleBuilder({ templateId: initId, initialSlots }: Props) {
       })
       const data = await res.json()
       const lbl = new Date(year, month - 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' })
-      setGenResult(`✓ Created ${data.created} sessions for ${lbl}`)
+      if (!res.ok) {
+        setGenError(
+          `Generation failed: ${data.error ?? `HTTP ${res.status}`}` +
+          (data.failed ? ` (${data.created ?? 0} created, ${data.failed} failed)` : '')
+        )
+      } else {
+        setGenResult(`✓ Created ${data.created} sessions for ${lbl}`)
+      }
       router.refresh()
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : 'Generation failed')
     } finally { setGenerating(false) }
   }
 
@@ -313,9 +323,15 @@ export function ScheduleBuilder({ templateId: initId, initialSlots }: Props) {
       {genResult && (
         <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
           <CheckCircle2 size={16} className="shrink-0" />
-          {genResult} — Coaches open each session on the day to activate the PIN.{' '}
-          <a href="/admin/attendance" className="underline font-semibold">View sessions →</a>
+          {genResult} — sessions appear on student timetables and drive reminders.{' '}
+          <a href="/admin/attendance" className="underline font-semibold">View attendance →</a>
         </div>
+      )}
+
+      {genError && (
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          {genError}
+        </p>
       )}
     </div>
   )

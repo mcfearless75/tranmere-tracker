@@ -1,6 +1,6 @@
-// Vercel Cron: nudges students who haven't checked in for AM (or PM).
-// Runs at 09:00 and 16:00 daily. Uses the academy_settings windows so the
-// "you missed AM" reminder fires after the window opens but before it closes.
+// Vercel Cron: nudges students who haven't checked in for the current phase.
+// Runs at 08:00, 12:00 and 15:00 UTC weekdays (09:00, 13:00, 16:00 London
+// during BST). Phase from London hour: <11 → am, 11–14 → lunch, else pm.
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { londonDateISO, londonHour } from '@/lib/dates'
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   // Determine phase from London local time. (new Date(toLocaleString('en-GB'))
   // is unparseable dd/mm/yyyy → getHours() was NaN → phase was always 'pm'.)
   const hour  = londonHour(now)
-  const phase: 'am' | 'pm' = hour < 12 ? 'am' : 'pm'
+  const phase: 'am' | 'lunch' | 'pm' = hour < 11 ? 'am' : hour <= 14 ? 'lunch' : 'pm'
 
   const today = londonDateISO(now)
 
@@ -32,13 +32,13 @@ export async function GET(request: Request) {
   // Get today's daily_attendance rows
   const { data: rows } = await admin
     .from('daily_attendance')
-    .select('student_id, am_checked_at, pm_checked_at')
+    .select('student_id, am_checked_at, lunch_checked_at, pm_checked_at')
     .eq('attendance_date', today)
 
-  const checkedField = phase === 'am' ? 'am_checked_at' : 'pm_checked_at'
+  const checkedField = `${phase}_checked_at` as 'am_checked_at' | 'lunch_checked_at' | 'pm_checked_at'
   const checkedIds = new Set(
     (rows ?? [])
-      .filter(r => r[checkedField as keyof typeof r] !== null)
+      .filter(r => r[checkedField] !== null)
       .map(r => r.student_id)
   )
 
@@ -53,8 +53,10 @@ export async function GET(request: Request) {
   if (!subs?.length) return NextResponse.json({ sent: 0, phase })
 
   const payload = phase === 'am'
-    ? { title: 'Morning check-in',   body: 'Tap the NFC sticker at reception when you arrive.', url: '/attendance' }
-    : { title: 'End-of-day check-in', body: 'Don\'t forget to tap out before you leave.',         url: '/attendance' }
+    ? { title: 'Morning check-in',    body: 'Tap the NFC sticker at reception when you arrive.',   url: '/attendance' }
+    : phase === 'lunch'
+    ? { title: 'Lunch check-in',      body: 'Tap the NFC sticker at reception during lunch.',      url: '/attendance' }
+    : { title: 'End-of-day check-in', body: 'Don\'t forget to tap out before you leave.',          url: '/attendance' }
 
   const results = await Promise.allSettled(
     subs.map(s => sendPushNotification({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, payload))

@@ -2,14 +2,20 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle, AlertCircle, Loader2, Sun, Moon } from 'lucide-react'
+import { CheckCircle, AlertCircle, Loader2, Sun, Moon, Utensils, type LucideIcon } from 'lucide-react'
+import type { AttendancePhase } from '@/lib/attendance/phase'
 
-type Phase = 'am' | 'pm'
-type State = 'working' | 'success' | 'error'
+type State = 'working' | 'success' | 'already' | 'error'
 
 interface Props {
-  phase: Phase
+  phase: AttendancePhase
   nfcToken: string
+}
+
+const PHASE_UI: Record<AttendancePhase, { icon: LucideIcon; working: string; success: string }> = {
+  am:    { icon: Sun,      working: 'Checking you in…',        success: 'Morning sorted ✓' },
+  lunch: { icon: Utensils, working: 'Logging your lunch tap…', success: 'Lunch sorted ✓' },
+  pm:    { icon: Moon,     working: 'Checking you out…',       success: 'End of day sorted ✓' },
 }
 
 /**
@@ -53,6 +59,12 @@ export function AutoCheckIn({ phase, nfcToken }: Props) {
           }),
         })
         const json = await res.json()
+        // Duplicate tap — not an error, just reassure and send them on.
+        if (json.alreadyCheckedIn) {
+          setState('already')
+          setTimeout(() => { router.push('/attendance'); router.refresh() }, 2500)
+          return
+        }
         if (!json.ok) { setError(json.error ?? 'Check-in failed'); setState('error'); return }
         setState('success')
         setTimeout(() => { router.push('/attendance'); router.refresh() }, 2500)
@@ -65,17 +77,28 @@ export function AutoCheckIn({ phase, nfcToken }: Props) {
     run()
   }, [phase, nfcToken, router])
 
-  const PhaseIcon = phase === 'am' ? Sun : Moon
+  const ui = PHASE_UI[phase]
+  const PhaseIcon = ui.icon
 
   if (state === 'success') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] gap-3 text-center px-4">
         <CheckCircle size={72} className="text-green-500" />
-        <h1 className="text-2xl font-bold text-tranmere-blue">
-          {phase === 'am' ? 'Morning' : 'Evening'} sorted
-        </h1>
+        <h1 className="text-2xl font-bold text-tranmere-blue">{ui.success}</h1>
         <p className="text-sm text-muted-foreground">
-          Checked in at {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+          Checked in at {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
+        </p>
+      </div>
+    )
+  }
+
+  if (state === 'already') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] gap-3 text-center px-4">
+        <CheckCircle size={72} className="text-tranmere-blue" />
+        <h1 className="text-2xl font-bold text-tranmere-blue">Already checked in</h1>
+        <p className="text-sm text-muted-foreground">
+          You&apos;re already checked in for this session — nothing else to do.
         </p>
       </div>
     )
@@ -103,9 +126,7 @@ export function AutoCheckIn({ phase, nfcToken }: Props) {
       <div className="w-20 h-20 rounded-full bg-tranmere-blue/10 flex items-center justify-center">
         <PhaseIcon size={40} className="text-tranmere-blue" />
       </div>
-      <h1 className="text-xl font-bold text-tranmere-blue">
-        {phase === 'am' ? 'Checking you in…' : 'Checking you out…'}
-      </h1>
+      <h1 className="text-xl font-bold text-tranmere-blue">{ui.working}</h1>
       <Loader2 size={28} className="animate-spin text-tranmere-blue" />
     </div>
   )

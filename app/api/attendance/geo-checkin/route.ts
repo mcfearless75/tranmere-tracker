@@ -1,24 +1,21 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyParentsOfCheckIn } from '@/lib/attendance/parentNotifyUtils'
+import { isInsideFence } from '@/lib/attendance/geoUtils'
+import type { AttendancePhase } from '@/lib/attendance/phase'
+import { londonDateISO } from '@/lib/dates'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-const GROUND_LAT  = parseFloat(process.env.NEXT_PUBLIC_GROUND_LAT  ?? '53.3963')
-const GROUND_LNG  = parseFloat(process.env.NEXT_PUBLIC_GROUND_LNG  ?? '-3.0942')
-const RADIUS_M    = parseInt(process.env.NEXT_PUBLIC_GROUND_RADIUS_M ?? '300', 10)
+const PHASES: readonly AttendancePhase[] = ['am', 'lunch', 'pm']
 
-function haversineMetres(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000
-  const φ1 = lat1 * Math.PI / 180
-  const φ2 = lat2 * Math.PI / 180
-  const Δφ = (lat2 - lat1) * Math.PI / 180
-  const Δλ = (lng2 - lng1) * Math.PI / 180
-  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
-
+/**
+ * Geofenced auto check-in (background watcher path). Hard geofence: the
+ * academy location and radius come from academy_settings — NOT env vars.
+ * (The old NEXT_PUBLIC_GROUND_* fallbacks pointed ~2.8km from the academy
+ * and would have 422'd every genuine on-site check-in.)
+ */
 export async function POST(request: Request) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -27,32 +24,45 @@ export async function POST(request: Request) {
   const body = await request.json() as { period: string; lat: number; lng: number; accuracy?: number }
   const { period, lat, lng } = body
 
-  if (!period || !['am', 'pm'].includes(period) || typeof lat !== 'number' || typeof lng !== 'number') {
+  if (!period || !PHASES.includes(period as AttendancePhase) || typeof lat !== 'number' || typeof lng !== 'number') {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
+  const phase = period as AttendancePhase
 
-  // Server-side distance check — client check is UX only, server is authoritative
-  const dist = haversineMetres(lat, lng, GROUND_LAT, GROUND_LNG)
-  if (dist > RADIUS_M) {
-    return NextResponse.json({ error: `Too far from ground (${Math.round(dist)}m)` }, { status: 422 })
-  }
-
-  const today = new Date().toISOString().split('T')[0]
-  const now = new Date().toISOString()
   const admin = createAdminClient()
 
-  const column = period === 'am' ? 'am_checked_at' : 'pm_checked_at'
+  // Authoritative geofence from settings — client check is UX only
+  const { data: settings } = await admin
+    .from('academy_settings')
+    .select('geo_lat, geo_lng, radius_m')
+    .eq('id', 1)
+    .maybeSingle()
+
+  if (!settings) {
+    return NextResponse.json({ error: 'Academy not configured' }, { status: 500 })
+  }
+
+  const fence = isInsideFence(lat, lng, settings.geo_lat, settings.geo_lng, settings.radius_m)
+  if (!fence.inside) {
+    const dist = fence.distanceM === null ? '' : ` (${Math.round(fence.distanceM)}m)`
+    return NextResponse.json({ error: `Too far from the academy${dist}` }, { status: 422 })
+  }
+
+  const today = londonDateISO()
+  const now = new Date().toISOString()
+
+  const column = `${phase}_checked_at` as const
 
   // Upsert daily_attendance row — don't overwrite if already checked in
   const { data: existing } = await admin
     .from('daily_attendance')
-    .select('id, am_checked_at, pm_checked_at')
+    .select('id, am_checked_at, lunch_checked_at, pm_checked_at')
     .eq('student_id', user.id)
     .eq('attendance_date', today)
     .maybeSingle()
 
   if (existing && existing[column as keyof typeof existing]) {
-    // Already checked in — return success idempotently
+    // Already checked in — return success idempotently, no duplicate push
     return NextResponse.json({ ok: true, already: true })
   }
 
@@ -67,8 +77,8 @@ export async function POST(request: Request) {
       .insert({ student_id: user.id, attendance_date: today, [column]: now })
   }
 
-  // Fire-and-forget: notify parents — must not block or break the check-in response
-  void notifyParentsOfCheckIn(admin, user.id, period as 'am' | 'pm', 'checked_in')
+  // Awaited so serverless doesn't kill the push mid-flight; never throws.
+  await notifyParentsOfCheckIn(admin, user.id, phase, 'checked_in')
 
   return NextResponse.json({ ok: true })
 }

@@ -9,19 +9,23 @@
  */
 
 import { isNative } from '@/lib/native'
+import { londonMinutes, fallbackPartitionPhase, type AttendancePhase } from '@/lib/attendance/phase'
 import type { Location, BackgroundGeolocationPlugin } from '@capacitor-community/background-geolocation'
 
-const GROUND_LAT = parseFloat(process.env.NEXT_PUBLIC_GROUND_LAT  ?? '53.4089')
-const GROUND_LNG = parseFloat(process.env.NEXT_PUBLIC_GROUND_LNG  ?? '-3.1067')
-const RADIUS_M   = parseInt(process.env.NEXT_PUBLIC_GROUND_RADIUS_M ?? '300', 10)
+// Fallback coordinates match the academy_settings seed (53.4209, -3.0867, 250m).
+const GROUND_LAT = parseFloat(process.env.NEXT_PUBLIC_GROUND_LAT  ?? '53.4209')
+const GROUND_LNG = parseFloat(process.env.NEXT_PUBLIC_GROUND_LNG  ?? '-3.0867')
+const RADIUS_M   = parseInt(process.env.NEXT_PUBLIC_GROUND_RADIUS_M ?? '250', 10)
 
-/** Determine which period (am/pm) is active right now, or null if outside window. */
-function currentPeriod(): 'am' | 'pm' | null {
-  const now = new Date()
-  const totalMins = now.getHours() * 60 + now.getMinutes()
-  if (totalMins >= 480 && totalMins <= 630) return 'am'   // 08:00 – 10:30
-  if (totalMins >= 780 && totalMins <= 930) return 'pm'   // 13:00 – 15:30
-  return null
+/**
+ * Determine which period (am/lunch/pm) is active right now in Europe/London,
+ * or null outside working hours. Uses the coarse partitioned fallback windows
+ * (am before 11:00, lunch 11:00–14:30, pm after 14:30, bounded 07:00–18:00) —
+ * true settings-driven windows would need a fetch of academy_settings here.
+ * The server enforces the real windows and idempotency regardless.
+ */
+function currentPeriod(): AttendancePhase | null {
+  return fallbackPartitionPhase(londonMinutes())
 }
 
 function haversineMetres(lat1: number, lng1: number, lat2: number, lng2: number): number {

@@ -1,8 +1,6 @@
 import {
   buildNotificationMessage,
   notifyParentsOfCheckIn,
-  type CheckInPhase,
-  type CheckInStatus,
 } from '@/lib/attendance/parentNotifyUtils'
 
 // --- Pure formatting tests ---
@@ -26,6 +24,17 @@ describe('buildNotificationMessage', () => {
   it('returns PM session body for phase pm', () => {
     const { body } = buildNotificationMessage('Carol White', 'pm', 'checked_in', '13:05')
     expect(body).toBe('Carol White checked in for PM session at 13:05')
+  })
+
+  it('returns "checked in for lunch" body for phase lunch', () => {
+    const { body } = buildNotificationMessage('Alice Smith', 'lunch', 'checked_in', '12:15')
+    expect(body).toBe('Alice Smith checked in for lunch at 12:15')
+  })
+
+  it('keeps the late title for a late lunch check-in', () => {
+    const { title, body } = buildNotificationMessage('Bob Jones', 'lunch', 'late', '13:40')
+    expect(title).toBe('⚠️ Late Check-in — Bob Jones')
+    expect(body).toContain('checked in for lunch at 13:40')
   })
 
   it('uses checked_in (not late) title for absent status', () => {
@@ -53,37 +62,33 @@ const mockSendPush = sendPushNotificationToUser as jest.MockedFunction<
   typeof sendPushNotificationToUser
 >
 
+/**
+ * Mocks the real schema:
+ *   .from('users').select('name').eq('id', ...).maybeSingle()
+ *   .from('parent_student_links').select('parent_id').eq('student_id', ...)
+ */
 function makeMockAdmin(
-  studentProfile: { display_name: string } | null,
-  parents: { id: string }[]
+  student: { name: string } | null,
+  links: { parent_id: string }[]
 ) {
-  const maybeSingle = jest.fn().mockResolvedValue({ data: studentProfile })
-  const parentSelect = {
-    eq: jest.fn().mockReturnThis(),
-    then: jest.fn(),
-  }
-
-  // Chain: .from('profiles').select('display_name').eq('id', ...).maybeSingle()
-  // and:   .from('profiles').select('id').eq('linked_student_id', ...).eq('role', 'parent')
-  let callCount = 0
-  const from = jest.fn().mockImplementation(() => {
-    callCount++
-    if (callCount === 1) {
-      // First call: student profile lookup
+  const from = jest.fn().mockImplementation((table: string) => {
+    if (table === 'users') {
       return {
         select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({ maybeSingle }),
+          eq: jest.fn().mockReturnValue({
+            maybeSingle: jest.fn().mockResolvedValue({ data: student }),
+          }),
         }),
       }
     }
-    // Second call: parent lookup
-    return {
-      select: jest.fn().mockReturnValue({
-        eq: jest.fn().mockReturnValue({
-          eq: jest.fn().mockResolvedValue({ data: parents }),
+    if (table === 'parent_student_links') {
+      return {
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockResolvedValue({ data: links }),
         }),
-      }),
+      }
     }
+    throw new Error(`Unexpected table: ${table}`)
   })
 
   return { from } as unknown as Parameters<typeof notifyParentsOfCheckIn>[0]
@@ -92,10 +97,21 @@ function makeMockAdmin(
 describe('notifyParentsOfCheckIn', () => {
   beforeEach(() => jest.clearAllMocks())
 
-  it('calls sendPushNotificationToUser for each parent found', async () => {
-    const admin = makeMockAdmin({ display_name: 'Alice Smith' }, [
-      { id: 'parent-1' },
-      { id: 'parent-2' },
+  it('queries users and parent_student_links (not the non-existent profiles table)', async () => {
+    const admin = makeMockAdmin({ name: 'Alice Smith' }, [{ parent_id: 'parent-1' }])
+
+    await notifyParentsOfCheckIn(admin, 'student-abc', 'am', 'checked_in')
+
+    const fromMock = (admin as unknown as { from: jest.Mock }).from
+    expect(fromMock).toHaveBeenCalledWith('users')
+    expect(fromMock).toHaveBeenCalledWith('parent_student_links')
+    expect(fromMock).not.toHaveBeenCalledWith('profiles')
+  })
+
+  it('calls sendPushNotificationToUser for each linked parent', async () => {
+    const admin = makeMockAdmin({ name: 'Alice Smith' }, [
+      { parent_id: 'parent-1' },
+      { parent_id: 'parent-2' },
     ])
 
     await notifyParentsOfCheckIn(admin, 'student-abc', 'am', 'checked_in')
@@ -105,16 +121,29 @@ describe('notifyParentsOfCheckIn', () => {
     expect(mockSendPush).toHaveBeenCalledWith(admin, 'parent-2', expect.stringContaining('Alice Smith'), expect.any(String))
   })
 
+  it('sends the lunch copy for a lunch check-in', async () => {
+    const admin = makeMockAdmin({ name: 'Alice Smith' }, [{ parent_id: 'parent-1' }])
+
+    await notifyParentsOfCheckIn(admin, 'student-abc', 'lunch', 'checked_in')
+
+    expect(mockSendPush).toHaveBeenCalledWith(
+      admin,
+      'parent-1',
+      expect.any(String),
+      expect.stringContaining('checked in for lunch')
+    )
+  })
+
   it('does not call sendPushNotificationToUser when no parents are linked', async () => {
-    const admin = makeMockAdmin({ display_name: 'Bob Jones' }, [])
+    const admin = makeMockAdmin({ name: 'Bob Jones' }, [])
 
     await notifyParentsOfCheckIn(admin, 'student-xyz', 'pm', 'checked_in')
 
     expect(mockSendPush).not.toHaveBeenCalled()
   })
 
-  it('uses fallback name "Student" when profile not found', async () => {
-    const admin = makeMockAdmin(null, [{ id: 'parent-3' }])
+  it('uses fallback name "Student" when the users row is missing', async () => {
+    const admin = makeMockAdmin(null, [{ parent_id: 'parent-3' }])
 
     await notifyParentsOfCheckIn(admin, 'student-missing', 'am', 'checked_in')
 
@@ -127,15 +156,18 @@ describe('notifyParentsOfCheckIn', () => {
   })
 
   it('does not throw when sendPushNotificationToUser rejects', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
     mockSendPush.mockRejectedValueOnce(new Error('Push service down'))
-    const admin = makeMockAdmin({ display_name: 'Carol White' }, [{ id: 'parent-4' }])
+    const admin = makeMockAdmin({ name: 'Carol White' }, [{ parent_id: 'parent-4' }])
 
     await expect(
       notifyParentsOfCheckIn(admin, 'student-err', 'pm', 'late')
     ).resolves.toBeUndefined()
+    consoleSpy.mockRestore()
   })
 
-  it('does not throw when the DB query itself throws', async () => {
+  it('does not throw when the DB query itself throws — but logs the failure', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
     const badAdmin = {
       from: jest.fn().mockImplementation(() => {
         throw new Error('DB connection lost')
@@ -145,5 +177,8 @@ describe('notifyParentsOfCheckIn', () => {
     await expect(
       notifyParentsOfCheckIn(badAdmin, 'student-dberr', 'am', 'checked_in')
     ).resolves.toBeUndefined()
+
+    expect(consoleSpy).toHaveBeenCalled()
+    consoleSpy.mockRestore()
   })
 })

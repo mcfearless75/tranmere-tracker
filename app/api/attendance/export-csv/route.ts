@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { londonDateISO } from '@/lib/dates'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -14,7 +15,7 @@ function csvEscape(v: string | number | null | undefined) {
 }
 
 function fmtTime(iso: string | null) {
-  return iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''
+  return iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' }) : ''
 }
 
 export async function GET(request: Request) {
@@ -29,25 +30,26 @@ export async function GET(request: Request) {
   }
 
   const url   = new URL(request.url)
-  const date  = url.searchParams.get('date') ?? new Date().toISOString().split('T')[0]
+  const date  = url.searchParams.get('date') ?? londonDateISO()
 
   const [{ data: students }, { data: records }] = await Promise.all([
     admin.from('users').select('id, name, email').eq('role', 'student').order('name'),
     admin
       .from('daily_attendance')
-      .select('student_id, am_checked_at, pm_checked_at, am_is_flagged, pm_is_flagged, am_flag_reason, pm_flag_reason')
+      .select('student_id, am_checked_at, lunch_checked_at, pm_checked_at, am_is_flagged, lunch_is_flagged, pm_is_flagged, am_flag_reason, lunch_flag_reason, pm_flag_reason')
       .eq('attendance_date', date),
   ])
 
   const recMap = new Map((records ?? []).map(r => [r.student_id, r]))
 
-  const headers = ['Name', 'Email', 'AM In', 'PM Out', 'AM Status', 'PM Status', 'Notes']
+  const headers = ['Name', 'Email', 'AM In', 'Lunch', 'PM Out', 'AM Status', 'Lunch Status', 'PM Status', 'Notes']
   const lines: string[] = [headers.join(',')]
 
   for (const s of students ?? []) {
     const r = recMap.get(s.id)
     const note = [
       r?.am_is_flagged ? `AM: ${r.am_flag_reason}` : null,
+      r?.lunch_is_flagged ? `Lunch: ${r.lunch_flag_reason}` : null,
       r?.pm_is_flagged ? `PM: ${r.pm_flag_reason}` : null,
     ].filter(Boolean).join('; ')
 
@@ -55,8 +57,10 @@ export async function GET(request: Request) {
       s.name,
       s.email,
       fmtTime(r?.am_checked_at ?? null),
+      fmtTime(r?.lunch_checked_at ?? null),
       fmtTime(r?.pm_checked_at ?? null),
       r?.am_checked_at ? 'Present' : 'Missing',
+      r?.lunch_checked_at ? 'Present' : 'Missing',
       r?.pm_checked_at ? 'Present' : 'Missing',
       note,
     ].map(csvEscape).join(','))

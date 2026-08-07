@@ -1,5 +1,6 @@
 // Vercel Cron: 10:30 weekdays — pushes AM attendance summary to all staff.
 import { createAdminClient } from '@/lib/supabase/admin'
+import { londonDateISO } from '@/lib/dates'
 import { sendPushNotification } from '@/lib/webpush'
 import { verifyCronSecret } from '@/lib/security'
 import { NextResponse } from 'next/server'
@@ -12,7 +13,9 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient()
-  const today = new Date().toISOString().split('T')[0]
+  // London calendar date — the raw UTC date is wrong for late-evening runs
+  // and inconsistent with the check-in rows, which key on London dates.
+  const today = londonDateISO()
 
   const [{ data: students }, { data: records }] = await Promise.all([
     admin.from('users').select('id, name').eq('role', 'student'),

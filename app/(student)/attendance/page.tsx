@@ -1,27 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
+import { decidePhase, type PhaseWindows } from '@/lib/attendance/phase'
 import { StudentPlanner } from './StudentPlanner'
 import { AutoCheckIn } from './AutoCheckIn'
 
 export const dynamic = 'force-dynamic'
-
-function decidePhase(amStart: string, amEnd: string, pmStart: string, pmEnd: string): 'am' | 'pm' | null {
-  // Use Intl to extract London hour/minute reliably on Vercel (avoids Invalid Date from toLocaleString parsing)
-  const now = new Date()
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Europe/London',
-    hour: 'numeric', minute: 'numeric', hour12: false,
-  }).formatToParts(now)
-  const h = parseInt(parts.find(p => p.type === 'hour')?.value   ?? '0', 10)
-  const m = parseInt(parts.find(p => p.type === 'minute')?.value ?? '0', 10)
-  const mins   = h * 60 + m
-  const toMins = (t: string) => { const [th, tm] = t.split(':').map(Number); return th * 60 + tm }
-
-  if (mins >= toMins(amStart) && mins <= toMins(amEnd)) return 'am'
-  if (mins >= toMins(pmStart) && mins <= toMins(pmEnd)) return 'pm'
-  return null
-}
 
 export default async function StudentAttendancePage({
   searchParams,
@@ -37,12 +21,20 @@ export default async function StudentAttendancePage({
   // ── Load academy settings (windows, NFC token) ────────────────────────────
   const { data: settings } = await admin
     .from('academy_settings')
-    .select('nfc_token, am_window_start, am_window_end, pm_window_start, pm_window_end')
+    .select('nfc_token, am_window_start, am_window_end, lunch_window_start, lunch_window_end, pm_window_start, pm_window_end')
     .eq('id', 1)
     .single()
 
-  const amWindow = { start: settings?.am_window_start ?? '07:30:00', end: settings?.am_window_end ?? '10:30:00' }
-  const pmWindow = { start: settings?.pm_window_start ?? '14:30:00', end: settings?.pm_window_end ?? '17:30:00' }
+  const windows: PhaseWindows = {
+    am:    { start: settings?.am_window_start    ?? '07:30:00', end: settings?.am_window_end    ?? '10:30:00' },
+    lunch: { start: settings?.lunch_window_start ?? '11:30:00', end: settings?.lunch_window_end ?? '13:30:00' },
+    pm:    { start: settings?.pm_window_start    ?? '14:30:00', end: settings?.pm_window_end    ?? '17:30:00' },
+  }
+
+  // Server-side, Europe/London — the single source of truth for "which phase
+  // is open right now". Clients receive this instead of re-deriving from the
+  // device clock (which may be in another timezone).
+  const phase = decidePhase(windows)
 
   // ── NFC tap arrival ────────────────────────────────────────────────────────
   if (searchParams.tag) {
@@ -55,14 +47,15 @@ export default async function StudentAttendancePage({
       )
     }
 
-    const phase = decidePhase(amWindow.start, amWindow.end, pmWindow.start, pmWindow.end)
     if (!phase) {
+      const t = (s: string) => s.substring(0, 5)
       return (
         <div className="flex flex-col items-center justify-center min-h-[70vh] gap-3 text-center px-4">
           <h1 className="text-xl font-bold text-tranmere-blue">Out of hours</h1>
           <p className="text-sm text-muted-foreground">
-            Check-in opens {amWindow.start.substring(0, 5)}–{amWindow.end.substring(0, 5)}
-            {' '}and check-out {pmWindow.start.substring(0, 5)}–{pmWindow.end.substring(0, 5)}.
+            Morning check-in {t(windows.am.start)}–{t(windows.am.end)},
+            lunch check-in {t(windows.lunch.start)}–{t(windows.lunch.end)},
+            end of day check-out {t(windows.pm.start)}–{t(windows.pm.end)}.
           </p>
         </div>
       )
@@ -82,7 +75,7 @@ export default async function StudentAttendancePage({
       .order('opens_at'),
     admin
       .from('daily_attendance')
-      .select('am_checked_at, pm_checked_at')
+      .select('am_checked_at, lunch_checked_at, pm_checked_at')
       .eq('student_id', user.id)
       .eq('attendance_date', today)
       .maybeSingle(),
@@ -93,8 +86,8 @@ export default async function StudentAttendancePage({
       sessions={sessions ?? []}
       daily={daily ?? null}
       today={today}
-      amWindow={amWindow}
-      pmWindow={pmWindow}
+      windows={windows}
+      serverPhase={phase}
     />
   )
 }

@@ -1,12 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { londonDateISO } from '@/lib/dates'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
   ClipboardList, CalendarDays, ChevronLeft, ChevronRight,
   CheckCircle2, AlertTriangle, UserX, Sun, Moon, ArrowRightCircle,
-  Printer, Download,
+  Printer, Download, Settings, UtensilsCrossed,
 } from 'lucide-react'
+import { OverrideButton } from './OverrideButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +32,7 @@ export default async function AttendancePage({
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const today = new Date().toISOString().split('T')[0]
+  const today = londonDateISO()
   // Validate ?date= — an arbitrary string would give Invalid Date and make
   // shiftDate() throw on toISOString(). Fall back to today.
   const rawDate = searchParams.date
@@ -48,7 +50,7 @@ export default async function AttendancePage({
     admin.from('users').select('id, name, avatar_url').eq('role', 'student').order('name'),
     admin
       .from('daily_attendance')
-      .select('student_id, am_checked_at, pm_checked_at, am_is_flagged, pm_is_flagged, am_flag_reason, pm_flag_reason, am_selfie_path, pm_selfie_path')
+      .select('student_id, am_checked_at, lunch_checked_at, pm_checked_at, am_is_flagged, lunch_is_flagged, pm_is_flagged, am_flag_reason, lunch_flag_reason, pm_flag_reason, am_selfie_path, pm_selfie_path')
       .eq('attendance_date', date),
   ])
 
@@ -59,10 +61,13 @@ export default async function AttendancePage({
     name: string
     avatar_url: string | null
     am: string | null
+    lunch: string | null
     pm: string | null
     am_flagged: boolean
+    lunch_flagged: boolean
     pm_flagged: boolean
     am_reason: string | null
+    lunch_reason: string | null
     pm_reason: string | null
   }
 
@@ -73,24 +78,29 @@ export default async function AttendancePage({
       name: s.name,
       avatar_url: s.avatar_url,
       am: r?.am_checked_at ?? null,
+      lunch: r?.lunch_checked_at ?? null,
       pm: r?.pm_checked_at ?? null,
       am_flagged: r?.am_is_flagged ?? false,
+      lunch_flagged: r?.lunch_is_flagged ?? false,
       pm_flagged: r?.pm_is_flagged ?? false,
       am_reason: r?.am_flag_reason ?? null,
+      lunch_reason: r?.lunch_flag_reason ?? null,
       pm_reason: r?.pm_flag_reason ?? null,
     }
   })
 
   const amIn       = rows.filter(r => r.am).length
+  const lunchIn    = rows.filter(r => r.lunch).length
   const pmOut      = rows.filter(r => r.pm).length
-  const amMissing  = rows.length - amIn
-  const pmMissing  = rows.length - pmOut
-  const flagged    = rows.filter(r => r.am_flagged || r.pm_flagged).length
+  const amMissing    = rows.length - amIn
+  const lunchMissing = rows.length - lunchIn
+  const pmMissing    = rows.length - pmOut
+  const flagged    = rows.filter(r => r.am_flagged || r.lunch_flagged || r.pm_flagged).length
 
   // Sort: missing first, then by name
   rows.sort((a, b) => {
-    const aMissing = !a.am || !a.pm
-    const bMissing = !b.am || !b.pm
+    const aMissing = !a.am || !a.lunch || !a.pm
+    const bMissing = !b.am || !b.lunch || !b.pm
     if (aMissing !== bMissing) return aMissing ? -1 : 1
     return a.name.localeCompare(b.name)
   })
@@ -105,6 +115,13 @@ export default async function AttendancePage({
           <h1 className="text-xl font-bold text-tranmere-blue">Daily Attendance</h1>
         </div>
         <div className="flex gap-2">
+          <Link
+            href="/admin/attendance/settings"
+            className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            <Settings size={15} />
+            Settings
+          </Link>
           <Link
             href="/admin/attendance/calendar"
             className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
@@ -147,18 +164,20 @@ export default async function AttendancePage({
       </div>
 
       {/* Summary tiles */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <SummaryTile icon={<Sun size={14} />}        label="AM In"     value={`${amIn}/${rows.length}`} tone="blue" />
-        <SummaryTile icon={<Moon size={14} />}       label="PM Out"    value={`${pmOut}/${rows.length}`} tone="purple" />
-        <SummaryTile icon={<UserX size={14} />}      label="Missing"   value={`${Math.max(amMissing, pmMissing)}`} tone={amMissing > 0 ? 'red' : 'gray'} />
-        <SummaryTile icon={<AlertTriangle size={14} />} label="Flagged" value={`${flagged}`} tone={flagged > 0 ? 'amber' : 'gray'} />
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+        <SummaryTile icon={<Sun size={14} />}             label="AM In"   value={`${amIn}/${rows.length}`} tone="blue" />
+        <SummaryTile icon={<UtensilsCrossed size={14} />} label="Lunch"   value={`${lunchIn}/${rows.length}`} tone="green" />
+        <SummaryTile icon={<Moon size={14} />}            label="PM Out"  value={`${pmOut}/${rows.length}`} tone="purple" />
+        <SummaryTile icon={<UserX size={14} />}           label="Missing" value={`${Math.max(amMissing, lunchMissing, pmMissing)}`} tone={Math.max(amMissing, lunchMissing, pmMissing) > 0 ? 'red' : 'gray'} />
+        <SummaryTile icon={<AlertTriangle size={14} />}   label="Flagged" value={`${flagged}`} tone={flagged > 0 ? 'amber' : 'gray'} />
       </div>
 
       {/* Roster */}
       <div className="bg-white border rounded-xl overflow-hidden">
-        <div className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_120px_120px] items-center px-4 py-2.5 border-b bg-gray-50/60 text-[11px] font-bold uppercase tracking-wide text-muted-foreground gap-3">
+        <div className="grid grid-cols-[1fr_auto_auto_auto] sm:grid-cols-[1fr_110px_110px_110px] items-center px-4 py-2.5 border-b bg-gray-50/60 text-[11px] font-bold uppercase tracking-wide text-muted-foreground gap-3">
           <span>Student</span>
           <span className="text-center">AM</span>
+          <span className="text-center">Lunch</span>
           <span className="text-center">PM</span>
         </div>
 
@@ -169,7 +188,7 @@ export default async function AttendancePage({
             {rows.map(r => (
               <li
                 key={r.id}
-                className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_120px_120px] items-center px-4 py-2.5 gap-3 text-sm hover:bg-gray-50/60 transition-colors"
+                className="grid grid-cols-[1fr_auto_auto_auto] sm:grid-cols-[1fr_110px_110px_110px] items-center px-4 py-2.5 gap-3 text-sm hover:bg-gray-50/60 transition-colors"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   {r.avatar_url
@@ -181,8 +200,9 @@ export default async function AttendancePage({
                   }
                   <span className="font-medium truncate">{r.name}</span>
                 </div>
-                <PhaseCell time={r.am} flagged={r.am_flagged} reason={r.am_reason} />
-                <PhaseCell time={r.pm} flagged={r.pm_flagged} reason={r.pm_reason} />
+                <PhaseCell time={r.am}    flagged={r.am_flagged}    reason={r.am_reason}    studentId={r.id} date={date} phase="am" />
+                <PhaseCell time={r.lunch} flagged={r.lunch_flagged} reason={r.lunch_reason} studentId={r.id} date={date} phase="lunch" />
+                <PhaseCell time={r.pm}    flagged={r.pm_flagged}    reason={r.pm_reason}    studentId={r.id} date={date} phase="pm" />
               </li>
             ))}
           </ul>
@@ -239,10 +259,11 @@ function SummaryTile({
   icon: React.ReactNode
   label: string
   value: string
-  tone: 'blue' | 'purple' | 'red' | 'amber' | 'gray'
+  tone: 'blue' | 'green' | 'purple' | 'red' | 'amber' | 'gray'
 }) {
   const colours = {
     blue:   'border-blue-200 bg-blue-50/60 text-blue-800',
+    green:  'border-green-200 bg-green-50/60 text-green-800',
     purple: 'border-purple-200 bg-purple-50/60 text-purple-800',
     red:    'border-red-200 bg-red-50/60 text-red-800',
     amber:  'border-amber-200 bg-amber-50/60 text-amber-800',
@@ -259,12 +280,21 @@ function SummaryTile({
   )
 }
 
-function PhaseCell({ time, flagged, reason }: { time: string | null; flagged: boolean; reason: string | null }) {
+function PhaseCell({
+  time, flagged, reason, studentId, date, phase,
+}: {
+  time: string | null
+  flagged: boolean
+  reason: string | null
+  studentId: string
+  date: string
+  phase: 'am' | 'lunch' | 'pm'
+}) {
   if (!time) {
     return (
-      <span className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
-        <span className="w-1.5 h-1.5 rounded-full bg-gray-300 inline-block" />
-        Missing
+      <span className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+        <span aria-label="Missing">—</span>
+        <OverrideButton studentId={studentId} date={date} phase={phase} present={false} />
       </span>
     )
   }
@@ -277,6 +307,7 @@ function PhaseCell({ time, flagged, reason }: { time: string | null; flagged: bo
           <AlertTriangle size={11} className="text-amber-500" />
         </span>
       )}
+      <OverrideButton studentId={studentId} date={date} phase={phase} present={true} />
     </span>
   )
 }
