@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { PushOptIn } from '@/components/PushOptIn'
 import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, CalendarDays, Brain, ChevronRight, Target, ClipboardList, BookOpen, GraduationCap, ShieldCheck, CheckSquare, Video, Satellite } from 'lucide-react'
 import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
+import { londonDateISO } from '@/lib/dates'
 import { StudentCharts } from '@/components/charts/StudentCharts'
 import { buildAttendanceWeeks, buildAttendanceDrillDown } from '@/lib/charts/attendanceUtils'
 import { WellbeingPromptCard } from '@/components/wellbeing/WellbeingPromptCard'
@@ -48,11 +49,13 @@ export default async function DashboardPage() {
     }
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  // Dates in Europe/London — the server runs in UTC, so toISOString() shows
+  // yesterday's date between 00:00 and 01:00 BST
+  const today = londonDateISO()
   const tomorrowDate = new Date(Date.now() + 86400000)
-  const tomorrow = tomorrowDate.toISOString().split('T')[0]
-  const ago30 = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
-  const ago56 = new Date(Date.now() - 56 * 86400000).toISOString().split('T')[0]
+  const tomorrow = londonDateISO(tomorrowDate)
+  const ago30 = londonDateISO(new Date(Date.now() - 30 * 86400000))
+  const ago56 = londonDateISO(new Date(Date.now() - 56 * 86400000))
 
   // Run all independent queries in parallel — ~4x faster than sequential
   const [
@@ -151,11 +154,14 @@ export default async function DashboardPage() {
     .sort((a: any, b: any) => new Date(a.match_events.match_date).getTime() - new Date(b.match_events.match_date).getTime())
     .slice(0, 3)
 
-  // Attendance % — unique days present / unique days scheduled (last 30 days)
+  // Attendance % — unique days present ∩ scheduled / unique days scheduled
+  // (last 30 days). Intersecting means a check-in on an unscheduled day can't
+  // push the figure over 100%.
   const presentDates  = new Set((attendedDays ?? []).map(r => r.attendance_date as string))
   const scheduledDates = new Set((scheduledDays ?? []).map(r => r.scheduled_date as string))
+  const presentScheduledCount = [...presentDates].filter(d => scheduledDates.has(d)).length
   const attendancePct = scheduledDates.size > 0
-    ? Math.round(presentDates.size / scheduledDates.size * 100)
+    ? Math.round(presentScheduledCount / scheduledDates.size * 100)
     : null
 
   // Does tomorrow have a match session?
@@ -223,7 +229,7 @@ export default async function DashboardPage() {
           <CalendarDays size={18} className="text-blue-200" />
           <p className="text-xs font-semibold uppercase tracking-widest text-blue-200">Today</p>
           <p className="ml-auto text-xs text-blue-200">
-            {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/London' })}
           </p>
         </div>
 
@@ -312,7 +318,7 @@ export default async function DashboardPage() {
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Tomorrow</p>
           </div>
           <p className="text-xs text-muted-foreground">
-            {tomorrowDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {tomorrowDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/London' })}
           </p>
         </div>
 
@@ -484,7 +490,7 @@ export default async function DashboardPage() {
                 />
               </div>
               <p className="text-xs text-muted-foreground mt-1.5">
-                {presentDates.size} of {scheduledDates.size} days
+                {presentScheduledCount} of {scheduledDates.size} days
                 {attendancePct < 90 && <span className="text-amber-600 font-medium"> · Academy target: 90%</span>}
               </p>
             </CardContent>

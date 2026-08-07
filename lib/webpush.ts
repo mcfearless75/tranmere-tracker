@@ -54,7 +54,21 @@ export async function sendPushNotificationToUser(
   if (!subs?.length) return
 
   const payload: PushPayload = { title, body, url }
-  await Promise.allSettled(
+  const results = await Promise.allSettled(
     subs.map(s => sendPushNotification({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, payload))
   )
+
+  // Prune dead subscriptions: 404/410 means the push service no longer knows
+  // this endpoint (expired/revoked) — the row will never deliver again.
+  const deadEndpoints = results
+    .map((r, i) =>
+      r.status === 'rejected' &&
+      [404, 410].includes((r.reason as { statusCode?: number } | undefined)?.statusCode ?? 0)
+        ? subs[i]?.endpoint
+        : null
+    )
+    .filter((e): e is string => typeof e === 'string')
+  if (deadEndpoints.length > 0) {
+    await adminClient.from('push_subscriptions').delete().in('endpoint', deadEndpoints)
+  }
 }

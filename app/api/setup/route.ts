@@ -12,13 +12,17 @@ export async function POST(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Only allow if no admin exists
-  const { data: existing } = await adminClient
+  // Only allow if no admin exists. Fail CLOSED: a query error must lock the
+  // route, not open it — otherwise a transient DB error re-opens bootstrap.
+  const { data: existing, error: existingError } = await adminClient
     .from('users')
     .select('id')
     .eq('role', 'admin')
     .limit(1)
 
+  if (existingError) {
+    return NextResponse.json({ error: 'Setup unavailable' }, { status: 503 })
+  }
   if (existing && existing.length > 0) {
     return NextResponse.json({ error: 'Setup already complete' }, { status: 403 })
   }
@@ -31,10 +35,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'PIN must be 5 or 6 digits' }, { status: 400 })
   }
 
-  // Delete any existing superuser auth entry so re-setup works cleanly
-  const { data: existing_auth } = await adminClient.auth.admin.listUsers()
+  // Never delete or replace an existing superuser auth account. If one exists
+  // (even without an admin row in public.users — e.g. a half-broken state),
+  // refuse and leave repair to a human with service-role access.
+  const { data: existing_auth, error: listError } = await adminClient.auth.admin.listUsers()
+  if (listError) {
+    return NextResponse.json({ error: 'Setup unavailable' }, { status: 503 })
+  }
   const prev = existing_auth?.users?.find(u => u.email === SUPERUSER_EMAIL)
-  if (prev) await adminClient.auth.admin.deleteUser(prev.id)
+  if (prev) {
+    return NextResponse.json({ error: 'Setup already complete' }, { status: 403 })
+  }
 
   const { data: created, error: authError } = await adminClient.auth.admin.createUser({
     email: SUPERUSER_EMAIL,
@@ -43,14 +54,18 @@ export async function POST(request: Request) {
     user_metadata: { full_name: name },
   })
 
-  if (authError) return NextResponse.json({ error: authError.message })
+  if (authError) return NextResponse.json({ error: authError.message }, { status: 500 })
 
-  await adminClient.from('users').upsert({
+  const { error: upsertError } = await adminClient.from('users').upsert({
     id: created.user.id,
     email: SUPERUSER_EMAIL,
     name,
     role: 'admin',
   })
+
+  if (upsertError) {
+    return NextResponse.json({ error: 'Setup failed' }, { status: 500 })
+  }
 
   return NextResponse.json({ success: true })
 }

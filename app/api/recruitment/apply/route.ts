@@ -44,6 +44,34 @@ export async function POST(request: NextRequest) {
   const preferred_foot = PREFERRED_FEET.find((f) => f === preferredFoot) ?? null
 
   const supabase = createAdminClient()
+
+  // Lightweight abuse guard (no extra deps): this public endpoint writes
+  // minors' PII, so cap accepted applications per rolling hour. Legitimate
+  // volume is a handful a day; a flood is either a bot or a scripted attack.
+  const HOURLY_CAP = 20
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const { count, error: countError } = await supabase
+    .from('recruitment_prospects')
+    .select('id', { count: 'exact', head: true })
+    .eq('source', 'public_form')
+    .gte('created_at', oneHourAgo)
+
+  if (countError) {
+    return NextResponse.json(
+      { error: 'Unable to submit your application right now. Please try again later.' },
+      { status: 500 }
+    )
+  }
+  if ((count ?? 0) >= HOURLY_CAP) {
+    return NextResponse.json(
+      {
+        error:
+          'We are receiving a high number of applications at the moment. Please try again in an hour — your interest is not lost.',
+      },
+      { status: 429 }
+    )
+  }
+
   const { error } = await supabase.from('recruitment_prospects').insert({
     first_name: body.first_name.trim().slice(0, OPTIONAL_FIELD_MAX),
     last_name: body.last_name.trim().slice(0, OPTIONAL_FIELD_MAX),

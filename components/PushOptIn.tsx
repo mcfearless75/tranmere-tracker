@@ -53,10 +53,9 @@ export function PushOptIn() {
         }
       }
 
-      await PushNotifications.register()
-
-      // Listen for the registration token once
-      await new Promise<void>((resolve, reject) => {
+      // Attach listeners BEFORE calling register() — the native token event
+      // can fire immediately, so a listener added afterwards may miss it.
+      const tokenRegistered = new Promise<void>((resolve, reject) => {
         PushNotifications.addListener('registration', async (token) => {
           try {
             const res = await fetch('/api/push/native-register', {
@@ -79,6 +78,9 @@ export function PushOptIn() {
         // Timeout safety
         setTimeout(() => reject(new Error('Token registration timed out')), 20000)
       })
+
+      await PushNotifications.register()
+      await tokenRegistered
 
       return true
     } catch (err: unknown) {

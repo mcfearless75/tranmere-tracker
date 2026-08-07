@@ -3,27 +3,27 @@
 // "you missed AM" reminder fires after the window opens but before it closes.
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { londonDateISO, londonHour } from '@/lib/dates'
 import { sendPushNotification } from '@/lib/webpush'
+import { verifyCronSecret } from '@/lib/security'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get('authorization')
-  const secret = process.env.CRON_SECRET
-  if (!secret || authHeader !== `Bearer ${secret}`) {
+  if (!verifyCronSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const admin = createAdminClient()
   const now   = new Date()
 
-  // Determine phase from local time
-  const local = new Date(now.toLocaleString('en-GB', { timeZone: 'Europe/London' }))
-  const hour  = local.getHours()
+  // Determine phase from London local time. (new Date(toLocaleString('en-GB'))
+  // is unparseable dd/mm/yyyy → getHours() was NaN → phase was always 'pm'.)
+  const hour  = londonHour(now)
   const phase: 'am' | 'pm' = hour < 12 ? 'am' : 'pm'
 
-  const today = now.toISOString().split('T')[0]
+  const today = londonDateISO(now)
 
   // Get all students
   const { data: students } = await admin.from('users').select('id, name').eq('role', 'student')

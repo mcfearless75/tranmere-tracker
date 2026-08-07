@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { GraduationCap } from 'lucide-react'
 import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
+import { londonDateISO } from '@/lib/dates'
 
 export const dynamic = 'force-dynamic'
 
@@ -159,8 +160,8 @@ export default async function ParentDashboardPage() {
     )
   }
 
-  const today = new Date().toISOString().split('T')[0]
-  const ago30 = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
+  const today = londonDateISO()
+  const ago30 = londonDateISO(new Date(Date.now() - 30 * 86400000))
 
   const studentsData: StudentData[] = await Promise.all(studentIds.map(async (sid) => {
     const [
@@ -168,18 +169,26 @@ export default async function ParentDashboardPage() {
       { data: todaySessions },
       { data: attendedDays },
       { data: scheduledDays },
-      { data: nextMatch },
+      { data: squadRows },
     ] = await Promise.all([
       admin.from('users').select('name, avatar_url, position').eq('id', sid).single(),
       admin.from('attendance_sessions').select('id, session_label, session_type, opens_at, closes_at').eq('scheduled_date', today).order('opens_at'),
       admin.from('daily_attendance').select('attendance_date').eq('student_id', sid).gte('attendance_date', ago30).lte('attendance_date', today),
       admin.from('attendance_sessions').select('scheduled_date').gte('scheduled_date', ago30).lte('scheduled_date', today),
-      admin.from('match_squads').select('status, coach_rating, match_events(opponent, match_date, location)').eq('player_id', sid).not('match_events', 'is', null).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      admin.from('match_squads').select('status, coach_rating, match_events(opponent, match_date, location)').eq('player_id', sid).gte('match_events.match_date', today).not('match_events', 'is', null).limit(10),
     ])
+
+    // Next match — soonest upcoming fixture (match_date >= today), same pattern
+    // as parent/matches. Ordering by created_at showed retro-logged past matches.
+    const nextMatch = ((squadRows ?? []) as unknown as MatchSquadRow[])
+      .filter(r => r.match_events && r.match_events.match_date >= today)
+      .sort((a, b) => (a.match_events!.match_date > b.match_events!.match_date ? 1 : -1))[0] ?? null
 
     const presentDates = new Set((attendedDays ?? []).map(r => r.attendance_date as string))
     const scheduledDates = new Set((scheduledDays ?? []).map(r => r.scheduled_date as string))
-    const attendancePct = scheduledDates.size > 0 ? Math.round(presentDates.size / scheduledDates.size * 100) : null
+    // Only count present days that were actually scheduled, so the % caps at 100
+    const presentScheduled = [...presentDates].filter(d => scheduledDates.has(d)).length
+    const attendancePct = scheduledDates.size > 0 ? Math.round(presentScheduled / scheduledDates.size * 100) : null
 
     return {
       id: sid,
@@ -188,7 +197,7 @@ export default async function ParentDashboardPage() {
       attendancePct,
       presentCount: presentDates.size,
       scheduledCount: scheduledDates.size,
-      nextMatch: nextMatch as MatchSquadRow | null,
+      nextMatch,
     }
   }))
 

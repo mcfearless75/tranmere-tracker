@@ -11,7 +11,11 @@
 import { NextRequest } from 'next/server'
 
 const insertMock = jest.fn()
-const adminFromMock = jest.fn(() => ({ insert: insertMock }))
+// Rolling-hour rate-limit count query: .select('id', {count,head}).eq().gte()
+const gteMock = jest.fn()
+const eqMock = jest.fn(() => ({ gte: gteMock }))
+const selectMock = jest.fn(() => ({ eq: eqMock }))
+const adminFromMock = jest.fn(() => ({ insert: insertMock, select: selectMock }))
 
 jest.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => ({
@@ -57,6 +61,8 @@ function makeRequest(body: unknown): NextRequest {
 beforeEach(() => {
   insertMock.mockReset()
   insertMock.mockResolvedValue({ error: null })
+  gteMock.mockReset()
+  gteMock.mockResolvedValue({ count: 0, error: null })
   adminFromMock.mockClear()
 })
 
@@ -110,6 +116,24 @@ describe('POST /api/recruitment/apply', () => {
     await POST(makeRequest(validApplication({ preferred_foot: 'head' })))
     expect(insertMock).toHaveBeenCalledTimes(1)
     expect(insertMock.mock.calls[0][0].preferred_foot).toBeNull()
+  })
+
+  it('returns 429 without inserting once the rolling-hour cap is reached', async () => {
+    gteMock.mockResolvedValue({ count: 20, error: null })
+    const res = await POST(makeRequest(validApplication()))
+    expect(res.status).toBe(429)
+    const json = await res.json()
+    expect(json.error).toMatch(/try again/i)
+    expect(insertMock).not.toHaveBeenCalled()
+  })
+
+  it('fails closed with a generic 500 when the rate-limit count query errors', async () => {
+    gteMock.mockResolvedValue({ count: null, error: { message: 'boom' } })
+    const res = await POST(makeRequest(validApplication()))
+    expect(res.status).toBe(500)
+    const json = await res.json()
+    expect(json.error).not.toMatch(/boom/i)
+    expect(insertMock).not.toHaveBeenCalled()
   })
 
   it('returns a generic 500 when the insert fails, without leaking details', async () => {
