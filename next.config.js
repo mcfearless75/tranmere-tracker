@@ -11,6 +11,16 @@ const withPWA = require('next-pwa')({
   // had no 'push' event listener at all: a fully working subscribe-and-send
   // pipeline still displayed nothing, silently, on every device.
   importScripts: ['push-worker.js'],
+  // next-pwa 5.6 excludes the Pages Router build manifests (build-manifest.json,
+  // react-loadable-manifest.json) from the precache list, but was never updated
+  // for the App Router equivalent — app-build-manifest.json is a Next.js
+  // internal build artifact that Vercel does not serve at runtime, so Workbox
+  // precaching it 404s on every single install. Per the Service Worker spec, a
+  // single failed precache fetch fails the WHOLE install — the SW never
+  // reaches "activated", so navigator.serviceWorker.ready hangs forever and
+  // every push subscription attempt times out. This has silently broken every
+  // service worker install since the app moved to App Router.
+  buildExcludes: [/^app-build-manifest\.json$/],
   // Never cache /api/* on device. next-pwa's default runtime caching includes
   // an "apis" NetworkFirst rule that persists authenticated API responses
   // (players' private data) in the service-worker cache for 24h — readable by
