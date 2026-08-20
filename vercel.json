@@ -25,6 +25,10 @@
       "schedule": "0 15 * * 1-5"
     },
     {
+      "path": "/api/cron/lunch-ending",
+      "schedule": "45 11 * * 1-5"
+    },
+    {
       "path": "/api/cron/session-reminders",
       "schedule": "*/5 * * * *"
     },
