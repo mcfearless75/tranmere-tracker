@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { isNative, getPlatform } from '@/lib/native'
+import { reportClientError } from '@/lib/reportClientError'
 
 type State = 'idle' | 'loading' | 'subscribed' | 'denied' | 'unsupported' | 'error'
 
@@ -86,6 +87,9 @@ export function PushOptIn() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
       if (!silent) {
+        // Caught here, never thrown to a React error boundary — without this
+        // an explicit tap-to-enable failure leaves zero server-side trace.
+        reportClientError(err instanceof Error ? err : new Error(msg), 'push-opt-in-native')
         setErrorMsg(`Could not enable notifications: ${msg}`)
         setState('error')
       }
@@ -165,6 +169,9 @@ export function PushOptIn() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
       if (!silent) {
+        // Caught here, never thrown to a React error boundary — without this
+        // an explicit tap-to-enable failure leaves zero server-side trace.
+        reportClientError(err instanceof Error ? err : new Error(msg), 'push-opt-in-web')
         setErrorMsg(`Could not enable notifications: ${msg}`)
         setState('error')
       }
