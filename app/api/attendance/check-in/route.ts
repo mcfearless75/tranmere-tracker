@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyParentsOfCheckIn } from '@/lib/attendance/parentNotifyUtils'
+import { notifyStaffOfFlaggedCheckIn } from '@/lib/attendance/staffFlagNotify'
 import { friendlyCheckInError } from '@/lib/attendance/checkInErrors'
 import type { AttendancePhase } from '@/lib/attendance/phase'
 import { londonDateISO } from '@/lib/dates'
@@ -83,6 +84,21 @@ export async function POST(request: Request) {
 
   // Awaited so serverless doesn't kill the push mid-flight; never throws.
   await notifyParentsOfCheckIn(admin, user.id, phase, 'checked_in')
+
+  // If the RPC flagged this tap (off-site GPS / no GPS), alert staff so an
+  // off-track check-in surfaces immediately instead of waiting to be spotted
+  // in the day view. Awaited; helper never throws.
+  const { data: flagRow } = await admin
+    .from('daily_attendance')
+    .select(`${phase}_is_flagged, ${phase}_flag_reason`)
+    .eq('student_id', user.id)
+    .eq('attendance_date', today)
+    .maybeSingle()
+  const flagged = (flagRow as Record<string, unknown> | null)?.[`${phase}_is_flagged`] === true
+  if (flagged) {
+    const reason = String((flagRow as Record<string, unknown>)?.[`${phase}_flag_reason`] ?? 'flagged')
+    await notifyStaffOfFlaggedCheckIn(admin, user.id, phase, reason)
+  }
 
   return NextResponse.json({ ok: true, success: true, id: data })
 }

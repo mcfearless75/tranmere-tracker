@@ -96,7 +96,20 @@ export function PushOptIn() {
   // ─── Web push path ───────────────────────────────────────────────────────────
 
   async function registerWebPush(silent = false): Promise<boolean> {
-    const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+    // Prefer the build-time env var, but fall back to fetching the key from
+    // the server — NEXT_PUBLIC_VAPID_PUBLIC_KEY was never configured in
+    // Vercel, which made this early-return fire for every user and web push
+    // silently never work.
+    let publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+    if (!publicKey) {
+      try {
+        const res = await fetch('/api/push/vapid-key')
+        const json = await res.json() as { key: string | null }
+        publicKey = json.key ?? undefined
+      } catch {
+        // fall through to the missing-key error below
+      }
+    }
     if (!publicKey) {
       if (!silent) {
         setErrorMsg('Push configuration missing — contact support.')
