@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { SplashScreen } from '@/components/SplashScreen'
+import { PushNavigationListener } from '@/components/PushNavigationListener'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className={inter.className}>
         <SplashScreen />
+        <PushNavigationListener />
         {children}
       </body>
     </html>
