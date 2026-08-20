@@ -33,6 +33,10 @@
       "schedule": "45 12 * * 1-5"
     },
     {
+      "path": "/api/cron/missed-checkin-sweep",
+      "schedule": "*/15 7-19 * * 1-5"
+    },
+    {
       "path": "/api/cron/session-reminders",
       "schedule": "*/5 * * * *"
     },
