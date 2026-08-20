@@ -1,14 +1,19 @@
-// Vercel Cron: daily "lunch is nearly over" broadcast to every active student.
-// Runs at 11:45 UTC weekdays = 12:45 London during BST. Scheduled as a fixed
-// UTC time like the other attendance crons (see check-in-nudges) — it will
-// read as 12:45 GMT, i.e. an hour early by the clock, once BST ends; adjust
-// vercel.json when the clocks change if the wall-clock time matters that
-// precisely outside term-time.
+// Vercel Cron: daily "lunch is nearly over" broadcast to every active student,
+// always at 12:45 LONDON TIME, correctly through the BST/GMT clock change.
+//
+// Vercel cron schedules are fixed UTC — there is no DST-aware option. The UK's
+// offset from UTC is always a whole number of hours (0 in GMT, +1 in BST), so
+// the MINUTE never shifts — only the hour does. vercel.json fires this route
+// twice, at 11:45 and 12:45 UTC (one covers BST, the other GMT); this handler
+// checks the real London hour via Intl and only sends when it's actually 12,
+// so exactly one of the two invocations does anything on any given day —
+// self-correcting across the clock change with no manual schedule edit.
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushNotification } from '@/lib/webpush'
 import { sendFcmBatch } from '@/lib/firebase-admin'
 import { verifyCronSecret } from '@/lib/security'
+import { londonHour } from '@/lib/dates'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -16,6 +21,12 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: Request) {
   if (!verifyCronSecret(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const now = new Date()
+  if (londonHour(now) !== 12) {
+    // The other of the two scheduled invocations is the real one today.
+    return NextResponse.json({ skipped: true, reason: 'not 12:45 London time', londonHour: londonHour(now) })
   }
 
   const admin = createAdminClient()
