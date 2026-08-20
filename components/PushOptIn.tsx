@@ -133,7 +133,7 @@ export function PushOptIn() {
       const reg = await Promise.race([
         navigator.serviceWorker.ready,
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Service worker install timed out')), 15000)
+          setTimeout(() => reject(new Error('Service worker install timed out — try reloading the page and tapping this again')), 20000)
         ),
       ])
 
