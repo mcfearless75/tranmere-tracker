@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { friendlyCheckInError } from '@/lib/attendance/checkInErrors'
 import { isInsideFence } from '@/lib/attendance/geoUtils'
+import { recordAndNotifyRejection } from '@/lib/attendance/rejectionNotify'
 import type { AttendancePhase } from '@/lib/attendance/phase'
 import { londonDateISO } from '@/lib/dates'
 import { NextResponse } from 'next/server'
@@ -50,14 +51,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'Academy not configured' }, { status: 500 })
   }
 
-  // Hard geofence — missing or out-of-range GPS is a rejection on this path
+  const today = londonDateISO()
+
+  // Hard geofence — missing or out-of-range GPS is a rejection on this path.
+  // Recorded + alerted to staff (awaited, never throws) so "tried to check in
+  // but isn't at the academy" surfaces immediately — first attempt per
+  // student/phase/day only; repeats just update the attempt count.
   const fence = isInsideFence(geo_lat, geo_lng, settings.geo_lat, settings.geo_lng, settings.radius_m)
   if (!fence.inside) {
+    await recordAndNotifyRejection(admin, user.id, today, phase, fence.distanceM)
     return NextResponse.json({ ok: false, error: NOT_AT_ACADEMY }, { status: 422 })
   }
 
   // Idempotency: short-circuit before the RPC on a repeat tap
-  const today = londonDateISO()
   const checkedCol = `${phase}_checked_at` as const
   const { data: existing } = await admin
     .from('daily_attendance')
