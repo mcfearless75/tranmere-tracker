@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react'
 import { Camera, Upload, Check } from 'lucide-react'
 import { updateCourse, uploadAvatar } from './actions'
+import { isHeicFile } from '@/lib/media/heic'
 
 interface Course {
   id: string
@@ -25,6 +26,8 @@ interface ProfileClientProps {
 export function ProfileClient({ profile, courses }: ProfileClientProps) {
   const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url)
   const [uploading, setUploading] = useState(false)
+  const [uploadStage, setUploadStage] = useState<'converting' | 'uploading'>('uploading')
+  const [uploadError, setUploadError] = useState('')
   const [courseId, setCourseId] = useState(profile.course_id ?? '')
   const [courseSaved, setCourseSaved] = useState(false)
   const [courseError, setCourseError] = useState('')
@@ -40,11 +43,41 @@ export function ProfileClient({ profile, courses }: ProfileClientProps) {
   async function handleFile(file: File | null) {
     if (!file) return
     setUploading(true)
+    setUploadError('')
+
+    let uploadFile = file
+    // iPhones default to HEIC, which almost no non-Apple browser can render
+    // in an <img> tag. Convert to JPEG in the browser before it ever reaches
+    // the server — heic2any is a pure-JS/WASM decoder, no native binary
+    // needed, so this works the same in serverless as it does locally.
+    if (isHeicFile(file)) {
+      setUploadStage('converting')
+      try {
+        const heic2any = (await import('heic2any')).default
+        const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 })
+        const blob = Array.isArray(converted) ? converted[0] : converted
+        uploadFile = new File(
+          [blob],
+          file.name.replace(/\.hei[cf]$/i, '.jpg'),
+          { type: 'image/jpeg' }
+        )
+      } catch {
+        setUploadError('Could not process that photo — try a different one, or turn off "High Efficiency" in your camera settings.')
+        setUploading(false)
+        return
+      }
+    }
+
+    setUploadStage('uploading')
     const fd = new FormData()
-    fd.append('avatar', file)
+    fd.append('avatar', uploadFile)
     startTransition(async () => {
       const res = await uploadAvatar(fd)
-      if (res && 'url' in res && res.url) setAvatarUrl(res.url)
+      if (res && 'url' in res && res.url) {
+        setAvatarUrl(res.url)
+      } else if (res && 'error' in res && res.error) {
+        setUploadError(res.error)
+      }
       setUploading(false)
     })
   }
@@ -82,10 +115,16 @@ export function ProfileClient({ profile, courses }: ProfileClientProps) {
           </div>
           {uploading && (
             <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
-              <span className="text-white text-xs animate-pulse">Uploading…</span>
+              <span className="text-white text-xs animate-pulse text-center px-2">
+                {uploadStage === 'converting' ? 'Processing…' : 'Uploading…'}
+              </span>
             </div>
           )}
         </div>
+
+        {uploadError && (
+          <p className="text-xs text-red-600 text-center max-w-xs">{uploadError}</p>
+        )}
 
         <div className="flex gap-2">
           <button

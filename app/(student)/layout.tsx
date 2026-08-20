@@ -19,11 +19,14 @@ export default async function StudentLayout({ children }: { children: React.Reac
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+  // .maybeSingle(): a genuinely-missing profile row must not crash the
+  // layout — .single() throwing here is what a layout-level crash (which
+  // no nested error.tsx can catch, only the root boundary) looks like.
   const { data: profile } = await adminClient
     .from('users')
     .select('name, avatar_url, role')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   // Admin/coach/teacher should never see student pages — send them to admin
   if (profile && ['admin', 'coach', 'teacher'].includes(profile.role)) {

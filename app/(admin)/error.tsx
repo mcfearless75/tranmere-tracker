@@ -1,11 +1,19 @@
 'use client'
 
+import { useEffect } from 'react'
+import { reportClientError } from '@/lib/reportClientError'
+
 export default function AdminError({
+  error,
   reset,
 }: {
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  useEffect(() => {
+    reportClientError(error, 'admin')
+  }, [error])
+
   return (
     <div className="flex items-center justify-center p-6">
       <div className="rounded-2xl border bg-white p-6 max-w-sm w-full text-center">
