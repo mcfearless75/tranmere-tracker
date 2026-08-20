@@ -5,6 +5,12 @@ const withPWA = require('next-pwa')({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
+  // Adds the push/notificationclick handlers to the generated sw.js. This is
+  // NOT automatic — public/push-worker.js (or its predecessor, worker/index.js)
+  // was previously never referenced anywhere, so the deployed service worker
+  // had no 'push' event listener at all: a fully working subscribe-and-send
+  // pipeline still displayed nothing, silently, on every device.
+  importScripts: ['push-worker.js'],
   // Never cache /api/* on device. next-pwa's default runtime caching includes
   // an "apis" NetworkFirst rule that persists authenticated API responses
   // (players' private data) in the service-worker cache for 24h — readable by

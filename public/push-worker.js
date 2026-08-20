@@ -1,3 +1,9 @@
+// Push notification display + tap-to-open handling for the service worker.
+// Wired into the generated public/sw.js via next.config.js's `importScripts`
+// option — NOT auto-injected by next-pwa. Without that config key this file
+// (or its old location, worker/index.js) is dead code: subscriptions and
+// server-side sends can both succeed while the browser silently has nothing
+// listening for the 'push' event.
 self.addEventListener('push', event => {
   if (!event.data) return
   let data
