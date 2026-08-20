@@ -10,12 +10,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // .maybeSingle(): a genuinely-missing profile row must not crash the
+  // layout — .single() throwing here is what a layout-level crash (which
+  // no nested error.tsx can catch, only the root boundary) looks like.
   const adminClient = createAdminClient()
   const { data: profile } = await adminClient
     .from('users')
     .select('role, name, avatar_url')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   if (!profile || !['admin', 'coach', 'teacher'].includes(profile.role)) {
     redirect('/dashboard')

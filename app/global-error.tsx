@@ -1,13 +1,21 @@
 'use client'
 
+import { useEffect } from 'react'
+import { reportClientError } from '@/lib/reportClientError'
+
 // Global error boundary — replaces the root layout, so Tailwind CSS is not
 // available here. Inline styles only.
 export default function GlobalError({
+  error,
   reset,
 }: {
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  useEffect(() => {
+    reportClientError(error, 'global')
+  }, [error])
+
   return (
     <html lang="en">
       <body style={{ margin: 0, fontFamily: 'system-ui, sans-serif', background: '#f9fafb' }}>

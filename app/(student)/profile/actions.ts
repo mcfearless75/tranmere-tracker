@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
+import { isHeicFile } from '@/lib/media/heic'
 
 function serviceClient() {
   return createServiceClient(
@@ -28,6 +29,13 @@ export async function updateCourse(courseId: string) {
   return { success: true }
 }
 
+// The browser (and the client-side conversion in ProfileClient) should never
+// send anything outside this list — HEIC/HEIF (the default iPhone camera
+// format) does not render in an <img> tag on almost any non-Apple browser,
+// so it must never reach storage. This is a server-side backstop in case a
+// stale client build skips the client-side conversion.
+const ALLOWED_AVATAR_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+
 export async function uploadAvatar(formData: FormData) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -35,6 +43,13 @@ export async function uploadAvatar(formData: FormData) {
 
   const file = formData.get('avatar') as File
   if (!file || file.size === 0) return { error: 'No file' }
+
+  if (isHeicFile(file)) {
+    return { error: 'That photo format (HEIC) can\'t be used here — please try again, the app should convert it automatically.' }
+  }
+  if (!ALLOWED_AVATAR_TYPES.has(file.type)) {
+    return { error: 'Please upload a JPEG, PNG, WEBP or GIF image.' }
+  }
 
   const adminClient = serviceClient()
 
