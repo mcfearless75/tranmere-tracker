@@ -69,7 +69,7 @@ begin
     -- never for a row that was already non-student (staff membership here
     -- is manually seeded/managed, not trigger-owned, and must survive any
     -- unrelated update that merely names role/year_group in its SET list).
-    if tg_op = 'update' and old.role = 'student' then
+    if tg_op = 'UPDATE' and old.role = 'student' then
       delete from chat_members
         where user_id = new.id
         and room_id in (select id from chat_rooms where sync_year_group is not null);
