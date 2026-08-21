@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, Bell, BarChart2, GraduationCap, LogOut, Calendar, Wifi, Activity, LayoutGrid, Plug, MessageSquare, Megaphone, Home, ClipboardList, ShieldAlert, Network, UserPlus, Users2, Banknote } from 'lucide-react'
+import { Users, Bell, BarChart2, GraduationCap, LogOut, Calendar, CalendarDays, Wifi, Activity, LayoutGrid, Plug, MessageSquare, Megaphone, Home, ClipboardList, ShieldAlert, Network, UserPlus, Users2, Banknote } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
 import { MOODLE_TEACHER_URL } from '@/lib/config/moodle'
 
 const nav = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: Home },
+  { href: '/admin/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: MOODLE_TEACHER_URL, label: 'Moodle', icon: GraduationCap, external: true },
   { href: '/admin/match-events', label: 'Match Squads', icon: Calendar, teacherHidden: true },
