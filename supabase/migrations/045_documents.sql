@@ -65,7 +65,7 @@ on conflict (id) do nothing;
 -- isn't silently blocked by having no read policy at all.
 drop policy if exists "documents_auth_read" on storage.objects;
 create policy "documents_auth_read" on storage.objects
-  for select to authenticated using (true);
+  for select to authenticated using (bucket_id = 'documents');
 
 -- Only staff can upload.
 drop policy if exists "documents_staff_insert" on storage.objects;
