@@ -9,10 +9,12 @@ export function ChatRoomActions({
   roomId,
   isOwner,
   isDmOrBot,
+  canLeave = true,
 }: {
   roomId: string
   isOwner: boolean
   isDmOrBot: boolean
+  canLeave?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [pending, start] = useTransition()
@@ -98,14 +100,18 @@ export function ChatRoomActions({
             <Bell size={15} className="text-tranmere-blue" />
             Nudge
           </button>
-          <div className="border-t my-1" />
-          <button
-            onClick={handleLeave}
-            className="flex w-full items-center gap-3 px-4 py-2.5 hover:bg-red-50 text-left font-medium text-red-600"
-          >
-            {isOwner && isDmOrBot ? <Trash2 size={15} /> : <LogOut size={15} />}
-            {isOwner && isDmOrBot ? 'Delete conversation' : 'Leave conversation'}
-          </button>
+          {canLeave && (
+            <>
+              <div className="border-t my-1" />
+              <button
+                onClick={handleLeave}
+                className="flex w-full items-center gap-3 px-4 py-2.5 hover:bg-red-50 text-left font-medium text-red-600"
+              >
+                {isOwner && isDmOrBot ? <Trash2 size={15} /> : <LogOut size={15} />}
+                {isOwner && isDmOrBot ? 'Delete conversation' : 'Leave conversation'}
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
