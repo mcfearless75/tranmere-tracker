@@ -4,6 +4,8 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { ChatThread } from './ChatThread'
+import { GroupMembers } from './GroupMembers'
+import { AddGroupMembers } from './AddGroupMembers'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +34,21 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
         <Link href="/chat" className="text-tranmere-blue underline mt-2 inline-block">Back</Link>
       </div>
     )
+  }
+
+  const isGroupRoom = room.kind === 'custom'
+
+  // For staff on a manually-managed group, load who could still be added —
+  // everyone except parents and everyone already a member.
+  let addable: { id: string; name: string | null; role: string }[] = []
+  if (isGroupRoom && isStaff && !room.sync_year_group) {
+    const memberIds = (members ?? []).map((m: any) => m.user_id)
+    const { data: candidates } = await admin
+      .from('users')
+      .select('id, name, role')
+      .neq('role', 'parent')
+      .order('name')
+    addable = (candidates ?? []).filter(c => !memberIds.includes(c.id))
   }
 
   // Most recent 100 messages only — long-lived rooms accumulate unbounded
@@ -69,6 +86,21 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
           </p>
         </div>
       </header>
+
+      {isGroupRoom && (
+        <GroupMembers
+          roomId={params.roomId}
+          members={(members ?? []) as any}
+          currentUserId={user.id}
+          isStaff={!!isStaff}
+          syncYearGroup={room.sync_year_group ?? null}
+        />
+      )}
+      {isGroupRoom && isStaff && !room.sync_year_group && (
+        <div className="border-t bg-white px-3 pb-2">
+          <AddGroupMembers roomId={params.roomId} addable={addable} />
+        </div>
+      )}
 
       <ChatThread
         roomId={params.roomId}
