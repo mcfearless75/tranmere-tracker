@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { MessageSquare, Users, Crown, Trophy, Plus } from 'lucide-react'
 import { NewDmPicker } from './NewDmPicker'
+import { NewGroupPicker } from './NewGroupPicker'
 import { AiCoachButton } from './AiCoachButton'
 import { ChatRoomActions } from './ChatRoomActions'
 
@@ -20,7 +21,7 @@ export default async function ChatHubPage() {
   let migrationNeeded = false
   const { data: myMemberships, error } = await admin
     .from('chat_members')
-    .select('room_id, last_read_at, chat_rooms(id, kind, name, match_id, last_message_at, created_by)')
+    .select('room_id, last_read_at, chat_rooms(id, kind, name, match_id, last_message_at, created_by, sync_year_group)')
     .eq('user_id', user.id)
     .order('chat_rooms(last_message_at)', { ascending: false } as any)
 
@@ -88,6 +89,7 @@ export default async function ChatHubPage() {
         lastAt: room.last_message_at,
         unread: unreadByRoom[room.id] ?? 0,
         isOwner: room.created_by === user.id,
+        syncYearGroup: room.sync_year_group ?? null,
       }
     })
     .filter(Boolean) as any[]
@@ -101,6 +103,11 @@ export default async function ChatHubPage() {
     ? await admin.from('users').select('id, name, role, avatar_url').neq('id', user.id).order('name')
     : await admin.from('users').select('id, name, role, avatar_url').neq('id', user.id).in('role', ['coach','teacher','admin','student']).order('name')
 
+  // Group chat membership excludes parents — they use the parent portal instead.
+  const { data: groupDirectory } = isStaff
+    ? await admin.from('users').select('id, name, role, avatar_url').neq('id', user.id).neq('role', 'parent').order('name')
+    : { data: [] as { id: string; name: string | null; role: string; avatar_url: string | null }[] }
+
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-8 pb-24 md:pb-8 space-y-3">
       <div className="flex items-center justify-between">
@@ -111,6 +118,7 @@ export default async function ChatHubPage() {
 
       <AiCoachButton />
       <NewDmPicker directory={directory ?? []} />
+      {isStaff && <NewGroupPicker directory={groupDirectory ?? []} />}
 
       {rooms.length === 0 && (
         <div className="rounded-2xl border bg-white p-8 text-center text-sm text-muted-foreground">
@@ -152,7 +160,7 @@ export default async function ChatHubPage() {
                   </span>
                 )}
               </Link>
-              <ChatRoomActions roomId={r.id} isOwner={r.isOwner} isDmOrBot={isDmOrBot} />
+              <ChatRoomActions roomId={r.id} isOwner={r.isOwner} isDmOrBot={isDmOrBot} canLeave={!r.syncYearGroup} />
             </div>
           )
         })}
