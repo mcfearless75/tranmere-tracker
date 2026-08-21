@@ -43,6 +43,7 @@ export function CalendarGrid({ events, initialYear, initialMonth }: CalendarGrid
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
   const grouped = groupEventsByDate(events)
+  const presentTypes = Array.from(new Set(events.map(e => e.type))) as CalendarEvent['type'][]
 
   const daysInMonth = getDaysInMonth(year, month)
   // Day of week for 1st of month: 0=Sun…6=Sat → remap to Mon=0…Sun=6
@@ -163,11 +164,11 @@ export function CalendarGrid({ events, initialYear, initialMonth }: CalendarGrid
         })}
       </div>
 
-      {/* Legend */}
+      {/* Legend — only for types actually present in the events prop */}
       <div className="flex gap-4 justify-center pt-1">
-        {(Object.entries(DOT_COLOUR) as [CalendarEvent['type'], string][]).map(([type, colour]) => (
+        {presentTypes.map(type => (
           <div key={type} className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${colour}`} />
+            <span className={`w-2 h-2 rounded-full ${DOT_COLOUR[type]}`} />
             <span className="text-xs text-muted-foreground">{TYPE_LABEL[type]}</span>
           </div>
         ))}

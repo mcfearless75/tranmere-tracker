@@ -26,9 +26,12 @@ create policy "staff can manage calendar_events"
   on calendar_events for all
   using (public.is_staff());
 
--- Everyone can read — non-sensitive academy info, every role sees it
+-- Everyone (authenticated) can read — non-sensitive academy info, every role sees it.
+-- `to authenticated` is required: without it, Supabase's default grants also let
+-- the `anon` role read via the REST API (the anon key ships in the client bundle).
 create policy "everyone can read calendar_events"
   on calendar_events for select
+  to authenticated
   using (true);
 
 -- Verification (run separately):

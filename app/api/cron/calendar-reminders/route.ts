@@ -11,6 +11,7 @@ import { sendPushNotification } from '@/lib/webpush'
 import { sendFcmBatch } from '@/lib/firebase-admin'
 import { verifyCronSecret } from '@/lib/security'
 import { londonHour, londonDateISO } from '@/lib/dates'
+import { formatEventTime } from '@/lib/calendar/calendarUtils'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
 
   for (const event of events) {
     const bodyParts: string[] = []
-    if (event.event_time) bodyParts.push(event.event_time.slice(0, 5))
+    if (event.event_time) bodyParts.push(formatEventTime(event.event_time))
     if (event.description) bodyParts.push(event.description.slice(0, 80))
     const payload = {
       title: `📅 Tomorrow: ${event.title}`,

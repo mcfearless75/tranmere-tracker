@@ -1,11 +1,12 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CalendarEventsManager } from './CalendarEventsManager'
+import { londonDateISO } from '@/lib/dates'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AdminCalendarPage() {
   const supabase = createAdminClient()
-  const today = new Date().toISOString().split('T')[0]
+  const today = londonDateISO()
 
   const { data: events } = await supabase
     .from('calendar_events')

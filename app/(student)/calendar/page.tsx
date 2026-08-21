@@ -65,7 +65,7 @@ export default async function CalendarPage() {
       {/* Page header */}
       <div className="py-2">
         <h1 className="text-lg font-bold text-tranmere-blue">Calendar</h1>
-        <p className="text-xs text-muted-foreground">Sessions, matches &amp; deadlines</p>
+        <p className="text-xs text-muted-foreground">Sessions, matches, deadlines &amp; events</p>
       </div>
 
       {/* Calendar card */}

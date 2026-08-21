@@ -34,6 +34,7 @@ export async function PATCH(
       event_time: event_time || null,
       description: description?.trim() || null,
       updated_at: new Date().toISOString(),
+      reminder_sent_at: null,
     })
     .eq('id', params.eventId)
 
