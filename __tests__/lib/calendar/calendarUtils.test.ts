@@ -2,6 +2,7 @@ import {
   getDaysInMonth,
   getCalendarEvents,
   groupEventsByDate,
+  formatEventTime,
   type CalendarEvent,
 } from '@/lib/calendar/calendarUtils'
 
@@ -138,5 +139,85 @@ describe('groupEventsByDate', () => {
     const grouped = groupEventsByDate(events)
     expect(grouped['2024-06-01'].every(e => e.date === '2024-06-01')).toBe(true)
     expect(grouped['2024-06-02'].every(e => e.date === '2024-06-02')).toBe(true)
+  })
+})
+
+describe('formatEventTime', () => {
+  it('formats a morning time without minutes', () => {
+    expect(formatEventTime('09:00:00')).toBe('9am')
+  })
+
+  it('formats an afternoon time with minutes', () => {
+    expect(formatEventTime('18:30:00')).toBe('6:30pm')
+  })
+
+  it('formats midday as 12pm', () => {
+    expect(formatEventTime('12:00:00')).toBe('12pm')
+  })
+
+  it('formats midnight as 12am', () => {
+    expect(formatEventTime('00:00:00')).toBe('12am')
+  })
+
+  it('handles an HH:MM string with no seconds', () => {
+    expect(formatEventTime('06:05')).toBe('6:05am')
+  })
+})
+
+describe('getCalendarEvents — calendar_events', () => {
+  it('maps calendar_events rows to event-type entries', () => {
+    const calendarEvents = [
+      { id: '1', title: 'Kit collection day', event_date: '2024-06-12', event_time: null, description: null },
+    ]
+    const result = getCalendarEvents([], [], [], calendarEvents)
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject<CalendarEvent>({
+      date: '2024-06-12',
+      label: 'Kit collection day',
+      type: 'event',
+    })
+  })
+
+  it('includes a formatted time when event_time is set', () => {
+    const calendarEvents = [
+      { id: '1', title: "Parents' evening", event_date: '2024-06-12', event_time: '18:30:00', description: null },
+    ]
+    const result = getCalendarEvents([], [], [], calendarEvents)
+    expect(result[0].time).toBe('6:30pm')
+  })
+
+  it('omits time when event_time is null', () => {
+    const calendarEvents = [
+      { id: '1', title: 'Trip', event_date: '2024-06-12', event_time: null, description: null },
+    ]
+    const result = getCalendarEvents([], [], [], calendarEvents)
+    expect(result[0].time).toBeUndefined()
+  })
+
+  it('includes description when set, omits when null', () => {
+    const withDesc = getCalendarEvents([], [], [], [
+      { id: '1', title: 'Trip', event_date: '2024-06-12', event_time: null, description: 'Meet at reception 8am' },
+    ])
+    expect(withDesc[0].description).toBe('Meet at reception 8am')
+
+    const withoutDesc = getCalendarEvents([], [], [], [
+      { id: '1', title: 'Trip', event_date: '2024-06-12', event_time: null, description: null },
+    ])
+    expect(withoutDesc[0].description).toBeUndefined()
+  })
+
+  it('defaults the 4th argument to an empty array — existing 3-arg calls still work', () => {
+    const result = getCalendarEvents([], [], [])
+    expect(result).toHaveLength(0)
+  })
+
+  it('combines calendar events with the other three types', () => {
+    const sessions = [{ scheduled_date: '2024-06-10', session_label: 'AM Session', session_type: 'training', opens_at: '2024-06-10T09:00:00Z', closes_at: null }]
+    const matches = [{ match_date: '2024-06-15', opponent: 'Wrexham', location: 'Away' }]
+    const assignments = [{ due_date: '2024-06-20', title: 'Essay' }]
+    const calendarEvents = [{ id: '1', title: 'Trip', event_date: '2024-06-25', event_time: null, description: null }]
+    const result = getCalendarEvents(sessions, matches, assignments, calendarEvents)
+    expect(result).toHaveLength(4)
+    expect(result.map(e => e.type)).toEqual(['session', 'match', 'deadline', 'event'])
   })
 })

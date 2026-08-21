@@ -14,18 +14,21 @@ const DOT_COLOUR: Record<CalendarEvent['type'], string> = {
   session: 'bg-blue-500',
   match: 'bg-green-500',
   deadline: 'bg-red-500',
+  event: 'bg-amber-500',
 }
 
 const EVENT_BADGE: Record<CalendarEvent['type'], string> = {
   session: 'bg-blue-100 text-blue-800 border-blue-200',
   match: 'bg-green-100 text-green-800 border-green-200',
   deadline: 'bg-red-100 text-red-800 border-red-200',
+  event: 'bg-amber-100 text-amber-800 border-amber-200',
 }
 
 const TYPE_LABEL: Record<CalendarEvent['type'], string> = {
   session: 'Session',
   match: 'Match',
   deadline: 'Deadline',
+  event: 'Event',
 }
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -40,6 +43,7 @@ export function CalendarGrid({ events, initialYear, initialMonth }: CalendarGrid
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
   const grouped = groupEventsByDate(events)
+  const presentTypes = Array.from(new Set(events.map(e => e.type))) as CalendarEvent['type'][]
 
   const daysInMonth = getDaysInMonth(year, month)
   // Day of week for 1st of month: 0=Sun…6=Sat → remap to Mon=0…Sun=6
@@ -117,6 +121,7 @@ export function CalendarGrid({ events, initialYear, initialMonth }: CalendarGrid
           const hasSession = dayEvents.some(e => e.type === 'session')
           const hasMatch = dayEvents.some(e => e.type === 'match')
           const hasDeadline = dayEvents.some(e => e.type === 'deadline')
+          const hasEvent = dayEvents.some(e => e.type === 'event')
 
           return (
             <button
@@ -149,6 +154,9 @@ export function CalendarGrid({ events, initialYear, initialMonth }: CalendarGrid
                   {hasDeadline && (
                     <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-red-200' : 'bg-red-500'}`} />
                   )}
+                  {hasEvent && (
+                    <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-amber-200' : 'bg-amber-500'}`} />
+                  )}
                 </div>
               )}
             </button>
@@ -156,11 +164,11 @@ export function CalendarGrid({ events, initialYear, initialMonth }: CalendarGrid
         })}
       </div>
 
-      {/* Legend */}
+      {/* Legend — only for types actually present in the events prop */}
       <div className="flex gap-4 justify-center pt-1">
-        {(Object.entries(DOT_COLOUR) as [CalendarEvent['type'], string][]).map(([type, colour]) => (
+        {presentTypes.map(type => (
           <div key={type} className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${colour}`} />
+            <span className={`w-2 h-2 rounded-full ${DOT_COLOUR[type]}`} />
             <span className="text-xs text-muted-foreground">{TYPE_LABEL[type]}</span>
           </div>
         ))}
@@ -185,13 +193,21 @@ export function CalendarGrid({ events, initialYear, initialMonth }: CalendarGrid
               {selectedEvents.map((event, i) => (
                 <div
                   key={i}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${EVENT_BADGE[event.type]}`}
+                  className={`rounded-lg border px-3 py-2 text-sm ${EVENT_BADGE[event.type]}`}
                 >
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${DOT_COLOUR[event.type]}`} />
-                  <span className="flex-1 font-medium">{event.label}</span>
-                  <span className="text-xs font-semibold uppercase tracking-wide opacity-70">
-                    {TYPE_LABEL[event.type]}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${DOT_COLOUR[event.type]}`} />
+                    <span className="flex-1 font-medium">{event.label}</span>
+                    <span className="text-xs font-semibold uppercase tracking-wide opacity-70">
+                      {TYPE_LABEL[event.type]}
+                    </span>
+                  </div>
+                  {event.time && (
+                    <p className="text-xs mt-1 ml-4 opacity-80">{event.time}</p>
+                  )}
+                  {event.description && (
+                    <p className="text-xs mt-1 ml-4 opacity-70">{event.description}</p>
+                  )}
                 </div>
               ))}
             </div>

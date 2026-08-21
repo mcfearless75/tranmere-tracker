@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { GraduationCap } from 'lucide-react'
 import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
 import { londonDateISO } from '@/lib/dates'
+import { PushOptIn } from '@/components/PushOptIn'
 
 export const dynamic = 'force-dynamic'
 
@@ -207,6 +208,7 @@ export default async function ParentDashboardPage() {
       {studentsData.map(student => (
         <StudentOverviewCard key={student.id} student={student} />
       ))}
+      <PushOptIn />
     </div>
   )
 }

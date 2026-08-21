@@ -51,6 +51,14 @@
     {
       "path": "/api/cron/schedule-reviews",
       "schedule": "0 8 1 9,1,4 *"
+    },
+    {
+      "path": "/api/cron/calendar-reminders",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/calendar-reminders",
+      "schedule": "0 9 * * *"
     }
   ]
 }

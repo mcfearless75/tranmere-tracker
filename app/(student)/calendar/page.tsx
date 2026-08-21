@@ -22,6 +22,7 @@ export default async function CalendarPage() {
     { data: sessions },
     { data: matches },
     { data: assignments },
+    { data: calendarEvents },
   ] = await Promise.all([
     supabase
       .from('attendance_sessions')
@@ -43,12 +44,20 @@ export default async function CalendarPage() {
       .gte('due_date', windowStart)
       .lte('due_date', windowEnd)
       .order('due_date'),
+
+    supabase
+      .from('calendar_events')
+      .select('id, title, event_date, event_time, description')
+      .gte('event_date', windowStart)
+      .lte('event_date', windowEnd)
+      .order('event_date'),
   ])
 
   const events = getCalendarEvents(
     sessions  ?? [],
     matches   ?? [],
     assignments ?? [],
+    calendarEvents ?? [],
   )
 
   return (
@@ -56,7 +65,7 @@ export default async function CalendarPage() {
       {/* Page header */}
       <div className="py-2">
         <h1 className="text-lg font-bold text-tranmere-blue">Calendar</h1>
-        <p className="text-xs text-muted-foreground">Sessions, matches &amp; deadlines</p>
+        <p className="text-xs text-muted-foreground">Sessions, matches, deadlines &amp; events</p>
       </div>
 
       {/* Calendar card */}
@@ -83,6 +92,10 @@ export default async function CalendarPage() {
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
             <span>Assignment deadline</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-amber-500 shrink-0" />
+            <span>Event</span>
           </div>
         </div>
       </div>
