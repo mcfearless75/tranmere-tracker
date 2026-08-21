@@ -16,6 +16,91 @@ async function isRoomMember(admin: SupabaseClient, roomId: string, userId: strin
   return !!data
 }
 
+/** True if the room's membership is auto-derived from year_group (not manually editable). */
+async function isSyncedRoom(admin: SupabaseClient, roomId: string): Promise<boolean> {
+  const { data } = await admin
+    .from('chat_rooms')
+    .select('sync_year_group')
+    .eq('id', roomId)
+    .maybeSingle()
+  return !!data?.sync_year_group
+}
+
+/** Create a new named group chat. Staff-only (admin/coach/teacher). */
+export async function createGroupChat(name: string, memberIds: string[]): Promise<string | { error: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const admin = createAdminClient()
+  const { data: me } = await admin.from('users').select('role').eq('id', user.id).maybeSingle()
+  if (!me || !['admin', 'coach', 'teacher'].includes(me.role)) return { error: 'Staff only' }
+
+  const trimmedName = name.trim()
+  if (!trimmedName) return { error: 'Group needs a name' }
+
+  const uniqueMemberIds = Array.from(new Set(memberIds.filter(id => id !== user.id)))
+  if (uniqueMemberIds.length === 0) return { error: 'Pick at least one member' }
+
+  const { data: room, error } = await admin
+    .from('chat_rooms')
+    .insert({ kind: 'custom', name: trimmedName, created_by: user.id })
+    .select('id')
+    .single()
+  if (error || !room) return { error: error?.message ?? 'Could not create group' }
+
+  const rows = [
+    { room_id: room.id, user_id: user.id, role: 'owner' },
+    ...uniqueMemberIds.map(id => ({ room_id: room.id, user_id: id, role: 'member' })),
+  ]
+  await admin.from('chat_members').insert(rows)
+
+  revalidatePath('/chat')
+  return room.id
+}
+
+/** Add one or more people to an existing group chat. Staff-only, blocked for auto-synced rooms. */
+export async function addGroupMembers(roomId: string, memberIds: string[]): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+
+  const admin = createAdminClient()
+  const { data: me } = await admin.from('users').select('role').eq('id', user.id).maybeSingle()
+  if (!me || !['admin', 'coach', 'teacher'].includes(me.role)) return { ok: false, error: 'Staff only' }
+
+  if (await isSyncedRoom(admin, roomId)) return { ok: false, error: 'This roster is managed automatically' }
+
+  const uniqueMemberIds = Array.from(new Set(memberIds))
+  if (uniqueMemberIds.length === 0) return { ok: false, error: 'Pick at least one member' }
+
+  const rows = uniqueMemberIds.map(id => ({ room_id: roomId, user_id: id, role: 'member' }))
+  const { error } = await admin.from('chat_members').upsert(rows, { onConflict: 'room_id,user_id', ignoreDuplicates: true })
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath(`/chat/${roomId}`)
+  return { ok: true }
+}
+
+/** Remove one person from a group chat. Staff-only, blocked for auto-synced rooms. */
+export async function removeGroupMember(roomId: string, userId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+
+  const admin = createAdminClient()
+  const { data: me } = await admin.from('users').select('role').eq('id', user.id).maybeSingle()
+  if (!me || !['admin', 'coach', 'teacher'].includes(me.role)) return { ok: false, error: 'Staff only' }
+
+  if (await isSyncedRoom(admin, roomId)) return { ok: false, error: 'This roster is managed automatically' }
+
+  const { error } = await admin.from('chat_members').delete().eq('room_id', roomId).eq('user_id', userId)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath(`/chat/${roomId}`)
+  return { ok: true }
+}
+
 /** Find or create a 1-to-1 DM room between the current user and another user. */
 export async function getOrCreateDM(otherUserId: string): Promise<string | { error: string }> {
   const supabase = createClient()
@@ -202,10 +287,11 @@ export async function leaveOrDeleteRoom(roomId: string): Promise<{ ok: boolean; 
   // Caller must belong to the room before any destructive action.
   if (!await isRoomMember(admin, roomId, user.id)) return { ok: false, error: 'Not a member of this room' }
 
-  const { data: room } = await admin.from('chat_rooms').select('kind, created_by').eq('id', roomId).single()
+  const { data: room } = await admin.from('chat_rooms').select('kind, created_by, sync_year_group').eq('id', roomId).single()
   const { data: members } = await admin.from('chat_members').select('user_id').eq('room_id', roomId)
 
   if (!room) return { ok: false, error: 'Room not found' }
+  if (room.sync_year_group) return { ok: false, error: "You can't leave this — ask a coach if this looks wrong" }
 
   const isOwner = room.created_by === user.id
   const memberCount = members?.length ?? 0
