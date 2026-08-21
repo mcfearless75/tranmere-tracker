@@ -1,13 +1,14 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, GraduationCap, Apple, Dumbbell, Trophy, User, LogOut, Activity, MessageSquare, Brain } from 'lucide-react'
+import { Home, GraduationCap, Apple, Dumbbell, Trophy, User, LogOut, Activity, MessageSquare, Brain, FolderOpen } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
 import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
 
 const nav = [
   { href: '/dashboard', label: 'Home', icon: Home },
+  { href: '/documents', label: 'Documents', icon: FolderOpen },
   { href: MOODLE_STUDENT_URL, label: 'Moodle', icon: GraduationCap, external: true },
   { href: '/nutrition', label: 'Nutrition', icon: Apple },
   { href: '/gps', label: 'GPS Dashboard', icon: Activity },
