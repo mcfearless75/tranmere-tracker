@@ -72,6 +72,12 @@ export async function recordDocument(
   const admin = createAdminClient()
   if (!await requireStaff(admin, user.id)) return { ok: false, error: 'Staff only' }
 
+  // The path must actually belong to this folder — otherwise a documents
+  // row could point at a file under a different folder's prefix, and
+  // deleting either row would orphan the other (deleteFolder only removes
+  // storage objects under its own folderId/ prefix).
+  if (!storagePath.startsWith(`${folderId}/`)) return { ok: false, error: 'Invalid file path' }
+
   const { error } = await admin.from('documents').insert({
     folder_id: folderId,
     name,

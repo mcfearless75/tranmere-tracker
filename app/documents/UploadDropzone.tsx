@@ -43,23 +43,31 @@ export function UploadDropzone({ folderId }: { folderId: string }) {
     }
     setUploads(prev => [...prev, { file, status: 'uploading' }])
 
-    const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const path = `${folderId}/${crypto.randomUUID()}-${sanitized}`
+    try {
+      const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `${folderId}/${crypto.randomUUID()}-${sanitized}`
 
-    const { error: uploadError } = await supabase.storage.from('documents').upload(path, file)
-    if (uploadError) {
-      setUploads(prev => prev.map(u => u.file === file ? { ...u, status: 'error', error: uploadError.message } : u))
-      return
+      const { error: uploadError } = await supabase.storage.from('documents').upload(path, file)
+      if (uploadError) {
+        setUploads(prev => prev.map(u => u.file === file ? { ...u, status: 'error', error: uploadError.message } : u))
+        return
+      }
+
+      const res = await recordDocument(folderId, path, file.name, file.type, file.size)
+      if (!res.ok) {
+        setUploads(prev => prev.map(u => u.file === file ? { ...u, status: 'error', error: res.error ?? 'Failed to save' } : u))
+        return
+      }
+
+      setUploads(prev => prev.filter(u => u.file !== file))
+      router.refresh()
+    } catch {
+      // A rejected promise (network failure, or recordDocument throwing e.g.
+      // if createAdminClient() can't find its env vars) must still resolve
+      // to a visible error state — otherwise this entry is stuck on
+      // "Uploading…" forever with no way for the user to know it failed.
+      setUploads(prev => prev.map(u => u.file === file ? { ...u, status: 'error', error: 'Upload failed — please try again' } : u))
     }
-
-    const res = await recordDocument(folderId, path, file.name, file.type, file.size)
-    if (!res.ok) {
-      setUploads(prev => prev.map(u => u.file === file ? { ...u, status: 'error', error: res.error ?? 'Failed to save' } : u))
-      return
-    }
-
-    setUploads(prev => prev.filter(u => u.file !== file))
-    router.refresh()
   }
 
   function handleFiles(files: FileList | null) {

@@ -28,7 +28,7 @@ alter table documents enable row level security;
 
 drop policy if exists "everyone can read document_folders" on document_folders;
 create policy "everyone can read document_folders"
-  on document_folders for select using (auth.uid() is not null);
+  on document_folders for select to authenticated using (true);
 
 drop policy if exists "staff manage document_folders" on document_folders;
 create policy "staff manage document_folders"
@@ -36,7 +36,7 @@ create policy "staff manage document_folders"
 
 drop policy if exists "everyone can read documents" on documents;
 create policy "everyone can read documents"
-  on documents for select using (auth.uid() is not null);
+  on documents for select to authenticated using (true);
 
 drop policy if exists "staff manage documents" on documents;
 create policy "staff manage documents"
@@ -58,10 +58,14 @@ values (
 )
 on conflict (id) do nothing;
 
--- Any authenticated user can read (download) any object in this bucket.
+-- Defense-in-depth only: this app's actual downloads use signed URLs minted
+-- server-side with the service role (app/documents/[folderId]/page.tsx),
+-- which bypasses RLS by construction and never depends on this policy. This
+-- exists so a future client-side read of this bucket (if one is ever added)
+-- isn't silently blocked by having no read policy at all.
 drop policy if exists "documents_auth_read" on storage.objects;
 create policy "documents_auth_read" on storage.objects
-  for select using (bucket_id = 'documents' and auth.uid() is not null);
+  for select to authenticated using (true);
 
 -- Only staff can upload.
 drop policy if exists "documents_staff_insert" on storage.objects;

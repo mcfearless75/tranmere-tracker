@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { UploadDropzone } from '../UploadDropzone'
 import { DocumentList } from './DocumentList'
+import { DeleteFolderButton } from './DeleteFolderButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +48,7 @@ export default async function DocumentFolderPage({ params }: { params: { folderI
           <ArrowLeft size={18} />
         </Link>
         <h1 className="text-xl sm:text-2xl font-bold text-tranmere-blue truncate">{folder.name}</h1>
+        {isStaff && <DeleteFolderButton folderId={params.folderId} folderName={folder.name} />}
       </div>
 
       {isStaff && <UploadDropzone folderId={params.folderId} />}

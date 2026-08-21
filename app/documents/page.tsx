@@ -19,6 +19,10 @@ export default async function DocumentsPage() {
 
   const [{ data: folders }, { data: allDocs }] = await Promise.all([
     admin.from('document_folders').select('id, name, created_at').order('name'),
+    // Unfiltered per-file fetch to compute counts client-side. PostgREST caps
+    // result sets at the project's db-max-rows (default 1000) — past that,
+    // counts silently under-report. Fine at this app's scale; revisit with a
+    // count-aggregate view/RPC if the repository grows into the thousands.
     admin.from('documents').select('folder_id'),
   ])
 
@@ -35,31 +39,31 @@ export default async function DocumentsPage() {
 
       {isStaff && <CreateFolderButton />}
 
-      {(folders ?? []).length === 0 && (
+      {(folders ?? []).length === 0 ? (
         <div className="rounded-2xl border bg-white p-8 text-center text-sm text-muted-foreground">
           No folders yet.
         </div>
+      ) : (
+        <div className="rounded-2xl border bg-white divide-y">
+          {(folders ?? []).map(f => (
+            <Link
+              key={f.id}
+              href={`/documents/${f.id}`}
+              className="flex items-center gap-3 p-3 hover:bg-gray-50 active:bg-gray-100"
+            >
+              <div className="w-11 h-11 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 flex items-center justify-center text-white shrink-0">
+                <Folder size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold truncate">{f.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {countByFolder[f.id] ?? 0} file{countByFolder[f.id] === 1 ? '' : 's'}
+                </p>
+              </div>
+            </Link>
+          ))}
+        </div>
       )}
-
-      <div className="rounded-2xl border bg-white divide-y">
-        {(folders ?? []).map(f => (
-          <Link
-            key={f.id}
-            href={`/documents/${f.id}`}
-            className="flex items-center gap-3 p-3 hover:bg-gray-50 active:bg-gray-100"
-          >
-            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 flex items-center justify-center text-white shrink-0">
-              <Folder size={18} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold truncate">{f.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {countByFolder[f.id] ?? 0} file{countByFolder[f.id] === 1 ? '' : 's'}
-              </p>
-            </div>
-          </Link>
-        ))}
-      </div>
     </div>
   )
 }
