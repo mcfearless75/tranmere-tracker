@@ -1,7 +1,9 @@
 export type CalendarEvent = {
   date: string // YYYY-MM-DD
   label: string
-  type: 'session' | 'match' | 'deadline'
+  type: 'session' | 'match' | 'deadline' | 'event'
+  time?: string
+  description?: string
 }
 
 export type AttendanceSessionRow = {
@@ -23,6 +25,14 @@ export type AssignmentRow = {
   title: string
 }
 
+export type CalendarEventRow = {
+  id: string
+  title: string
+  event_date: string
+  event_time: string | null
+  description: string | null
+}
+
 /**
  * Returns the number of days in a given month.
  * @param year  Full year, e.g. 2024
@@ -33,12 +43,26 @@ export function getDaysInMonth(year: number, month: number): number {
 }
 
 /**
+ * Formats a Postgres 'HH:MM' or 'HH:MM:SS' time string as a friendly
+ * 12-hour label, e.g. '18:30:00' -> '6:30pm', '09:00:00' -> '9am'.
+ */
+export function formatEventTime(time: string): string {
+  const [hStr, mStr] = time.split(':')
+  const h = Number(hStr)
+  const m = Number(mStr)
+  const period = h < 12 ? 'am' : 'pm'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return m === 0 ? `${h12}${period}` : `${h12}:${String(m).padStart(2, '0')}${period}`
+}
+
+/**
  * Converts raw Supabase rows into a flat CalendarEvent array.
  */
 export function getCalendarEvents(
   sessions: AttendanceSessionRow[],
   matches: MatchEventRow[],
   assignments: AssignmentRow[],
+  calendarEvents: CalendarEventRow[] = [],
 ): CalendarEvent[] {
   const sessionEvents: CalendarEvent[] = sessions.map(s => ({
     date: s.scheduled_date,
@@ -58,7 +82,15 @@ export function getCalendarEvents(
     type: 'deadline',
   }))
 
-  return [...sessionEvents, ...matchEvents, ...deadlineEvents]
+  const customEvents: CalendarEvent[] = calendarEvents.map(e => ({
+    date: e.event_date,
+    label: e.title,
+    type: 'event',
+    ...(e.event_time ? { time: formatEventTime(e.event_time) } : {}),
+    ...(e.description ? { description: e.description } : {}),
+  }))
+
+  return [...sessionEvents, ...matchEvents, ...deadlineEvents, ...customEvents]
 }
 
 /**
