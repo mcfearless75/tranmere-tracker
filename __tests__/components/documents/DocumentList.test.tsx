@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { DocumentList } from '@/app/documents/[folderId]/DocumentList'
 
 const refreshMock = jest.fn()
@@ -37,12 +37,17 @@ describe('DocumentList', () => {
     expect(screen.queryByLabelText(/Delete/)).not.toBeInTheDocument()
   })
 
-  it('shows delete controls for staff and calls deleteDocument on confirm', () => {
+  it('shows delete controls for staff and calls deleteDocument on confirm', async () => {
     window.confirm = jest.fn(() => true)
     deleteDocumentMock.mockResolvedValue({ ok: true })
     render(<DocumentList documents={docs} isStaff={true} />)
     fireEvent.click(screen.getByLabelText('Delete Handbook.pdf'))
     expect(deleteDocumentMock).toHaveBeenCalledWith('d1')
+    // Wait for the transition's resolution (setRemovingId + router.refresh) to
+    // settle inside act() — otherwise React logs an "update not wrapped in
+    // act()" warning for the state update that lands after this callback body
+    // would otherwise have already returned.
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled())
   })
 
   it('renders an empty state when there are no files', () => {
