@@ -38,11 +38,12 @@ insert into chat_rooms (kind, name)
   where not exists (select 1 from chat_rooms where name = 'Match Day Chat' and kind = 'custom');
 
 -- Seed every current staff member into both year-group rooms so they can
--- read, post, and moderate. The trigger below only ever manages STUDENT
--- rows (see sync_year_group_chat()) — it never removes a staff row — so
--- this seed is durable, not a one-off snapshot. New staff hired after this
--- migration runs are not auto-added; add them via the group's "Add people"
--- control.
+-- read, post, and moderate. This seed is durable because the trigger below
+-- only ever removes someone who is *transitioning out of* the student role
+-- (old.role = 'student' and new.role <> 'student') — it never touches a
+-- row that was already staff, so a staff role edit (e.g. coach -> admin)
+-- cannot silently evict them. New staff hired after this migration runs
+-- are not auto-added; add them via the group's "Add people" control.
 insert into chat_members (room_id, user_id, role)
   select r.id, u.id, 'member'
   from chat_rooms r
@@ -64,10 +65,15 @@ declare
   target_room uuid;
 begin
   if new.role <> 'student' then
-    -- Not a student (any more): remove from both year-group rooms.
-    delete from chat_members
-      where user_id = new.id
-      and room_id in (select id from chat_rooms where sync_year_group is not null);
+    -- Only remove membership when actually transitioning OUT of student —
+    -- never for a row that was already non-student (staff membership here
+    -- is manually seeded/managed, not trigger-owned, and must survive any
+    -- unrelated update that merely names role/year_group in its SET list).
+    if tg_op = 'update' and old.role = 'student' then
+      delete from chat_members
+        where user_id = new.id
+        and room_id in (select id from chat_rooms where sync_year_group is not null);
+    end if;
     return new;
   end if;
 
@@ -105,12 +111,27 @@ update public.users set year_group = year_group where role = 'student';
 -- rooms — that roster is trigger-managed only. Staff-driven adds go
 -- through addGroupMembers(), which uses the service-role admin client and
 -- bypasses RLS entirely, so this only closes the direct-client path.
+--
+-- security definer, not an inline subquery: a plain "not exists (select 1
+-- from chat_rooms ...)" inside the policy expression runs as the inserting
+-- user, so chat_rooms' own SELECT policy (is_chat_member(id) or is_staff())
+-- would hide the target room from anyone not already a member of it —
+-- exactly the student trying to self-join a year-group room they're NOT
+-- in. A security definer helper (matching the is_chat_member() pattern
+-- above) bypasses that and sees the real row.
+create or replace function public.is_synced_room(rid uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (select 1 from chat_rooms where id = rid and sync_year_group is not null);
+$$;
+
 drop policy if exists "add self or staff adds" on chat_members;
 create policy "add self or staff adds" on chat_members
   for insert with check (
     (user_id = auth.uid() or public.is_staff())
-    and not exists (
-      select 1 from chat_rooms r
-      where r.id = room_id and r.sync_year_group is not null
-    )
+    and not public.is_synced_room(room_id)
   );
