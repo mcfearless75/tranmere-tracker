@@ -39,7 +39,7 @@ export default async function ChatHubPage() {
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
           <p className="font-semibold text-amber-800">⚠️ Database migration needed</p>
           <p className="text-sm text-amber-700 mt-2">
-            Run <code className="bg-amber-100 px-1.5 py-0.5 rounded">supabase/migrations/011_chat.sql</code> in Supabase SQL Editor, then refresh.
+            Run the latest migration in <code className="bg-amber-100 px-1.5 py-0.5 rounded">supabase/migrations/</code> in Supabase SQL Editor, then refresh.
           </p>
         </div>
       </div>

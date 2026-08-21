@@ -16,14 +16,14 @@ async function isRoomMember(admin: SupabaseClient, roomId: string, userId: strin
   return !!data
 }
 
-/** True if the room's membership is auto-derived from year_group (not manually editable). */
-async function isSyncedRoom(admin: SupabaseClient, roomId: string): Promise<boolean> {
+/** Looks up whether roomId is a manually-managed group chat, and whether it's auto-synced. */
+async function groupRoomState(admin: SupabaseClient, roomId: string): Promise<{ isGroup: boolean; syncYearGroup: number | null }> {
   const { data } = await admin
     .from('chat_rooms')
-    .select('sync_year_group')
+    .select('kind, sync_year_group')
     .eq('id', roomId)
     .maybeSingle()
-  return !!data?.sync_year_group
+  return { isGroup: data?.kind === 'custom', syncYearGroup: data?.sync_year_group ?? null }
 }
 
 /** Create a new named group chat. Staff-only (admin/coach/teacher). */
@@ -42,6 +42,11 @@ export async function createGroupChat(name: string, memberIds: string[]): Promis
   const uniqueMemberIds = Array.from(new Set(memberIds.filter(id => id !== user.id)))
   if (uniqueMemberIds.length === 0) return { error: 'Pick at least one member' }
 
+  // Parents never join a group chat, regardless of what the client sent.
+  const { data: candidates } = await admin.from('users').select('id').in('id', uniqueMemberIds).neq('role', 'parent')
+  const allowedIds = (candidates ?? []).map(c => c.id)
+  if (allowedIds.length === 0) return { error: 'Pick at least one member' }
+
   const { data: room, error } = await admin
     .from('chat_rooms')
     .insert({ kind: 'custom', name: trimmedName, created_by: user.id })
@@ -51,7 +56,7 @@ export async function createGroupChat(name: string, memberIds: string[]): Promis
 
   const rows = [
     { room_id: room.id, user_id: user.id, role: 'owner' },
-    ...uniqueMemberIds.map(id => ({ room_id: room.id, user_id: id, role: 'member' })),
+    ...allowedIds.map(id => ({ room_id: room.id, user_id: id, role: 'member' })),
   ]
   await admin.from('chat_members').insert(rows)
 
@@ -59,7 +64,9 @@ export async function createGroupChat(name: string, memberIds: string[]): Promis
   return room.id
 }
 
-/** Add one or more people to an existing group chat. Staff-only, blocked for auto-synced rooms. */
+/** Add one or more people to an existing group chat. Staff-only. Parents are
+ *  never added; on an auto-synced room, only non-student targets go through
+ *  (the room's student roster is trigger-managed, not manually editable). */
 export async function addGroupMembers(roomId: string, memberIds: string[]): Promise<{ ok: boolean; error?: string }> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -69,12 +76,21 @@ export async function addGroupMembers(roomId: string, memberIds: string[]): Prom
   const { data: me } = await admin.from('users').select('role').eq('id', user.id).maybeSingle()
   if (!me || !['admin', 'coach', 'teacher'].includes(me.role)) return { ok: false, error: 'Staff only' }
 
-  if (await isSyncedRoom(admin, roomId)) return { ok: false, error: 'This roster is managed automatically' }
+  const { isGroup, syncYearGroup } = await groupRoomState(admin, roomId)
+  if (!isGroup) return { ok: false, error: 'Not a group chat' }
 
   const uniqueMemberIds = Array.from(new Set(memberIds))
   if (uniqueMemberIds.length === 0) return { ok: false, error: 'Pick at least one member' }
 
-  const rows = uniqueMemberIds.map(id => ({ room_id: roomId, user_id: id, role: 'member' }))
+  const { data: candidates } = await admin.from('users').select('id, role').in('id', uniqueMemberIds)
+  const allowedIds = (candidates ?? [])
+    .filter(c => c.role !== 'parent' && !(syncYearGroup && c.role === 'student'))
+    .map(c => c.id)
+  if (allowedIds.length === 0) {
+    return { ok: false, error: syncYearGroup ? 'This roster is managed automatically' : 'Pick at least one member' }
+  }
+
+  const rows = allowedIds.map(id => ({ room_id: roomId, user_id: id, role: 'member' }))
   const { error } = await admin.from('chat_members').upsert(rows, { onConflict: 'room_id,user_id', ignoreDuplicates: true })
   if (error) return { ok: false, error: error.message }
 
@@ -82,7 +98,9 @@ export async function addGroupMembers(roomId: string, memberIds: string[]): Prom
   return { ok: true }
 }
 
-/** Remove one person from a group chat. Staff-only, blocked for auto-synced rooms. */
+/** Remove one person from a group chat. Staff-only. On an auto-synced room,
+ *  only a non-student target can be removed — a student's membership there
+ *  is trigger-managed, not manually editable. */
 export async function removeGroupMember(roomId: string, userId: string): Promise<{ ok: boolean; error?: string }> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -92,7 +110,13 @@ export async function removeGroupMember(roomId: string, userId: string): Promise
   const { data: me } = await admin.from('users').select('role').eq('id', user.id).maybeSingle()
   if (!me || !['admin', 'coach', 'teacher'].includes(me.role)) return { ok: false, error: 'Staff only' }
 
-  if (await isSyncedRoom(admin, roomId)) return { ok: false, error: 'This roster is managed automatically' }
+  const { isGroup, syncYearGroup } = await groupRoomState(admin, roomId)
+  if (!isGroup) return { ok: false, error: 'Not a group chat' }
+
+  if (syncYearGroup) {
+    const { data: target } = await admin.from('users').select('role').eq('id', userId).maybeSingle()
+    if (target?.role === 'student') return { ok: false, error: 'This roster is managed automatically' }
+  }
 
   const { error } = await admin.from('chat_members').delete().eq('room_id', roomId).eq('user_id', userId)
   if (error) return { ok: false, error: error.message }
