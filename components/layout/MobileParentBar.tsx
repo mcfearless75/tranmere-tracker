@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, ClipboardList, GraduationCap, Calendar, MessageSquare, Megaphone } from 'lucide-react'
+import { Home, ClipboardList, GraduationCap, Calendar, CalendarDays, MessageSquare, Megaphone } from 'lucide-react'
 import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
 
 const nav = [
   { href: '/parent/dashboard', label: 'Overview', icon: Home },
+  { href: '/parent/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/parent/attendance', label: 'Attendance', icon: ClipboardList },
   { href: MOODLE_STUDENT_URL, label: 'Moodle', icon: GraduationCap, external: true },
   { href: '/parent/announcements', label: 'News', icon: Megaphone },
