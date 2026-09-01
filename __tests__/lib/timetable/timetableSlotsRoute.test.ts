@@ -28,6 +28,7 @@ function validBody(): Record<string, unknown> {
     end_time: '12:30',
     location: 'Tranmere Pitch 1',
     tutor: 'Chaid White',
+    year_group: 1,
   }
 }
 
@@ -58,7 +59,7 @@ beforeEach(() => {
 })
 
 describe('POST /api/admin/timetable-slots', () => {
-  it('creates a slot with year_group hardcoded to 1', async () => {
+  it('creates a slot with the requested year_group', async () => {
     authorizeAsStaff()
     const { insertMock } = setupAdmin()
 
@@ -69,6 +70,36 @@ describe('POST /api/admin/timetable-slots', () => {
     const payload = insertMock.mock.calls[0][0] as { year_group: number; created_by: string }
     expect(payload.year_group).toBe(1)
     expect(payload.created_by).toBe('u1')
+  })
+
+  it('creates a 2nd-year slot when year_group is 2', async () => {
+    authorizeAsStaff()
+    const { insertMock } = setupAdmin()
+
+    const res = await POST(makeRequest({ ...validBody(), year_group: 2 }))
+
+    expect(res.status).toBe(200)
+    const payload = insertMock.mock.calls[0][0] as { year_group: number }
+    expect(payload.year_group).toBe(2)
+  })
+
+  it('returns 400 when year_group is not 1 or 2', async () => {
+    authorizeAsStaff()
+    setupAdmin()
+
+    const res = await POST(makeRequest({ ...validBody(), year_group: 3 }))
+
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 when year_group is missing', async () => {
+    authorizeAsStaff()
+    setupAdmin()
+    const { year_group, ...bodyWithoutYearGroup } = validBody()
+
+    const res = await POST(makeRequest(bodyWithoutYearGroup))
+
+    expect(res.status).toBe(400)
   })
 
   it('returns 400 when title is missing', async () => {

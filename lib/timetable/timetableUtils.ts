@@ -23,6 +23,15 @@ export const DAY_LABELS: Record<number, string> = {
   5: 'Friday',
 }
 
+// Mirrors the DB check constraint on timetable_slots.year_group (migration
+// 046_timetable.sql) — keep both in sync if a new year group is added.
+export const VALID_TIMETABLE_YEAR_GROUPS = [1, 2]
+
+export const YEAR_GROUP_LABELS: Record<number, string> = {
+  1: '1st Year',
+  2: '2nd Year',
+}
+
 /**
  * Returns the slots (already filtered to today's day_of_week by the caller)
  * whose start time falls 13–18 minutes from `now`. The 5-minute-wide window

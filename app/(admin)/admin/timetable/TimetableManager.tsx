@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { CalendarPlus, Pencil, Trash2 } from 'lucide-react'
 import { DAY_LABELS, type TimetableSlotRow } from '@/lib/timetable/timetableUtils'
 
-type Props = { slots: TimetableSlotRow[] }
+type Props = { slots: TimetableSlotRow[]; yearGroup: number }
 
 const DAY_OPTIONS = [1, 2, 4, 5] as const
 
@@ -18,7 +18,7 @@ const EMPTY_FORM = {
   tutor: '',
 }
 
-export function TimetableManager({ slots }: Props) {
+export function TimetableManager({ slots, yearGroup }: Props) {
   const router = useRouter()
   const [form, setForm] = useState(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -52,6 +52,7 @@ export function TimetableManager({ slots }: Props) {
       end_time: form.end_time,
       location: form.location.trim() || null,
       tutor: form.tutor.trim() || null,
+      year_group: yearGroup,
     }
     const res = await fetch(
       editingId ? `/api/admin/timetable-slots/${editingId}` : '/api/admin/timetable-slots',

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { TimetableGrid } from '@/components/timetable/TimetableGrid'
+import { VALID_TIMETABLE_YEAR_GROUPS } from '@/lib/timetable/timetableUtils'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +16,10 @@ export default async function TimetablePage() {
     .eq('id', user.id)
     .maybeSingle()
 
-  if (profile?.role !== 'student' || profile.year_group !== 1) {
+  const hasTimetableYearGroup =
+    profile?.year_group != null && VALID_TIMETABLE_YEAR_GROUPS.includes(profile.year_group)
+
+  if (profile?.role !== 'student' || !hasTimetableYearGroup) {
     return (
       <div className="space-y-4">
         <div className="py-2">

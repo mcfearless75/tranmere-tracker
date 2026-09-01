@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import { signOut } from '@/app/(auth)/login/actions'
+import { VALID_TIMETABLE_YEAR_GROUPS } from '@/lib/timetable/timetableUtils'
 import { LogOut } from 'lucide-react'
 import Image from 'next/image'
 
@@ -33,6 +34,9 @@ export default async function StudentLayout({ children }: { children: React.Reac
     redirect('/admin/dashboard')
   }
 
+  const showTimetable =
+    profile?.year_group != null && VALID_TIMETABLE_YEAR_GROUPS.includes(profile.year_group)
+
   return (
     <div className="min-h-[100dvh] bg-gray-50 relative overflow-hidden">
       <NativeInit />
@@ -48,7 +52,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
 
       {/* Desktop: sidebar + content */}
       <div className="hidden md:flex min-h-[100dvh]">
-        <SideNav userName={profile?.name ?? 'Player'} avatarUrl={profile?.avatar_url ?? null} role={profile?.role ?? 'student'} showTimetable={profile?.year_group === 1} />
+        <SideNav userName={profile?.name ?? 'Player'} avatarUrl={profile?.avatar_url ?? null} role={profile?.role ?? 'student'} showTimetable={showTimetable} />
         <main className="flex-1 max-w-3xl mx-auto px-8 py-6 relative z-10">{children}</main>
       </div>
 
@@ -74,7 +78,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
         <div className="max-w-lg mx-auto">
           <main className="pb-20 px-4 pt-4">{children}</main>
         </div>
-        <BottomNav showTimetable={profile?.year_group === 1} />
+        <BottomNav showTimetable={showTimetable} />
       </div>
     </div>
   )

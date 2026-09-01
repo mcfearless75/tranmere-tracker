@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { CalendarGrid } from '@/components/calendar/CalendarGrid'
 import { getCalendarEvents, expandTimetableSlots } from '@/lib/calendar/calendarUtils'
+import { VALID_TIMETABLE_YEAR_GROUPS } from '@/lib/timetable/timetableUtils'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,7 +62,7 @@ export default async function CalendarPage() {
       .lte('event_date', windowEnd)
       .order('event_date'),
 
-    profile?.year_group === 1
+    profile?.year_group != null && VALID_TIMETABLE_YEAR_GROUPS.includes(profile.year_group)
       ? supabase
           .from('timetable_slots')
           .select('id, year_group, day_of_week, start_time, end_time, title, location')
