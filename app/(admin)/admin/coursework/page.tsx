@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CourseworkManager } from './CourseworkManager'
+import { GradeSheet } from './GradeSheet'
 import type { BtecUnitRow, AssignmentRow } from '@/lib/coursework/courseworkUtils'
 
 export const dynamic = 'force-dynamic'
@@ -40,6 +41,36 @@ export default async function AdminCourseworkPage({
 
   const assignmentList = assignments ?? []
 
+  type GradeSheetData = {
+    assignment: { id: string; title: string }
+    students: { id: string; name: string }[]
+    grades: Record<string, string | null>
+  }
+
+  let gradeSheetData: GradeSheetData | null = null
+
+  if (searchParams.grade) {
+    const assignment = assignmentList.find(a => a.id === searchParams.grade)
+    if (assignment) {
+      const { data: students } = await supabase
+        .from('users')
+        .select('id, name')
+        .eq('role', 'student')
+        .eq('course_id', selectedCourseId)
+        .order('name')
+
+      const { data: existingGrades } = await supabase
+        .from('assignment_grades')
+        .select('student_id, grade')
+        .eq('assignment_id', searchParams.grade)
+
+      const gradeMap: Record<string, string | null> = {}
+      for (const row of existingGrades ?? []) gradeMap[row.student_id] = row.grade
+
+      gradeSheetData = { assignment, students: students ?? [], grades: gradeMap }
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="py-2">
@@ -66,6 +97,8 @@ export default async function AdminCourseworkPage({
       </div>
 
       <CourseworkManager units={unitList} assignments={assignmentList} />
+
+      {gradeSheetData && <GradeSheet {...gradeSheetData} />}
     </div>
   )
 }
