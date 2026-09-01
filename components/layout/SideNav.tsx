@@ -1,31 +1,35 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, GraduationCap, Apple, Dumbbell, Trophy, User, LogOut, Activity, MessageSquare, Brain, FolderOpen } from 'lucide-react'
+import { Home, GraduationCap, Apple, Dumbbell, Trophy, User, LogOut, Activity, MessageSquare, Brain, FolderOpen, CalendarClock } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
 import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
 
-const nav = [
-  { href: '/dashboard', label: 'Home', icon: Home },
-  { href: '/documents', label: 'Documents', icon: FolderOpen },
-  { href: MOODLE_STUDENT_URL, label: 'Moodle', icon: GraduationCap, external: true },
-  { href: '/nutrition', label: 'Nutrition', icon: Apple },
-  { href: '/gps', label: 'GPS Dashboard', icon: Activity },
-  { href: '/chat', label: 'Chat', icon: MessageSquare },
-  { href: '/training', label: 'Training', icon: Dumbbell },
-  { href: '/matches', label: 'Matches', icon: Trophy },
-  { href: '/ai-report', label: 'AI Report', icon: Brain },
-  { href: '/profile', label: 'Profile', icon: User },
-]
-
-export function SideNav({ userName, avatarUrl, role }: {
+type Props = {
   userName: string
   avatarUrl: string | null
   role: string
-}) {
+  showTimetable?: boolean
+}
+
+export function SideNav({ userName, avatarUrl, role, showTimetable = false }: Props) {
   const pathname = usePathname()
   const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+
+  const nav = [
+    { href: '/dashboard', label: 'Home', icon: Home },
+    { href: '/documents', label: 'Documents', icon: FolderOpen },
+    ...(showTimetable ? [{ href: '/timetable', label: 'Timetable', icon: CalendarClock }] : []),
+    { href: MOODLE_STUDENT_URL, label: 'Moodle', icon: GraduationCap, external: true },
+    { href: '/nutrition', label: 'Nutrition', icon: Apple },
+    { href: '/gps', label: 'GPS Dashboard', icon: Activity },
+    { href: '/chat', label: 'Chat', icon: MessageSquare },
+    { href: '/training', label: 'Training', icon: Dumbbell },
+    { href: '/matches', label: 'Matches', icon: Trophy },
+    { href: '/ai-report', label: 'AI Report', icon: Brain },
+    { href: '/profile', label: 'Profile', icon: User },
+  ]
 
   return (
     <aside className="w-56 bg-tranmere-blue flex flex-col min-h-[100dvh] shrink-0">
