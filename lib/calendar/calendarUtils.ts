@@ -1,4 +1,5 @@
 import type { TimetableSlotRow } from '@/lib/timetable/timetableUtils'
+import { GRADE_LABELS, type CourseworkGrade } from '@/lib/coursework/courseworkUtils'
 
 export type CalendarEvent = {
   date: string // YYYY-MM-DD
@@ -25,6 +26,7 @@ export type MatchEventRow = {
 export type AssignmentRow = {
   due_date: string
   title: string
+  grade?: CourseworkGrade | null
 }
 
 export type CalendarEventRow = {
@@ -81,7 +83,7 @@ export function getCalendarEvents(
 
   const deadlineEvents: CalendarEvent[] = assignments.map(a => ({
     date: a.due_date,
-    label: a.title,
+    label: a.grade ? `${a.title} — ${GRADE_LABELS[a.grade]}` : a.title,
     type: 'deadline',
   }))
 

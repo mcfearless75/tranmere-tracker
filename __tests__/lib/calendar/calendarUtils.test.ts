@@ -104,6 +104,30 @@ describe('getCalendarEvents', () => {
     const result = getCalendarEvents(sessions, [], [])
     expect(result[0].label).toBe('match')
   })
+
+  it('appends the achieved grade to a deadline label when present', () => {
+    const events = getCalendarEvents(
+      [],
+      [],
+      [{ due_date: '2026-10-15', title: 'Coaching Portfolio', grade: 'distinction' }],
+    )
+
+    expect(events).toContainEqual(
+      expect.objectContaining({ label: 'Coaching Portfolio — Distinction', type: 'deadline' })
+    )
+  })
+
+  it('leaves the deadline label unchanged when there is no grade yet', () => {
+    const events = getCalendarEvents(
+      [],
+      [],
+      [{ due_date: '2026-10-15', title: 'Coaching Portfolio' }],
+    )
+
+    expect(events).toContainEqual(
+      expect.objectContaining({ label: 'Coaching Portfolio', type: 'deadline' })
+    )
+  })
 })
 
 describe('groupEventsByDate', () => {
