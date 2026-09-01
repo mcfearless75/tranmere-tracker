@@ -15,6 +15,7 @@ const DOT_COLOUR: Record<CalendarEvent['type'], string> = {
   match: 'bg-green-500',
   deadline: 'bg-red-500',
   event: 'bg-amber-500',
+  class: 'bg-purple-500',
 }
 
 const EVENT_BADGE: Record<CalendarEvent['type'], string> = {
@@ -22,6 +23,7 @@ const EVENT_BADGE: Record<CalendarEvent['type'], string> = {
   match: 'bg-green-100 text-green-800 border-green-200',
   deadline: 'bg-red-100 text-red-800 border-red-200',
   event: 'bg-amber-100 text-amber-800 border-amber-200',
+  class: 'bg-purple-100 text-purple-800 border-purple-200',
 }
 
 const TYPE_LABEL: Record<CalendarEvent['type'], string> = {
@@ -29,6 +31,7 @@ const TYPE_LABEL: Record<CalendarEvent['type'], string> = {
   match: 'Match',
   deadline: 'Deadline',
   event: 'Event',
+  class: 'Class',
 }
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -122,6 +125,7 @@ export function CalendarGrid({ events, initialYear, initialMonth }: CalendarGrid
           const hasMatch = dayEvents.some(e => e.type === 'match')
           const hasDeadline = dayEvents.some(e => e.type === 'deadline')
           const hasEvent = dayEvents.some(e => e.type === 'event')
+          const hasClass = dayEvents.some(e => e.type === 'class')
 
           return (
             <button
@@ -156,6 +160,9 @@ export function CalendarGrid({ events, initialYear, initialMonth }: CalendarGrid
                   )}
                   {hasEvent && (
                     <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-amber-200' : 'bg-amber-500'}`} />
+                  )}
+                  {hasClass && (
+                    <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-purple-200' : 'bg-purple-500'}`} />
                   )}
                 </div>
               )}

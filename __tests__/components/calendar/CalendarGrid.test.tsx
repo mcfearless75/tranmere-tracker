@@ -25,3 +25,14 @@ describe('CalendarGrid — event type', () => {
     expect(screen.queryByText('Main hall')).not.toBeInTheDocument()
   })
 })
+
+describe('CalendarGrid — class event type', () => {
+  const events: CalendarEvent[] = [
+    { date: '2024-06-12', label: 'Football 1', type: 'class', time: '10am', description: 'Pitch 1' },
+  ]
+
+  it('shows the class type in the legend', () => {
+    render(<CalendarGrid events={events} initialYear={2024} initialMonth={6} />)
+    expect(screen.getByText('Class')).toBeInTheDocument()
+  })
+})

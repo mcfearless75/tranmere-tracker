@@ -3,6 +3,7 @@ import {
   getCalendarEvents,
   groupEventsByDate,
   formatEventTime,
+  expandTimetableSlots,
   type CalendarEvent,
 } from '@/lib/calendar/calendarUtils'
 
@@ -219,5 +220,56 @@ describe('getCalendarEvents — calendar_events', () => {
     const result = getCalendarEvents(sessions, matches, assignments, calendarEvents)
     expect(result).toHaveLength(4)
     expect(result.map(e => e.type)).toEqual(['session', 'match', 'deadline', 'event'])
+  })
+})
+
+describe('expandTimetableSlots', () => {
+  it('emits one event per matching weekday inside the window', () => {
+    const slots = [
+      { day_of_week: 1, start_time: '10:00:00', end_time: '11:00:00', title: 'Football 1', location: 'Pitch 1' },
+    ]
+    // 2024-06-03 is a Monday, 2024-06-10 is the next Monday
+    const result = expandTimetableSlots(slots, '2024-06-01', '2024-06-14')
+    expect(result).toEqual([
+      { date: '2024-06-03', label: 'Football 1', type: 'class', time: '10am', description: 'Pitch 1' },
+      { date: '2024-06-10', label: 'Football 1', type: 'class', time: '10am', description: 'Pitch 1' },
+    ])
+  })
+
+  it('has no special-casing for Wednesday — the DB check constraint (Task 1) is what actually keeps day_of_week=3 rows from existing', () => {
+    const slots = [
+      { day_of_week: 3, start_time: '09:00:00', end_time: '10:00:00', title: 'Would be match day', location: null },
+    ]
+    const result = expandTimetableSlots(slots, '2024-06-01', '2024-06-07')
+    // 2024-06-05 is a Wednesday inside this window — the function maps it like any other day_of_week
+    expect(result.map(e => e.date)).toEqual(['2024-06-05'])
+  })
+
+  it('omits description when location is null', () => {
+    const slots = [
+      { day_of_week: 5, start_time: '14:00:00', end_time: '15:00:00', title: 'Wellbeing', location: null },
+    ]
+    // 2024-06-07 is a Friday
+    const result = expandTimetableSlots(slots, '2024-06-07', '2024-06-07')
+    expect(result[0].description).toBeUndefined()
+  })
+
+  it('returns an empty array for an empty slot list', () => {
+    expect(expandTimetableSlots([], '2024-06-01', '2024-06-07')).toEqual([])
+  })
+})
+
+describe('getCalendarEvents — class events', () => {
+  it('includes classEvents passed as the 5th argument', () => {
+    const classEvents: CalendarEvent[] = [
+      { date: '2024-06-03', label: 'Football 1', type: 'class', time: '10am' },
+    ]
+    const result = getCalendarEvents([], [], [], [], classEvents)
+    expect(result).toEqual(classEvents)
+  })
+
+  it('defaults the 5th argument to an empty array — existing 4-arg calls still work', () => {
+    const result = getCalendarEvents([], [], [], [])
+    expect(result).toHaveLength(0)
   })
 })
