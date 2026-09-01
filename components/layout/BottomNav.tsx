@@ -2,17 +2,18 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, User, Heart, CalendarDays, CalendarClock, Dumbbell, Target, FolderOpen } from 'lucide-react'
+import { Home, User, Heart, CalendarDays, CalendarClock, Dumbbell, Target, FolderOpen, ClipboardCheck } from 'lucide-react'
 
-type Props = { showTimetable?: boolean }
+type Props = { showTimetable?: boolean; showCoursework?: boolean }
 
-export function BottomNav({ showTimetable = false }: Props) {
+export function BottomNav({ showTimetable = false, showCoursework = false }: Props) {
   const pathname = usePathname()
   const nav = [
     { href: '/dashboard',  label: 'Home',      icon: Home },
     { href: '/documents',  label: 'Documents', icon: FolderOpen },
     { href: '/calendar',   label: 'Calendar',  icon: CalendarDays },
     ...(showTimetable ? [{ href: '/timetable', label: 'Timetable', icon: CalendarClock }] : []),
+    ...(showCoursework ? [{ href: '/coursework', label: 'Coursework', icon: ClipboardCheck }] : []),
     { href: '/gym',        label: 'Gym',        icon: Dumbbell },
     { href: '/targets',    label: 'Targets',   icon: Target },
     { href: '/wellbeing',  label: 'Wellbeing', icon: Heart },

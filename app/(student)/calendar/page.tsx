@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { CalendarGrid } from '@/components/calendar/CalendarGrid'
 import { getCalendarEvents, expandTimetableSlots } from '@/lib/calendar/calendarUtils'
 import { VALID_TIMETABLE_YEAR_GROUPS } from '@/lib/timetable/timetableUtils'
+import type { CourseworkGrade } from '@/lib/coursework/courseworkUtils'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +34,7 @@ export default async function CalendarPage() {
     { data: assignments },
     { data: calendarEvents },
     { data: timetableSlots },
+    { data: assignmentGrades },
   ] = await Promise.all([
     supabase
       .from('attendance_sessions')
@@ -50,7 +52,7 @@ export default async function CalendarPage() {
 
     supabase
       .from('assignments')
-      .select('due_date, title')
+      .select('id, due_date, title')
       .gte('due_date', windowStart)
       .lte('due_date', windowEnd)
       .order('due_date'),
@@ -68,14 +70,26 @@ export default async function CalendarPage() {
           .select('id, year_group, day_of_week, start_time, end_time, title, location')
           .eq('year_group', profile.year_group)
       : Promise.resolve({ data: [] as never[] }),
+
+    supabase
+      .from('assignment_grades')
+      .select('assignment_id, grade')
+      .eq('student_id', user.id),
   ])
 
   const classEvents = expandTimetableSlots(timetableSlots ?? [], windowStart, windowEnd)
 
+  const gradeByAssignmentId = new Map((assignmentGrades ?? []).map(g => [g.assignment_id, g.grade]))
+  const flattenedAssignments = (assignments ?? []).map(a => ({
+    due_date: a.due_date,
+    title: a.title,
+    grade: (gradeByAssignmentId.get(a.id) ?? null) as CourseworkGrade | null,
+  }))
+
   const events = getCalendarEvents(
     sessions  ?? [],
     matches   ?? [],
-    assignments ?? [],
+    flattenedAssignments,
     calendarEvents ?? [],
     classEvents,
   )

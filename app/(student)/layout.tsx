@@ -25,7 +25,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
   // no nested error.tsx can catch, only the root boundary) looks like.
   const { data: profile } = await adminClient
     .from('users')
-    .select('name, avatar_url, role, year_group')
+    .select('name, avatar_url, role, year_group, course_id')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -36,6 +36,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
 
   const showTimetable =
     profile?.year_group != null && VALID_TIMETABLE_YEAR_GROUPS.includes(profile.year_group)
+  const showCoursework = profile?.course_id != null
 
   return (
     <div className="min-h-[100dvh] bg-gray-50 relative overflow-hidden">
@@ -52,7 +53,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
 
       {/* Desktop: sidebar + content */}
       <div className="hidden md:flex min-h-[100dvh]">
-        <SideNav userName={profile?.name ?? 'Player'} avatarUrl={profile?.avatar_url ?? null} role={profile?.role ?? 'student'} showTimetable={showTimetable} />
+        <SideNav userName={profile?.name ?? 'Player'} avatarUrl={profile?.avatar_url ?? null} role={profile?.role ?? 'student'} showTimetable={showTimetable} showCoursework={showCoursework} />
         <main className="flex-1 max-w-3xl mx-auto px-8 py-6 relative z-10">{children}</main>
       </div>
 
@@ -78,7 +79,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
         <div className="max-w-lg mx-auto">
           <main className="pb-20 px-4 pt-4">{children}</main>
         </div>
-        <BottomNav showTimetable={showTimetable} />
+        <BottomNav showTimetable={showTimetable} showCoursework={showCoursework} />
       </div>
     </div>
   )
