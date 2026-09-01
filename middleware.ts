@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 const PUBLIC_PATHS = ['/login', '/signup', '/setup', '/api/setup', '/admin-login', '/staff-login', '/trials', '/api/recruitment/apply', '/privacy', '/welcome']
 // Public paths that signed-in users may still visit (no bounce to their dashboard).
 const OPEN_TO_ALL = ['/admin-login', '/staff-login', '/trials', '/api/recruitment/apply', '/privacy', '/welcome']
-const STUDENT_PREFIXES = ['/dashboard', '/coursework', '/nutrition', '/training', '/matches', '/profile', '/gps', '/attendance']
+const STUDENT_PREFIXES = ['/dashboard', '/coursework', '/nutrition', '/training', '/matches', '/profile', '/gps', '/attendance', '/timetable']
 const PARENT_PREFIXES = ['/parent']
 // Server-to-server endpoints: Vercel crons, push fan-out, LTI. Each authenticates
 // itself (CRON_SECRET bearer / shared secret / LTI OIDC) and fails closed when the

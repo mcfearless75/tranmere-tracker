@@ -65,7 +65,7 @@ export default async function CalendarPage() {
       ? supabase
           .from('timetable_slots')
           .select('id, year_group, day_of_week, start_time, end_time, title, location')
-          .eq('year_group', 1)
+          .eq('year_group', profile.year_group)
       : Promise.resolve({ data: [] as never[] }),
   ])
 

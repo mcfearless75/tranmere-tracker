@@ -111,17 +111,23 @@ export function expandTimetableSlots(
 
   while (cursor <= end) {
     const dayOfWeek = cursor.getDay()
-    const dateISO = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`
 
-    for (const slot of slots) {
-      if (slot.day_of_week !== dayOfWeek) continue
-      events.push({
-        date: dateISO,
-        label: slot.title,
-        type: 'class',
-        time: formatEventTime(slot.start_time),
-        ...(slot.location ? { description: slot.location } : {}),
-      })
+    // Defence in depth: Wednesday is match day. The DB check constraint is the
+    // real guard (day_of_week=3 rows can't exist), but skip it here too so this
+    // function never disagrees with TimetableGrid, which also never renders one.
+    if (dayOfWeek !== 3) {
+      const dateISO = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`
+
+      for (const slot of slots) {
+        if (slot.day_of_week !== dayOfWeek) continue
+        events.push({
+          date: dateISO,
+          label: slot.title,
+          type: 'class',
+          time: formatEventTime(slot.start_time),
+          ...(slot.location ? { description: slot.location } : {}),
+        })
+      }
     }
 
     cursor.setDate(cursor.getDate() + 1)

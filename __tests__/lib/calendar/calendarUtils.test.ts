@@ -236,13 +236,26 @@ describe('expandTimetableSlots', () => {
     ])
   })
 
-  it('has no special-casing for Wednesday — the DB check constraint (Task 1) is what actually keeps day_of_week=3 rows from existing', () => {
+  it('never emits an event on Wednesday, even for a slot claiming day_of_week 3 — defence in depth alongside the DB check constraint (Task 1)', () => {
     const slots = [
       { day_of_week: 3, start_time: '09:00:00', end_time: '10:00:00', title: 'Would be match day', location: null },
     ]
     const result = expandTimetableSlots(slots, '2024-06-01', '2024-06-07')
-    // 2024-06-05 is a Wednesday inside this window — the function maps it like any other day_of_week
-    expect(result.map(e => e.date)).toEqual(['2024-06-05'])
+    // 2024-06-05 is a Wednesday inside this window — the function must never emit for it
+    expect(result).toEqual([])
+  })
+
+  it('correctly formats dates when the window spans a month boundary', () => {
+    const slots = [
+      { day_of_week: 5, start_time: '09:00:00', end_time: '10:00:00', title: 'Friday Class', location: null }, // Friday
+      { day_of_week: 1, start_time: '10:00:00', end_time: '11:00:00', title: 'Monday Class', location: null }, // Monday
+    ]
+    // 2024-05-31 is a Friday, 2024-06-03 is the following Monday — window crosses May→June
+    const result = expandTimetableSlots(slots, '2024-05-29', '2024-06-04')
+    expect(result.map(e => ({ date: e.date, label: e.label }))).toEqual([
+      { date: '2024-05-31', label: 'Friday Class' },
+      { date: '2024-06-03', label: 'Monday Class' },
+    ])
   })
 
   it('omits description when location is null', () => {

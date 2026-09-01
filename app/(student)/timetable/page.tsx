@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { TimetableGrid } from '@/components/timetable/TimetableGrid'
 
@@ -10,14 +9,13 @@ export default async function TimetablePage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const admin = createAdminClient()
-  const { data: profile } = await admin
+  const { data: profile } = await supabase
     .from('users')
-    .select('year_group')
+    .select('role, year_group')
     .eq('id', user.id)
     .maybeSingle()
 
-  if (profile?.year_group !== 1) {
+  if (profile?.role !== 'student' || profile.year_group !== 1) {
     return (
       <div className="space-y-4">
         <div className="py-2">
@@ -28,10 +26,10 @@ export default async function TimetablePage() {
     )
   }
 
-  const { data: slots } = await admin
+  const { data: slots } = await supabase
     .from('timetable_slots')
     .select('id, title, day_of_week, start_time, end_time, location, tutor, year_group')
-    .eq('year_group', 1)
+    .eq('year_group', profile.year_group)
     .order('day_of_week', { ascending: true })
     .order('start_time', { ascending: true })
 
