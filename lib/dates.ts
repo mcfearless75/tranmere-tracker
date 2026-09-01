@@ -57,3 +57,14 @@ export function londonWallTimeToUTC(dateISO: string, time: string): Date {
   utc = wallAsUTC - offset * 60_000
   return new Date(utc)
 }
+
+const WEEKDAY_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+
+/** Day of week (0=Sun..6=Sat, matching Date#getDay()) for the given instant in Europe/London. */
+export function londonWeekday(date: Date = new Date()): number {
+  const short = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/London',
+    weekday: 'short',
+  }).format(date)
+  return WEEKDAY_INDEX[short]
+}

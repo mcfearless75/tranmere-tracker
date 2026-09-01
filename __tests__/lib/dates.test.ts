@@ -1,4 +1,4 @@
-import { londonDateISO, londonHour, londonWallTimeToUTC } from '@/lib/dates'
+import { londonDateISO, londonHour, londonWallTimeToUTC, londonWeekday } from '@/lib/dates'
 
 describe('londonDateISO', () => {
   it('returns the London calendar date, not the UTC date, during BST', () => {
@@ -62,5 +62,27 @@ describe('londonWallTimeToUTC', () => {
   it('handles the autumn fall-back day (GMT resumes 25 Oct 2026)', () => {
     expect(londonWallTimeToUTC('2026-10-25', '09:00').toISOString()).toBe('2026-10-25T09:00:00.000Z')
     expect(londonWallTimeToUTC('2026-10-25', '00:30').toISOString()).toBe('2026-10-24T23:30:00.000Z')
+  })
+})
+
+describe('londonWeekday', () => {
+  it('returns 5 (Friday) for a Friday morning UTC instant', () => {
+    // 7 Aug 2026 is a Friday
+    expect(londonWeekday(new Date('2026-08-07T08:00:00Z'))).toBe(5)
+  })
+
+  it('returns 1 (Monday) for a Monday', () => {
+    // 10 Aug 2026 is a Monday
+    expect(londonWeekday(new Date('2026-08-10T08:00:00Z'))).toBe(1)
+  })
+
+  it('rolls over to the next London day when UTC is still on the previous day (BST)', () => {
+    // 23:30 UTC on Wed 1 July 2026 = 00:30 London (BST) on Thu 2 July
+    expect(londonWeekday(new Date('2026-07-01T23:30:00Z'))).toBe(4) // Thursday
+  })
+
+  it('matches the UTC weekday during GMT', () => {
+    // 15 Jan 2026 is a Thursday, 23:30 UTC stays Thursday in GMT
+    expect(londonWeekday(new Date('2026-01-15T23:30:00Z'))).toBe(4) // Thursday
   })
 })
