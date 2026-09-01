@@ -2,20 +2,22 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, User, Heart, CalendarDays, Dumbbell, Target, FolderOpen } from 'lucide-react'
+import { Home, User, Heart, CalendarDays, CalendarClock, Dumbbell, Target, FolderOpen } from 'lucide-react'
 
-const nav = [
-  { href: '/dashboard',  label: 'Home',      icon: Home },
-  { href: '/documents',  label: 'Documents', icon: FolderOpen },
-  { href: '/calendar',   label: 'Calendar',  icon: CalendarDays },
-  { href: '/gym',        label: 'Gym',        icon: Dumbbell },
-  { href: '/targets',    label: 'Targets',   icon: Target },
-  { href: '/wellbeing',  label: 'Wellbeing', icon: Heart },
-  { href: '/profile',    label: 'Profile',   icon: User },
-]
+type Props = { showTimetable?: boolean }
 
-export function BottomNav() {
+export function BottomNav({ showTimetable = false }: Props) {
   const pathname = usePathname()
+  const nav = [
+    { href: '/dashboard',  label: 'Home',      icon: Home },
+    { href: '/documents',  label: 'Documents', icon: FolderOpen },
+    { href: '/calendar',   label: 'Calendar',  icon: CalendarDays },
+    ...(showTimetable ? [{ href: '/timetable', label: 'Timetable', icon: CalendarClock }] : []),
+    { href: '/gym',        label: 'Gym',        icon: Dumbbell },
+    { href: '/targets',    label: 'Targets',   icon: Target },
+    { href: '/wellbeing',  label: 'Wellbeing', icon: Heart },
+    { href: '/profile',    label: 'Profile',   icon: User },
+  ]
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center h-16 z-50 safe-area-inset-bottom">
       {nav.map(({ href, label, icon: Icon }) => {

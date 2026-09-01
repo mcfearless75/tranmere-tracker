@@ -1,7 +1,9 @@
+import type { TimetableSlotRow } from '@/lib/timetable/timetableUtils'
+
 export type CalendarEvent = {
   date: string // YYYY-MM-DD
   label: string
-  type: 'session' | 'match' | 'deadline' | 'event'
+  type: 'session' | 'match' | 'deadline' | 'event' | 'class'
   time?: string
   description?: string
 }
@@ -63,6 +65,7 @@ export function getCalendarEvents(
   matches: MatchEventRow[],
   assignments: AssignmentRow[],
   calendarEvents: CalendarEventRow[] = [],
+  classEvents: CalendarEvent[] = [],
 ): CalendarEvent[] {
   const sessionEvents: CalendarEvent[] = sessions.map(s => ({
     date: s.scheduled_date,
@@ -90,7 +93,47 @@ export function getCalendarEvents(
     ...(e.description ? { description: e.description } : {}),
   }))
 
-  return [...sessionEvents, ...matchEvents, ...deadlineEvents, ...customEvents]
+  return [...sessionEvents, ...matchEvents, ...deadlineEvents, ...customEvents, ...classEvents]
+}
+
+/**
+ * Expands recurring weekly timetable_slots into concrete dated CalendarEvents
+ * for every day in [windowStartISO, windowEndISO] whose weekday matches a slot.
+ */
+export function expandTimetableSlots(
+  slots: Array<Pick<TimetableSlotRow, 'day_of_week' | 'start_time' | 'title' | 'location'>>,
+  windowStartISO: string,
+  windowEndISO: string,
+): CalendarEvent[] {
+  const events: CalendarEvent[] = []
+  const cursor = new Date(windowStartISO + 'T00:00:00')
+  const end = new Date(windowEndISO + 'T00:00:00')
+
+  while (cursor <= end) {
+    const dayOfWeek = cursor.getDay()
+
+    // Defence in depth: Wednesday is match day. The DB check constraint is the
+    // real guard (day_of_week=3 rows can't exist), but skip it here too so this
+    // function never disagrees with TimetableGrid, which also never renders one.
+    if (dayOfWeek !== 3) {
+      const dateISO = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`
+
+      for (const slot of slots) {
+        if (slot.day_of_week !== dayOfWeek) continue
+        events.push({
+          date: dateISO,
+          label: slot.title,
+          type: 'class',
+          time: formatEventTime(slot.start_time),
+          ...(slot.location ? { description: slot.location } : {}),
+        })
+      }
+    }
+
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  return events
 }
 
 /**

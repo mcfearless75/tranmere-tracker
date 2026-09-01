@@ -3,6 +3,7 @@ import {
   getCalendarEvents,
   groupEventsByDate,
   formatEventTime,
+  expandTimetableSlots,
   type CalendarEvent,
 } from '@/lib/calendar/calendarUtils'
 
@@ -219,5 +220,69 @@ describe('getCalendarEvents — calendar_events', () => {
     const result = getCalendarEvents(sessions, matches, assignments, calendarEvents)
     expect(result).toHaveLength(4)
     expect(result.map(e => e.type)).toEqual(['session', 'match', 'deadline', 'event'])
+  })
+})
+
+describe('expandTimetableSlots', () => {
+  it('emits one event per matching weekday inside the window', () => {
+    const slots = [
+      { day_of_week: 1, start_time: '10:00:00', end_time: '11:00:00', title: 'Football 1', location: 'Pitch 1' },
+    ]
+    // 2024-06-03 is a Monday, 2024-06-10 is the next Monday
+    const result = expandTimetableSlots(slots, '2024-06-01', '2024-06-14')
+    expect(result).toEqual([
+      { date: '2024-06-03', label: 'Football 1', type: 'class', time: '10am', description: 'Pitch 1' },
+      { date: '2024-06-10', label: 'Football 1', type: 'class', time: '10am', description: 'Pitch 1' },
+    ])
+  })
+
+  it('never emits an event on Wednesday, even for a slot claiming day_of_week 3 — defence in depth alongside the DB check constraint (Task 1)', () => {
+    const slots = [
+      { day_of_week: 3, start_time: '09:00:00', end_time: '10:00:00', title: 'Would be match day', location: null },
+    ]
+    const result = expandTimetableSlots(slots, '2024-06-01', '2024-06-07')
+    // 2024-06-05 is a Wednesday inside this window — the function must never emit for it
+    expect(result).toEqual([])
+  })
+
+  it('correctly formats dates when the window spans a month boundary', () => {
+    const slots = [
+      { day_of_week: 5, start_time: '09:00:00', end_time: '10:00:00', title: 'Friday Class', location: null }, // Friday
+      { day_of_week: 1, start_time: '10:00:00', end_time: '11:00:00', title: 'Monday Class', location: null }, // Monday
+    ]
+    // 2024-05-31 is a Friday, 2024-06-03 is the following Monday — window crosses May→June
+    const result = expandTimetableSlots(slots, '2024-05-29', '2024-06-04')
+    expect(result.map(e => ({ date: e.date, label: e.label }))).toEqual([
+      { date: '2024-05-31', label: 'Friday Class' },
+      { date: '2024-06-03', label: 'Monday Class' },
+    ])
+  })
+
+  it('omits description when location is null', () => {
+    const slots = [
+      { day_of_week: 5, start_time: '14:00:00', end_time: '15:00:00', title: 'Wellbeing', location: null },
+    ]
+    // 2024-06-07 is a Friday
+    const result = expandTimetableSlots(slots, '2024-06-07', '2024-06-07')
+    expect(result[0].description).toBeUndefined()
+  })
+
+  it('returns an empty array for an empty slot list', () => {
+    expect(expandTimetableSlots([], '2024-06-01', '2024-06-07')).toEqual([])
+  })
+})
+
+describe('getCalendarEvents — class events', () => {
+  it('includes classEvents passed as the 5th argument', () => {
+    const classEvents: CalendarEvent[] = [
+      { date: '2024-06-03', label: 'Football 1', type: 'class', time: '10am' },
+    ]
+    const result = getCalendarEvents([], [], [], [], classEvents)
+    expect(result).toEqual(classEvents)
+  })
+
+  it('defaults the 5th argument to an empty array — existing 4-arg calls still work', () => {
+    const result = getCalendarEvents([], [], [], [])
+    expect(result).toHaveLength(0)
   })
 })

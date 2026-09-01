@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { CalendarGrid } from '@/components/calendar/CalendarGrid'
-import { getCalendarEvents } from '@/lib/calendar/calendarUtils'
+import { getCalendarEvents, expandTimetableSlots } from '@/lib/calendar/calendarUtils'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,6 +10,13 @@ export default async function CalendarPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const admin = createAdminClient()
+  const { data: profile } = await admin
+    .from('users')
+    .select('year_group')
+    .eq('id', user.id)
+    .maybeSingle()
 
   const now = new Date()
   const year = now.getFullYear()
@@ -23,6 +31,7 @@ export default async function CalendarPage() {
     { data: matches },
     { data: assignments },
     { data: calendarEvents },
+    { data: timetableSlots },
   ] = await Promise.all([
     supabase
       .from('attendance_sessions')
@@ -51,13 +60,23 @@ export default async function CalendarPage() {
       .gte('event_date', windowStart)
       .lte('event_date', windowEnd)
       .order('event_date'),
+
+    profile?.year_group === 1
+      ? supabase
+          .from('timetable_slots')
+          .select('id, year_group, day_of_week, start_time, end_time, title, location')
+          .eq('year_group', profile.year_group)
+      : Promise.resolve({ data: [] as never[] }),
   ])
+
+  const classEvents = expandTimetableSlots(timetableSlots ?? [], windowStart, windowEnd)
 
   const events = getCalendarEvents(
     sessions  ?? [],
     matches   ?? [],
     assignments ?? [],
     calendarEvents ?? [],
+    classEvents,
   )
 
   return (
@@ -96,6 +115,10 @@ export default async function CalendarPage() {
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-amber-500 shrink-0" />
             <span>Event</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-purple-500 shrink-0" />
+            <span>Class</span>
           </div>
         </div>
       </div>
