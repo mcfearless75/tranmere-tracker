@@ -98,7 +98,7 @@ export default async function AdminCourseworkPage({
 
       <CourseworkManager units={unitList} assignments={assignmentList} />
 
-      {gradeSheetData && <GradeSheet {...gradeSheetData} />}
+      {gradeSheetData && <GradeSheet key={gradeSheetData.assignment.id} {...gradeSheetData} />}
     </div>
   )
 }

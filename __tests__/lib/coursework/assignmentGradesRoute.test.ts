@@ -102,7 +102,7 @@ describe('POST /api/admin/assignments/[assignmentId]/grades', () => {
 
   it('returns 400 when a grade value is invalid', async () => {
     authorizeAsStaff()
-    setupAdmin()
+    const { upsertMock } = setupAdmin()
 
     const res = await POST(
       makeRequest({ grades: [{ student_id: 's1', grade: 'A-star' }] }),
@@ -110,15 +110,17 @@ describe('POST /api/admin/assignments/[assignmentId]/grades', () => {
     )
 
     expect(res.status).toBe(400)
+    expect(upsertMock).not.toHaveBeenCalled()
   })
 
   it('returns 400 when a student is not enrolled on the course', async () => {
     authorizeAsStaff()
-    setupAdmin({ eligibleIds: ['s1'] }) // s2 not eligible
+    const { upsertMock } = setupAdmin({ eligibleIds: ['s1'] }) // s2 not eligible
 
     const res = await POST(makeRequest(validBody()), { params: { assignmentId: 'a1' } })
 
     expect(res.status).toBe(400)
+    expect(upsertMock).not.toHaveBeenCalled()
   })
 
   it('returns 404 when the assignment does not exist', async () => {

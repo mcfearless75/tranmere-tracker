@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import Image from 'next/image'
-import { X, Users, Bell, BarChart2, GraduationCap, LogOut, Calendar, CalendarDays, CalendarClock, Wifi, Activity, LayoutGrid, Plug, MessageSquare, Megaphone, Home, MoreHorizontal, ClipboardList, ShieldAlert, Network, UserPlus, Users2, Banknote, FolderOpen } from 'lucide-react'
+import { X, Users, Bell, BarChart2, GraduationCap, LogOut, Calendar, CalendarDays, CalendarClock, Wifi, Activity, LayoutGrid, Plug, MessageSquare, Megaphone, Home, MoreHorizontal, ClipboardList, ClipboardCheck, ShieldAlert, Network, UserPlus, Users2, Banknote, FolderOpen } from 'lucide-react'
 import { signOut } from '@/app/(auth)/login/actions'
 import { MOODLE_TEACHER_URL } from '@/lib/config/moodle'
 
@@ -13,6 +13,7 @@ const nav = [
   { href: '/documents', label: 'Documents', icon: FolderOpen },
   { href: '/admin/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/admin/timetable', label: 'Timetable', icon: CalendarClock },
+  { href: '/admin/coursework', label: 'Coursework', icon: ClipboardCheck },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: MOODLE_TEACHER_URL, label: 'Moodle', icon: GraduationCap, external: true },
   { href: '/admin/match-events', label: 'Match Squads', icon: Calendar, teacherHidden: true },

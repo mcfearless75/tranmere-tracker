@@ -10,7 +10,7 @@ create table if not exists assignment_grades (
   assignment_id uuid not null references assignments(id) on delete cascade,
   student_id    uuid not null references public.users(id) on delete cascade,
   grade         text check (grade in ('pass', 'merit', 'distinction', 'not_yet_achieved')),
-  graded_by     uuid references public.users(id),
+  graded_by     uuid references public.users(id) on delete set null,
   graded_at     timestamptz,
   updated_at    timestamptz default now(),
   unique (assignment_id, student_id)

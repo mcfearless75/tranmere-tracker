@@ -27,12 +27,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'unit_id is required' }, { status: 400 })
   }
 
-  const { data: unit } = await admin
+  const { data: unit, error: unitError } = await admin
     .from('btec_units')
     .select('id')
     .eq('id', unit_id)
     .maybeSingle()
 
+  if (unitError) {
+    return NextResponse.json({ error: unitError.message }, { status: 500 })
+  }
   if (!unit) {
     return NextResponse.json({ error: 'unit_id does not reference a real unit' }, { status: 400 })
   }

@@ -30,31 +30,41 @@ export async function POST(
     }
   }
 
-  const { data: assignment } = await admin
+  const { data: assignment, error: assignmentError } = await admin
     .from('assignments')
     .select('id, unit_id')
     .eq('id', params.assignmentId)
     .maybeSingle()
 
+  if (assignmentError) {
+    return NextResponse.json({ error: assignmentError.message }, { status: 500 })
+  }
   if (!assignment) {
     return NextResponse.json({ error: 'assignment not found' }, { status: 404 })
   }
 
-  const { data: unit } = await admin
+  const { data: unit, error: unitError } = await admin
     .from('btec_units')
     .select('id, course_id')
     .eq('id', assignment.unit_id)
     .maybeSingle()
 
+  if (unitError) {
+    return NextResponse.json({ error: unitError.message }, { status: 500 })
+  }
   if (!unit) {
     return NextResponse.json({ error: 'assignment has no valid unit' }, { status: 500 })
   }
 
-  const { data: eligibleStudents } = await admin
+  const { data: eligibleStudents, error: eligibleStudentsError } = await admin
     .from('users')
     .select('id')
     .eq('role', 'student')
     .eq('course_id', unit.course_id)
+
+  if (eligibleStudentsError) {
+    return NextResponse.json({ error: eligibleStudentsError.message }, { status: 500 })
+  }
 
   const eligibleIds = new Set((eligibleStudents ?? []).map(s => s.id))
 
