@@ -1,12 +1,7 @@
 /**
- * Education is delivered through Moodle (MoodleCloud). There are SEPARATE
- * sites/logins for learners and staff, so the in-app "Moodle" menu buttons
- * open the relevant URL in a new tab:
- *   - students + parents  -> MOODLE_STUDENT_URL
- *   - admin / teacher      -> MOODLE_TEACHER_URL
- *
- * TODO: replace BOTH placeholders with the confirmed live MoodleCloud URLs.
- * The values below are the generic MoodleCloud login (tracking params stripped).
+ * Education is delivered through Moodle, hosted at accesstomusic.ac.uk.
+ * Students, parents, admin and teachers all sign in at the same login page,
+ * so both URLs below point to the same confirmed live site.
  */
-export const MOODLE_STUDENT_URL = 'https://moodlecloud.com/app/en/login'
-export const MOODLE_TEACHER_URL = 'https://moodlecloud.com/app/en/login'
+export const MOODLE_STUDENT_URL = 'https://moodle.accesstomusic.ac.uk/login/index.php'
+export const MOODLE_TEACHER_URL = 'https://moodle.accesstomusic.ac.uk/login/index.php'
