@@ -97,9 +97,9 @@ export default async function LtiSetupPage() {
       <div className="rounded-2xl border bg-white p-5 space-y-4">
         <h2 className="font-semibold">2. Register the platform (Moodle instance)</h2>
         <p className="text-xs text-muted-foreground">
-          After Moodle finishes setting up the tool, it will give you: Platform ID (issuer), Client ID, Public keyset URL,
-          Access token URL, Authentication request URL, and one or more Deployment IDs.
-          Paste them here so Tranmere Tracker trusts this Moodle.
+          The issuer and endpoint URLs below are pre-filled for the accesstomusic.ac.uk Moodle site.
+          After Moodle finishes setting up the tool, it will give you a <strong>Client ID</strong> and
+          <strong> Deployment ID</strong> — paste just those two in so Tranmere Tracker trusts this Moodle.
         </p>
         <LtiPlatformForm existing={platforms ?? []} />
       </div>

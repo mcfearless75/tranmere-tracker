@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Trash2, Check, Plus } from 'lucide-react'
+import { MOODLE_LTI_ENDPOINTS } from '@/lib/config/moodle'
 
 type Platform = {
   id: string
@@ -21,13 +22,13 @@ export function LtiPlatformForm({ existing }: { existing: Platform[] }) {
   const supabase = createClient()
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
-    name: '',
-    issuer: '',
+    name: 'Access to Music Moodle',
+    issuer: MOODLE_LTI_ENDPOINTS.issuer,
     client_id: '',
     deployment_id: '',
-    auth_login_url: '',
-    auth_token_url: '',
-    keyset_url: '',
+    auth_login_url: MOODLE_LTI_ENDPOINTS.authLoginUrl,
+    auth_token_url: MOODLE_LTI_ENDPOINTS.authTokenUrl,
+    keyset_url: MOODLE_LTI_ENDPOINTS.keysetUrl,
   })
 
   async function save() {
@@ -43,7 +44,15 @@ export function LtiPlatformForm({ existing }: { existing: Platform[] }) {
       keyset_url: form.keyset_url,
     })
     setSaving(false)
-    setForm({ name: '', issuer: '', client_id: '', deployment_id: '', auth_login_url: '', auth_token_url: '', keyset_url: '' })
+    setForm({
+      name: 'Access to Music Moodle',
+      issuer: MOODLE_LTI_ENDPOINTS.issuer,
+      client_id: '',
+      deployment_id: '',
+      auth_login_url: MOODLE_LTI_ENDPOINTS.authLoginUrl,
+      auth_token_url: MOODLE_LTI_ENDPOINTS.authTokenUrl,
+      keyset_url: MOODLE_LTI_ENDPOINTS.keysetUrl,
+    })
     router.refresh()
   }
 
