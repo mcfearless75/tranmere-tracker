@@ -8,8 +8,11 @@ import { Button } from '@/components/ui/button'
 
 const DIGITS = ['1','2','3','4','5','6','7','8','9','','0','⌫']
 
-export function StaffPinForm() {
+export function StaffPinForm({ next }: { next?: string }) {
   const router = useRouter()
+  // Reject '//evil.com' (protocol-relative) as well as absolute URLs — same
+  // guard as the email/password and Google sign-in paths.
+  const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '/'
   const [username, setUsername] = useState('')
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
@@ -38,8 +41,11 @@ export function StaffPinForm() {
       setPin('')
       setLoading(false)
     } else {
-      // Root page will redirect to /admin/* or /dashboard based on role
-      router.push('/')
+      // If they arrived via an NFC tap (or any protected link) while signed
+      // out, land them back there so the action they came to do — e.g.
+      // check in — actually completes. Otherwise root page redirects to
+      // /admin/* or /dashboard based on role.
+      router.push(safeNext)
       router.refresh()
     }
   }

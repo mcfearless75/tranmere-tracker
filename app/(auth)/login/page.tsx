@@ -57,7 +57,7 @@ export default function LoginPage({ searchParams }: { searchParams: { next?: str
             Admin PIN
           </Link>
           <Link
-            href="/staff-login"
+            href={searchParams.next ? `/staff-login?next=${encodeURIComponent(searchParams.next)}` : '/staff-login'}
             className="flex flex-col items-center gap-1 rounded-xl border-2 border-tranmere-blue text-tranmere-blue p-3 text-sm font-semibold hover:bg-blue-50 transition-colors"
           >
             <User size={18} />

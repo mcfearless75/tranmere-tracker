@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { StaffPinForm } from './StaffPinForm'
 
-export default function StaffLoginPage() {
+export default function StaffLoginPage({ searchParams }: { searchParams: { next?: string } }) {
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-tranmere-blue p-4">
       <div className="w-full max-w-xs bg-white rounded-2xl shadow-xl p-8 space-y-6">
@@ -18,7 +18,7 @@ export default function StaffLoginPage() {
           <h1 className="text-xl font-bold text-tranmere-blue">Staff &amp; Student Login</h1>
           <p className="text-sm text-muted-foreground text-center">Enter your username and PIN</p>
         </div>
-        <StaffPinForm />
+        <StaffPinForm next={searchParams.next} />
         <Link href="/login" className="flex items-center justify-center gap-1 text-xs text-muted-foreground hover:text-tranmere-blue transition-colors pt-2">
           <ArrowLeft size={12} /> Back to main login
         </Link>
