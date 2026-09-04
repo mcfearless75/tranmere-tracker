@@ -1,7 +1,5 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { LoginForm } from './LoginForm'
-import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
 import { ShieldCheck, User } from 'lucide-react'
 
 export default function LoginPage({ searchParams }: { searchParams: { next?: string; error?: string } }) {
@@ -25,28 +23,6 @@ export default function LoginPage({ searchParams }: { searchParams: { next?: str
             {searchParams.error}
           </div>
         )}
-
-        <GoogleSignInButton next={searchParams.next} />
-
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-200"></div>
-          </div>
-          <div className="relative flex justify-center text-xs">
-            <span className="bg-white px-3 text-muted-foreground">or sign in with email</span>
-          </div>
-        </div>
-
-        <LoginForm next={searchParams.next} />
-
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-200"></div>
-          </div>
-          <div className="relative flex justify-center text-xs">
-            <span className="bg-white px-3 text-muted-foreground">or use a PIN</span>
-          </div>
-        </div>
 
         <div className="grid grid-cols-2 gap-2">
           <Link
