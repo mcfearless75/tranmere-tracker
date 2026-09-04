@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { ProfileClient } from './ProfileClient'
 import { PlayerAttributesForm } from '@/components/PlayerAttributesForm'
 import { InstallAppButton } from '@/components/pwa/InstallGuide'
+import { ChangePinForm } from '@/components/account/ChangePinForm'
+import { KeyRound } from 'lucide-react'
 
 export default async function ProfilePage() {
   const supabase = createClient()
@@ -50,6 +52,19 @@ export default async function ProfilePage() {
   return (
     <div className="space-y-5">
       <ProfileClient profile={p} courses={courses ?? []} />
+
+      {/* PIN-login accounts (username@tranmeretracker.internal) can change
+          their own PIN here anytime. Real-email/Google-SSO accounts don't
+          use a PIN, so this is hidden for them. */}
+      {typeof p.email === 'string' && p.email.endsWith('@tranmeretracker.internal') && (
+        <div className="rounded-2xl border bg-white p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <KeyRound size={16} className="text-tranmere-blue" />
+            <h2 className="font-semibold text-sm">Change my PIN</h2>
+          </div>
+          <ChangePinForm />
+        </div>
+      )}
 
       {p.role === 'student' && (
         <PlayerAttributesForm

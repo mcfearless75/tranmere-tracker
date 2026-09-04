@@ -10,6 +10,7 @@ import { londonDateISO } from '@/lib/dates'
 import { StudentCharts } from '@/components/charts/StudentCharts'
 import { buildAttendanceWeeks, buildAttendanceDrillDown } from '@/lib/charts/attendanceUtils'
 import { WellbeingPromptCard } from '@/components/wellbeing/WellbeingPromptCard'
+import { ChangePinPromptCard } from '@/components/account/ChangePinPromptCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +20,7 @@ export default async function DashboardPage() {
 
   let { data: profile } = await supabase
     .from('users')
-    .select('name, course_id, avatar_url, courses(name)')
+    .select('name, course_id, avatar_url, courses(name), must_change_pin')
     .eq('id', user!.id)
     .single()
 
@@ -31,7 +32,7 @@ export default async function DashboardPage() {
     )
     const { data: existing } = await adminClient
       .from('users')
-      .select('name, course_id, avatar_url, role')
+      .select('name, course_id, avatar_url, role, must_change_pin')
       .eq('id', user!.id)
       .single()
     if (existing) {
@@ -222,6 +223,9 @@ export default async function DashboardPage() {
           className="opacity-80"
         />
       </div>
+
+      {/* ═══════════ DEFAULT PIN NUDGE ═══════════ */}
+      {(profile as any)?.must_change_pin === true && <ChangePinPromptCard />}
 
       {/* ═══════════ TODAY'S ITINERARY — HERO ═══════════ */}
       <div className="rounded-2xl bg-gradient-to-br from-tranmere-blue to-blue-900 text-white p-5 shadow-lg space-y-4">
