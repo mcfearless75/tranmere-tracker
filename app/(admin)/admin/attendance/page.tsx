@@ -6,7 +6,7 @@ import Link from 'next/link'
 import {
   ClipboardList, CalendarDays, ChevronLeft, ChevronRight,
   CheckCircle2, AlertTriangle, UserX, Sun, Moon, ArrowRightCircle,
-  Printer, Download, Settings, UtensilsCrossed,
+  Printer, Download, Settings, UtensilsCrossed, FileText,
 } from 'lucide-react'
 import { OverrideButton } from './OverrideButton'
 
@@ -224,6 +224,13 @@ export default async function AttendancePage({
         >
           <Download size={14} /> Download CSV
         </a>
+        <Link
+          href={`/admin/attendance/print/week?start=${date}`}
+          target="_blank"
+          className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
+        >
+          <FileText size={14} /> Weekly report (for college)
+        </Link>
       </div>
 
       {/* End-of-period reports */}
