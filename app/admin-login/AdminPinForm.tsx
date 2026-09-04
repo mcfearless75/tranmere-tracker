@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { describeSignInError } from '@/lib/auth/signInError'
 
 const SUPERUSER_EMAIL = 'superuser@tranmeretracker.internal'
 
@@ -32,8 +33,9 @@ export function AdminPinForm() {
       password: pin,
     })
     if (err) {
-      setError('Incorrect PIN')
-      setPin('')
+      const info = describeSignInError(err, 'Incorrect PIN')
+      setError(info.message)
+      if (!info.retryable) setPin('')
       setLoading(false)
     } else {
       router.push('/admin/gps-dashboard')

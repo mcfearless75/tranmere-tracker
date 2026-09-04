@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { describeSignInError } from '@/lib/auth/signInError'
 
 const DIGITS = ['1','2','3','4','5','6','7','8','9','','0','⌫']
 
@@ -37,8 +38,9 @@ export function StaffPinForm({ next }: { next?: string }) {
       password: pin,
     })
     if (err) {
-      setError('Incorrect username or PIN')
-      setPin('')
+      const info = describeSignInError(err, 'Incorrect username or PIN')
+      setError(info.message)
+      if (!info.retryable) setPin('')
       setLoading(false)
     } else {
       // If they arrived via an NFC tap (or any protected link) while signed
