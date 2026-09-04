@@ -1,7 +1,9 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { TeamLeaderboard } from '@/components/gps/TeamLeaderboard'
 import { SeedDemoButton } from '@/components/gps/SeedDemoButton'
 import { GpsAiAnalysis } from '@/components/gps/GpsAiAnalysis'
+import { ChangePinPromptCard } from '@/components/account/ChangePinPromptCard'
 import { Trophy, Route, Zap, Gauge, Activity } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -18,6 +20,15 @@ type Sess = {
 
 export default async function GpsDashboardPage() {
   const supabase = createAdminClient()
+
+  // Whoever's actually signed in right now — used only for the default-PIN
+  // nudge below, so it's the session-scoped client, not the admin one.
+  const session = createClient()
+  const { data: { user: currentUser } } = await session.auth.getUser()
+  const { data: currentProfile } = currentUser
+    ? await session.from('users').select('must_change_pin').eq('id', currentUser.id).maybeSingle()
+    : { data: null }
+  const mustChangePin = currentProfile?.must_change_pin === true
 
   // Last 7 days of sessions — wrapped so any failure shows the migration prompt
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10)
@@ -41,6 +52,7 @@ export default async function GpsDashboardPage() {
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-bold text-tranmere-blue">Squad GPS Dashboard</h1>
+        {mustChangePin && <ChangePinPromptCard />}
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
           <p className="font-semibold text-amber-800">⚠️ Database migration needed</p>
           <p className="text-sm text-amber-700 mt-2">
@@ -101,6 +113,8 @@ export default async function GpsDashboardPage() {
         </div>
         <SeedDemoButton />
       </div>
+
+      {mustChangePin && <ChangePinPromptCard />}
 
       {/* TEAM TOTALS HERO */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
