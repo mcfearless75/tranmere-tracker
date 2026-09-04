@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { SplashScreen } from '@/components/SplashScreen'
 import { PushNavigationListener } from '@/components/PushNavigationListener'
+import { ServiceWorkerUpdateReload } from '@/components/ServiceWorkerUpdateReload'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={inter.className}>
         <SplashScreen />
         <PushNavigationListener />
+        <ServiceWorkerUpdateReload />
         {children}
       </body>
     </html>
