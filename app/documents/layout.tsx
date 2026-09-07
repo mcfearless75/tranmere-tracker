@@ -47,7 +47,7 @@ export default async function DocumentsLayout({ children }: { children: React.Re
         )}
       </div>
 
-      <main className="flex-1 flex flex-col overflow-x-hidden md:overflow-hidden min-h-[100dvh] md:min-h-0">
+      <main className="w-full flex-1 flex flex-col overflow-x-hidden md:overflow-hidden min-h-[100dvh] md:min-h-0">
         {children}
       </main>
 
