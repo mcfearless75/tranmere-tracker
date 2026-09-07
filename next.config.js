@@ -54,6 +54,25 @@ const nextConfig = {
       '@capacitor-community/background-geolocation',
     ],
   },
+  // Canonical domain is app.thesolarcampus.com (2026-09-07) — collapses the
+  // confusing tranmeretracker.vercel.app / app.thesolarcampus.com split into
+  // one URL to hand out. Do NOT enable this until the native Android/iOS app
+  // has shipped a build pointed at the new domain (capacitor.config.ts) and
+  // that rollout has reached users — the native WebView is hardcoded to
+  // tranmeretracker.vercel.app, and a redirect off that origin drops its
+  // session cookie (cross-origin), logging out anyone still on an old build
+  // with no warning. Sequence: ship native build -> let it roll out -> THEN
+  // turn this on.
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'tranmeretracker.vercel.app' }],
+        destination: 'https://app.thesolarcampus.com/:path*',
+        permanent: true,
+      },
+    ]
+  },
   // iOS Universal Links: Apple requires the AASA file served as application/json.
   async headers() {
     return [
