@@ -82,23 +82,34 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: friendly.message }, { status: friendly.status })
   }
 
-  // Awaited so serverless doesn't kill the push mid-flight; never throws.
-  await notifyParentsOfCheckIn(admin, user.id, phase, 'checked_in')
+  // submit_daily_check_in is first-tap-wins at the DATA level, but a racing
+  // duplicate call (e.g. the NFC App Link double-dispatching and opening this
+  // page twice for one physical tap) still gets a success reply. `won` says
+  // whether THIS call is the one that actually wrote the row — only that call
+  // may fire notifications, or a race produces duplicate parent/staff pushes
+  // for what was a single check-in.
+  const result = (Array.isArray(data) ? data[0] : data) as { id: string; won: boolean } | null
+  const won = result?.won === true
 
-  // If the RPC flagged this tap (off-site GPS / no GPS), alert staff so an
-  // off-track check-in surfaces immediately instead of waiting to be spotted
-  // in the day view. Awaited; helper never throws.
-  const { data: flagRow } = await admin
-    .from('daily_attendance')
-    .select(`${phase}_is_flagged, ${phase}_flag_reason`)
-    .eq('student_id', user.id)
-    .eq('attendance_date', today)
-    .maybeSingle()
-  const flagged = (flagRow as Record<string, unknown> | null)?.[`${phase}_is_flagged`] === true
-  if (flagged) {
-    const reason = String((flagRow as Record<string, unknown>)?.[`${phase}_flag_reason`] ?? 'flagged')
-    await notifyStaffOfFlaggedCheckIn(admin, user.id, phase, reason)
+  if (won) {
+    // Awaited so serverless doesn't kill the push mid-flight; never throws.
+    await notifyParentsOfCheckIn(admin, user.id, phase, 'checked_in')
+
+    // If the RPC flagged this tap (off-site GPS / no GPS), alert staff so an
+    // off-track check-in surfaces immediately instead of waiting to be spotted
+    // in the day view. Awaited; helper never throws.
+    const { data: flagRow } = await admin
+      .from('daily_attendance')
+      .select(`${phase}_is_flagged, ${phase}_flag_reason`)
+      .eq('student_id', user.id)
+      .eq('attendance_date', today)
+      .maybeSingle()
+    const flagged = (flagRow as Record<string, unknown> | null)?.[`${phase}_is_flagged`] === true
+    if (flagged) {
+      const reason = String((flagRow as Record<string, unknown>)?.[`${phase}_flag_reason`] ?? 'flagged')
+      await notifyStaffOfFlaggedCheckIn(admin, user.id, phase, reason)
+    }
   }
 
-  return NextResponse.json({ ok: true, success: true, id: data })
+  return NextResponse.json({ ok: true, success: true, id: result?.id })
 }

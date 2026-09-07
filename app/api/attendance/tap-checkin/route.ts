@@ -94,5 +94,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: friendly.message }, { status: friendly.status })
   }
 
-  return NextResponse.json({ ok: true, success: true, id: data })
+  // submit_daily_check_in now returns TABLE(id, won) instead of a bare uuid —
+  // see supabase/migrations/052_checkin_won_flag.sql.
+  const result = (Array.isArray(data) ? data[0] : data) as { id: string; won: boolean } | null
+
+  return NextResponse.json({ ok: true, success: true, id: result?.id })
 }
