@@ -27,7 +27,7 @@ export default async function AdminTimetablePage({
       <div className="py-2">
         <h1 className="text-lg font-bold text-tranmere-blue">Timetable</h1>
         <p className="text-xs text-muted-foreground">
-          Weekly sessions by year group. Wednesdays have none — that&apos;s match day.
+          Weekly sessions by year group. Wednesday is match day — it can still carry a session before travel/kick-off.
         </p>
       </div>
 

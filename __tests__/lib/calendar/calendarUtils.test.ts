@@ -260,13 +260,15 @@ describe('expandTimetableSlots', () => {
     ])
   })
 
-  it('never emits an event on Wednesday, even for a slot claiming day_of_week 3 — defence in depth alongside the DB check constraint (Task 1)', () => {
+  it('emits an event on Wednesday for a slot with day_of_week 3 (match day can still carry a real session)', () => {
     const slots = [
-      { day_of_week: 3, start_time: '09:00:00', end_time: '10:00:00', title: 'Would be match day', location: null },
+      { day_of_week: 3, start_time: '09:00:00', end_time: '10:00:00', title: 'GCSE English Facilitation', location: 'Rm2' },
     ]
     const result = expandTimetableSlots(slots, '2024-06-01', '2024-06-07')
-    // 2024-06-05 is a Wednesday inside this window — the function must never emit for it
-    expect(result).toEqual([])
+    // 2024-06-05 is a Wednesday inside this window
+    expect(result).toEqual([
+      { date: '2024-06-05', label: 'GCSE English Facilitation', type: 'class', time: '9am', description: 'Rm2' },
+    ])
   })
 
   it('correctly formats dates when the window spans a month boundary', () => {

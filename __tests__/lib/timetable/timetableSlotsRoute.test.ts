@@ -112,11 +112,22 @@ describe('POST /api/admin/timetable-slots', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 when day_of_week is Wednesday', async () => {
+  it('accepts Wednesday — match day can still carry a real session', async () => {
+    authorizeAsStaff()
+    const { insertMock } = setupAdmin()
+
+    const res = await POST(makeRequest({ ...validBody(), day_of_week: 3 }))
+
+    expect(res.status).toBe(200)
+    const payload = insertMock.mock.calls[0][0] as { day_of_week: number }
+    expect(payload.day_of_week).toBe(3)
+  })
+
+  it('returns 400 when day_of_week is out of range', async () => {
     authorizeAsStaff()
     setupAdmin()
 
-    const res = await POST(makeRequest({ ...validBody(), day_of_week: 3 }))
+    const res = await POST(makeRequest({ ...validBody(), day_of_week: 6 }))
 
     expect(res.status).toBe(400)
   })

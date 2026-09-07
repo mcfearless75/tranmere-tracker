@@ -66,11 +66,22 @@ describe('PATCH /api/admin/timetable-slots/[slotId]', () => {
     expect(eqMock).toHaveBeenCalledWith('id', 's1')
   })
 
-  it('returns 400 when day_of_week is Wednesday', async () => {
+  it('accepts Wednesday — match day can still carry a real session', async () => {
+    authorizeAsStaff()
+    const { updateMock } = setupAdmin()
+
+    const res = await PATCH(makeRequest({ ...validBody(), day_of_week: 3 }), { params: { slotId: 's1' } })
+
+    expect(res.status).toBe(200)
+    const payload = updateMock.mock.calls[0][0] as { day_of_week: number }
+    expect(payload.day_of_week).toBe(3)
+  })
+
+  it('returns 400 when day_of_week is out of range', async () => {
     authorizeAsStaff()
     setupAdmin()
 
-    const res = await PATCH(makeRequest({ ...validBody(), day_of_week: 3 }), { params: { slotId: 's1' } })
+    const res = await PATCH(makeRequest({ ...validBody(), day_of_week: 6 }), { params: { slotId: 's1' } })
 
     expect(res.status).toBe(400)
   })

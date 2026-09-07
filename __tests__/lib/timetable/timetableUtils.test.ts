@@ -14,8 +14,8 @@ function makeSlot(overrides: Partial<TimetableSlotRow> = {}): TimetableSlotRow {
 }
 
 describe('DAY_LABELS', () => {
-  it('labels Monday, Tuesday, Thursday and Friday only', () => {
-    expect(DAY_LABELS).toEqual({ 1: 'Monday', 2: 'Tuesday', 4: 'Thursday', 5: 'Friday' })
+  it('labels all five weekdays, including Wednesday', () => {
+    expect(DAY_LABELS).toEqual({ 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday' })
   })
 })
 

@@ -7,7 +7,7 @@ import { DAY_LABELS, type TimetableSlotRow } from '@/lib/timetable/timetableUtil
 
 type Props = { slots: TimetableSlotRow[]; yearGroup: number }
 
-const DAY_OPTIONS = [1, 2, 4, 5] as const
+const DAY_OPTIONS = [1, 2, 3, 4, 5] as const
 
 const EMPTY_FORM = {
   title: '',

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-const VALID_DAYS = [1, 2, 4, 5]
+const VALID_DAYS = [1, 2, 3, 4, 5]
 
 export async function PATCH(
   request: NextRequest,
@@ -27,7 +27,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'title is required' }, { status: 400 })
   }
   if (!VALID_DAYS.includes(Number(day_of_week))) {
-    return NextResponse.json({ error: 'day_of_week must be Monday, Tuesday, Thursday or Friday' }, { status: 400 })
+    return NextResponse.json({ error: 'day_of_week must be Monday–Friday' }, { status: 400 })
   }
   if (!start_time || !end_time || start_time >= end_time) {
     return NextResponse.json({ error: 'end_time must be after start_time' }, { status: 400 })
