@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   if (!sessions?.length) return NextResponse.json({ sent: 0, sessions: 0 })
 
   // Get all student push subscriptions once
-  const { data: students } = await admin.from('users').select('id').eq('role', 'student')
+  const { data: students } = await admin.from('users').select('id').eq('role', 'student').eq('is_active', true)
   const studentIds = (students ?? []).map(s => s.id)
   if (!studentIds.length) return NextResponse.json({ sent: 0, sessions: sessions.length })
 

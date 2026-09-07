@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   const today = londonDateISO()
 
   const [{ data: students }, { data: records }] = await Promise.all([
-    admin.from('users').select('id, name').eq('role', 'student'),
+    admin.from('users').select('id, name').eq('role', 'student').eq('is_active', true),
     admin.from('daily_attendance').select('student_id, am_checked_at').eq('attendance_date', today),
   ])
 

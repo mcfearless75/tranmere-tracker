@@ -52,6 +52,7 @@ export async function GET(request: Request) {
       .from('users')
       .select('id')
       .eq('role', 'student')
+      .eq('is_active', true)
       .eq('year_group', slot.year_group)
     const studentIds = (students ?? []).map(s => s.id)
 

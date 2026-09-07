@@ -74,7 +74,7 @@ function setupAdmin(opts: SetupOpts = {}) {
       }
     }
     if (table === 'users') {
-      return { select: () => ({ eq: () => ({ eq: async () => ({ data: students, error: null }) }) }) }
+      return { select: () => ({ eq: () => ({ eq: () => ({ eq: async () => ({ data: students, error: null }) }) }) }) }
     }
     if (table === 'push_subscriptions') {
       return {

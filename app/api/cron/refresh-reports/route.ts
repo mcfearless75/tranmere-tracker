@@ -33,6 +33,7 @@ export async function GET(request: Request) {
     .from('users')
     .select('id, name')
     .eq('role', 'student')
+    .eq('is_active', true)
 
   if (!students?.length) {
     return NextResponse.json({ processed: 0, refreshed: 0, skipped: 0, deferred: 0, errors: 0 })

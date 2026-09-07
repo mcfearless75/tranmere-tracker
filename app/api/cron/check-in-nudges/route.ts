@@ -26,7 +26,7 @@ export async function GET(request: Request) {
   const today = londonDateISO(now)
 
   // Get all students
-  const { data: students } = await admin.from('users').select('id, name').eq('role', 'student')
+  const { data: students } = await admin.from('users').select('id, name').eq('role', 'student').eq('is_active', true)
   if (!students?.length) return NextResponse.json({ sent: 0 })
 
   // Get today's daily_attendance rows

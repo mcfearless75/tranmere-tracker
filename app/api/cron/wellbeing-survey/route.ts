@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     .from('users')
     .select('id')
     .eq('role', 'student')
+    .eq('is_active', true)
 
   if (studentsErr || !students?.length) {
     return NextResponse.json({ error: studentsErr?.message ?? 'no students' }, { status: 500 })

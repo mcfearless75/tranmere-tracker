@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 
   const admin = createAdminClient()
 
-  const { data: students } = await admin.from('users').select('id').eq('role', 'student')
+  const { data: students } = await admin.from('users').select('id').eq('role', 'student').eq('is_active', true)
   if (!students?.length) return NextResponse.json({ sent: 0 })
 
   const studentIds = students.map(s => s.id)

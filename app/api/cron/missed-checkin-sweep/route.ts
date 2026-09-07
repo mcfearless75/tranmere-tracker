@@ -69,7 +69,7 @@ export async function GET(request: Request) {
     }
 
     const [{ data: students }, { data: rows }] = await Promise.all([
-      admin.from('users').select('id, name').eq('role', 'student'),
+      admin.from('users').select('id, name').eq('role', 'student').eq('is_active', true),
       admin.from('daily_attendance').select(`student_id, ${phase}_checked_at`).eq('attendance_date', today),
     ])
 

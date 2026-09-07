@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     .from('users')
     .select('id')
     .eq('role', 'student')
+    .eq('is_active', true)
 
   if (studentsErr) {
     return NextResponse.json({ error: studentsErr.message }, { status: 500 })
