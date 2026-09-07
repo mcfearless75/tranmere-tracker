@@ -75,8 +75,12 @@ export async function GET(request: Request) {
   const raised: { id: string; name: string }[] = []
 
   for (const student of atRisk) {
-    // Per-student dedup — never raise a second case for the same student on
-    // the same day, however many times this sweep re-runs.
+    // Cheap upfront skip for the common (non-racing) case — never raise a
+    // second case for the same student on the same day, however many times
+    // this sweep re-runs. This alone is NOT the real guard: two overlapping
+    // invocations can both pass it before either has inserted. The unique
+    // index (safeguarding_concerns_one_auto_per_day, migration 060) is the
+    // actual race guard — checked via the insert's error below.
     const { data: already } = await admin
       .from('safeguarding_concerns')
       .select('id')
@@ -93,12 +97,13 @@ export async function GET(request: Request) {
       : 'this morning'
     const nowTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })
 
-    const { data: concern } = await admin
+    const { data: concern, error: insertError } = await admin
       .from('safeguarding_concerns')
       .insert({
         student_id: student.id,
         raised_by: null, // system-raised, no admin user
         category: 'attendance',
+        raised_date: today,
         severity: 'high',
         description:
           `Auto-detected by the attendance system: ${student.name ?? 'This student'} checked in at ${amTime} ` +
@@ -108,6 +113,18 @@ export async function GET(request: Request) {
       })
       .select('id')
       .single()
+
+    // A unique-index violation here means another overlapping invocation
+    // already won the race for this student/day — exactly like the upfront
+    // check above, just race-proof. Any other error is unexpected and
+    // logged, but never thrown: a safeguarding cron must never crash out
+    // partway and skip the remaining at-risk students in this batch.
+    if (insertError) {
+      if (insertError.code !== '23505') {
+        console.error('[attendance-safeguarding-check] insert failed:', insertError)
+      }
+      continue
+    }
 
     if (concern) raised.push({ id: concern.id, name: student.name ?? 'Unknown' })
   }
