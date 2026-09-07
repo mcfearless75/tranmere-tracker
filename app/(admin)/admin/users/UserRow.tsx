@@ -6,7 +6,7 @@ import { updateUserRole, updateUserCourse } from './userActions'
 
 interface Course { id: string; name: string }
 interface Props {
-  user: { id: string; name: string; email: string; role: string; course_id: string | null; created_at: string; courses: { name: string } | null }
+  user: { id: string; name: string; email: string; role: string; course_id: string | null; created_at: string; year_group: number | null; courses: { name: string } | null }
   courses: Course[]
 }
 
@@ -42,6 +42,9 @@ export function UserRow({ user, courses }: Props) {
             <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
           ))}
         </select>
+      </td>
+      <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
+        {user.year_group ? `Year ${user.year_group}` : '—'}
       </td>
       <td className="px-4 py-3">
         <select

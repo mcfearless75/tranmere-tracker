@@ -10,7 +10,7 @@ export default async function UsersPage() {
   const [{ data: allUsers }, { data: courses }] = await Promise.all([
     supabase
       .from('users')
-      .select('id, name, email, role, course_id, created_at, is_active, courses(name)')
+      .select('id, name, email, role, course_id, created_at, is_active, year_group, courses(name)')
       .order('created_at', { ascending: false }),
     supabase.from('courses').select('id, name').order('name'),
   ])
@@ -37,7 +37,7 @@ export default async function UsersPage() {
           <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-gray-50 border-b">
               <tr>
-                {['Name', 'Email', 'Role', 'Course', 'Joined'].map(h => (
+                {['Name', 'Email', 'Role', 'Year', 'Course', 'Joined'].map(h => (
                   <th key={h} className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -47,7 +47,7 @@ export default async function UsersPage() {
                 <UserRow key={u.id} user={u as any} courses={courses ?? []} />
               ))}
               {!users?.length && (
-                <tr><td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">No users yet.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">No users yet.</td></tr>
               )}
             </tbody>
           </table>
