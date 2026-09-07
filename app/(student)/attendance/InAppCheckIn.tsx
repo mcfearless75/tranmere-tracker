@@ -25,7 +25,11 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
   const ui = PHASE_UI[phase]
   const PhaseIcon = ui.icon
 
-  // Start acquiring GPS as soon as component mounts — reduces wait on tap
+  // Start acquiring GPS as soon as component mounts — reduces wait on tap.
+  // Generous timeout: this path HARD-REJECTS on missing/out-of-fence GPS
+  // (unlike the NFC sticker, which only flags), and end-of-day check-outs
+  // are disproportionately indoors (changing rooms, corridor by reception)
+  // — much harder for a fix than an outdoor morning arrival.
   useEffect(() => {
     if (!('geolocation' in navigator)) return
     navigator.geolocation.getCurrentPosition(
@@ -37,7 +41,7 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
         }
       },
       () => {},
-      { enableHighAccuracy: true, timeout: 10000 },
+      { enableHighAccuracy: true, timeout: 15000 },
     )
   }, [])
 
@@ -45,10 +49,13 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
     setState('locating')
     setError('')
 
-    // Try to get a fresh GPS fix (up to 8s); fall back to cached or null
+    // Try to get a fresh GPS fix (up to 13s); fall back to cached or null.
+    // This path hard-rejects (422) on a missing/out-of-fence result, so a
+    // too-short budget directly blocks a legitimately on-site student —
+    // widened after live reports of exactly that at end-of-day check-out.
     const geo = await new Promise<{ lat: number; lng: number; accuracy: number } | null>(resolve => {
       if (!('geolocation' in navigator)) { resolve(geoRef.current); return }
-      const timer = setTimeout(() => resolve(geoRef.current), 8000)
+      const timer = setTimeout(() => resolve(geoRef.current), 13000)
       navigator.geolocation.getCurrentPosition(
         pos => {
           clearTimeout(timer)
@@ -57,7 +64,7 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
           resolve(g)
         },
         () => { clearTimeout(timer); resolve(geoRef.current) },
-        { enableHighAccuracy: true, timeout: 7000 },
+        { enableHighAccuracy: true, timeout: 12000 },
       )
     })
 
