@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { reportClientError } from '@/lib/reportClientError'
+import { resetOrReload } from '@/lib/errorBoundaryReset'
 
 export default function ParentError({
   error,
@@ -23,7 +24,7 @@ export default function ParentError({
         </p>
         <div className="flex items-center justify-center gap-3">
           <button
-            onClick={reset}
+            onClick={() => resetOrReload(error, reset)}
             className="rounded-xl bg-tranmere-blue px-5 py-2 text-sm font-semibold text-white hover:opacity-90"
           >
             Try again

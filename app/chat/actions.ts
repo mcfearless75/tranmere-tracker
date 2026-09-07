@@ -58,7 +58,13 @@ export async function createGroupChat(name: string, memberIds: string[]): Promis
     { room_id: room.id, user_id: user.id, role: 'owner' },
     ...allowedIds.map(id => ({ room_id: room.id, user_id: id, role: 'member' })),
   ]
-  await admin.from('chat_members').insert(rows)
+  const { error: memberError } = await admin.from('chat_members').insert(rows)
+  if (memberError) {
+    // A single multi-row insert is all-or-nothing — nobody, including the
+    // creator, ended up a member. Don't leave a room nobody can open.
+    await admin.from('chat_rooms').delete().eq('id', room.id)
+    return { error: memberError.message }
+  }
 
   revalidatePath('/chat')
   return room.id
@@ -158,10 +164,16 @@ export async function getOrCreateDM(otherUserId: string): Promise<string | { err
     .single()
   if (error || !room) return { error: error?.message ?? 'Could not create room' }
 
-  await admin.from('chat_members').insert([
+  const { error: memberError } = await admin.from('chat_members').insert([
     { room_id: room.id, user_id: user.id,       role: 'owner' },
     { room_id: room.id, user_id: otherUserId,   role: 'member' },
   ])
+  if (memberError) {
+    // A single multi-row insert is all-or-nothing — nobody ended up a
+    // member (e.g. otherUserId no longer exists). Don't leave a dead room.
+    await admin.from('chat_rooms').delete().eq('id', room.id)
+    return { error: memberError.message }
+  }
 
   revalidatePath('/chat')
   return room.id
@@ -193,10 +205,19 @@ export async function getOrCreateBotRoom(): Promise<string | { error: string }> 
     .single()
   if (error || !room) return { error: error?.message ?? 'Could not create bot room' }
 
-  await admin.from('chat_members').insert([
+  const { error: memberError } = await admin.from('chat_members').insert([
     { room_id: room.id, user_id: user.id,    role: 'member' },
     { room_id: room.id, user_id: BOT_USER_ID, role: 'member' },
   ])
+  if (memberError) {
+    // Regression guard: this exact silent failure (bot user row missing
+    // from public.users, FK violation on the whole multi-row insert) is
+    // what produced "You're not a member of this conversation" on every
+    // single tap of AI Coach in production on 2026-09-07 — see migration
+    // 061. Fail loudly and don't leave a dead room behind.
+    await admin.from('chat_rooms').delete().eq('id', room.id)
+    return { error: memberError.message }
+  }
 
   revalidatePath('/chat')
   return room.id

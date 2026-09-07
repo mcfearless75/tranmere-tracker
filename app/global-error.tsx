@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { reportClientError } from '@/lib/reportClientError'
+import { resetOrReload } from '@/lib/errorBoundaryReset'
 
 // Global error boundary — replaces the root layout, so Tailwind CSS is not
 // available here. Inline styles only.
@@ -38,7 +39,7 @@ export default function GlobalError({
               An unexpected error occurred. Please try again.
             </p>
             <button
-              onClick={reset}
+              onClick={() => resetOrReload(error, reset)}
               style={{
                 background: '#003087',
                 color: '#fff',

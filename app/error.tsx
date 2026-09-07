@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { reportClientError } from '@/lib/reportClientError'
+import { resetOrReload } from '@/lib/errorBoundaryReset'
 
 export default function RootError({
   error,
@@ -25,7 +26,7 @@ export default function RootError({
           An unexpected error occurred. Please try again.
         </p>
         <button
-          onClick={reset}
+          onClick={() => resetOrReload(error, reset)}
           className="rounded-xl bg-tranmere-blue px-6 py-2.5 text-sm font-semibold text-white hover:opacity-90"
         >
           Try again
