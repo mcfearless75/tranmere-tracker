@@ -18,4 +18,13 @@ describe('BottomNav', () => {
     render(<BottomNav showTimetable />)
     expect(screen.getByText('Timetable')).toBeInTheDocument()
   })
+
+  // Regression: Chat was dropped from the mobile bottom nav on 2026-06-08
+  // ("add calendar, gym, targets to student bottom nav") and stayed missing
+  // for three months — students on phones had no way to reach /chat.
+  it('always shows a Chat link to /chat', () => {
+    render(<BottomNav />)
+    const chatLink = screen.getByText('Chat').closest('a')
+    expect(chatLink).toHaveAttribute('href', '/chat')
+  })
 })

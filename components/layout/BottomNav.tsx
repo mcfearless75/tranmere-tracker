@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, User, Heart, CalendarDays, CalendarClock, Dumbbell, Target, FolderOpen, ClipboardCheck } from 'lucide-react'
+import { Home, User, Heart, CalendarDays, CalendarClock, Dumbbell, Target, FolderOpen, ClipboardCheck, MessageSquare } from 'lucide-react'
 
 type Props = { showTimetable?: boolean; showCoursework?: boolean }
 
@@ -10,6 +10,7 @@ export function BottomNav({ showTimetable = false, showCoursework = false }: Pro
   const pathname = usePathname()
   const nav = [
     { href: '/dashboard',  label: 'Home',      icon: Home },
+    { href: '/chat',       label: 'Chat',      icon: MessageSquare },
     { href: '/documents',  label: 'Documents', icon: FolderOpen },
     { href: '/calendar',   label: 'Calendar',  icon: CalendarDays },
     ...(showTimetable ? [{ href: '/timetable', label: 'Timetable', icon: CalendarClock }] : []),
