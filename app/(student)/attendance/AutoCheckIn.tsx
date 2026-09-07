@@ -34,14 +34,22 @@ export function AutoCheckIn({ phase, nfcToken }: Props) {
     firedRef.current = true
 
     async function run() {
-      // Best-effort GPS (audit only — NFC tap is the proof). Never blocks.
+      // Best-effort GPS (audit only — NFC tap is the proof). Never blocks the
+      // check-in itself — the RPC flags-not-rejects on missing GPS — but a
+      // too-short budget here is exactly what was flooding staff with "No GPS
+      // provided" flags: a first-ever tap needs time for the browser's own
+      // permission prompt (human reaction time) AND a cold high-accuracy GPS
+      // fix (slow indoors near reception), and 5-6s covers neither. A denied
+      // or already-blocked permission still resolves near-instantly via the
+      // error callback below, so this only lengthens the genuinely-pending
+      // case — it doesn't add wait time for anyone who's said no.
       const geo = await new Promise<{ lat: number; lng: number; accuracy: number } | null>(resolve => {
         if (!('geolocation' in navigator)) { resolve(null); return }
-        const timer = setTimeout(() => resolve(null), 6000)
+        const timer = setTimeout(() => resolve(null), 13000)
         navigator.geolocation.getCurrentPosition(
           pos => { clearTimeout(timer); resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }) },
           () => { clearTimeout(timer); resolve(null) },
-          { enableHighAccuracy: true, timeout: 5000 },
+          { enableHighAccuracy: true, timeout: 12000 },
         )
       })
 
