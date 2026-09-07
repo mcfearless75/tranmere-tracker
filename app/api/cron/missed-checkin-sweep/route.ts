@@ -83,11 +83,26 @@ export async function GET(request: Request) {
 
     // Record the sweep regardless — the gate must fire exactly once per
     // phase per day whether or not anyone was actually missing.
-    await admin.from('attendance_sweep_log').insert({
+    //
+    // The upfront `existing` check above only protects against two
+    // invocations that DON'T overlap — if two cron ticks (or an old and a
+    // freshly-deployed instance) run this concurrently, both can pass that
+    // check before either has inserted, race the UNIQUE(attendance_date,
+    // phase) constraint below, and — because this insert's result used to
+    // go unchecked — the LOSING invocation would still fall through and
+    // send its own duplicate staff notification even though only the
+    // winner's row was actually saved. Checking the error here makes the
+    // insert itself the real gate: only the invocation that actually wins
+    // the unique constraint may proceed to notify.
+    const { error: sweepLogError } = await admin.from('attendance_sweep_log').insert({
       attendance_date: today,
       phase,
       missing_count: missing.length,
     })
+    if (sweepLogError) {
+      results[phase] = { skipped: true, reason: 'already swept (lost race)' }
+      continue
+    }
 
     if (!missing.length) {
       results[phase] = { sent: 0, missing: 0 }
