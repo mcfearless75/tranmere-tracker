@@ -4,7 +4,7 @@ import { londonDateISO } from '@/lib/dates'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ClipboardList, CalendarDays, ChevronLeft, ChevronRight,
+  ClipboardList, ChevronLeft, ChevronRight,
   CheckCircle2, AlertTriangle, UserX, Sun, Moon, ArrowRightCircle,
   Printer, Download, Settings, UtensilsCrossed, FileText,
 } from 'lucide-react'
@@ -121,20 +121,6 @@ export default async function AttendancePage({
           >
             <Settings size={15} />
             Settings
-          </Link>
-          <Link
-            href="/admin/attendance/calendar"
-            className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            <CalendarDays size={15} />
-            Calendar
-          </Link>
-          <Link
-            href="/admin/attendance/schedule"
-            className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            <CalendarDays size={15} />
-            Schedule
           </Link>
         </div>
       </div>
