@@ -44,7 +44,9 @@ export function UserRow({ user, courses }: Props) {
         </select>
       </td>
       <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
-        {user.year_group ? `Year ${user.year_group}` : '—'}
+        {/* year_group defaults to 1 at the DB level for every row, staff
+            included — it's only a meaningful field for students. */}
+        {user.role === 'student' && user.year_group ? `Year ${user.year_group}` : '—'}
       </td>
       <td className="px-4 py-3">
         <select
