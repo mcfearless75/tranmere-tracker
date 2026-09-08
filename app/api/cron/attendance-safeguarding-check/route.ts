@@ -100,11 +100,15 @@ export async function GET(request: Request) {
 
   // ── Stage 1: nudge (push only, once per day, no case raised) ─────────────
   if (atRisk.length) {
-    const { data: existingNudge } = await admin
+    const { data: existingNudge, error: existingNudgeError } = await admin
       .from('attendance_safeguarding_nudge_log')
       .select('attendance_date')
       .eq('attendance_date', today)
       .maybeSingle()
+
+    if (existingNudgeError) {
+      console.error('[attendance-safeguarding-check] nudge log lookup failed:', existingNudgeError)
+    }
 
     if (!existingNudge) {
       // Race-guard identical in spirit to attendance_sweep_log: only the
@@ -113,10 +117,18 @@ export async function GET(request: Request) {
         .from('attendance_safeguarding_nudge_log')
         .insert({ attendance_date: today, notified_count: atRisk.length })
 
+      if (nudgeLogError && nudgeLogError.code !== '23505') {
+        console.error('[attendance-safeguarding-check] nudge log insert failed:', nudgeLogError)
+      }
+
       if (!nudgeLogError) {
-        const { data: dsl } = await admin.from('users').select('id').eq('role', 'admin')
-        const { data: subs } = dsl?.length
-          ? await admin.from('push_subscriptions').select('endpoint, p256dh, auth').in('user_id', dsl.map(d => d.id))
+        // Stage 1 is a "please go take a look" nudge — coaches/teachers are
+        // the ones on site who can actually go find the student, so this
+        // goes to the wider staff group (same targeting as
+        // missed-checkin-sweep), unlike the admin-only stage-2 case push.
+        const { data: staff } = await admin.from('users').select('id').in('role', ['admin', 'coach', 'teacher'])
+        const { data: subs } = staff?.length
+          ? await admin.from('push_subscriptions').select('endpoint, p256dh, auth').in('user_id', staff.map(d => d.id))
           : { data: [] }
 
         const names = atRisk.slice(0, 3).map(s => s.name?.split(' ')[0] ?? 'Unknown').join(', ')
