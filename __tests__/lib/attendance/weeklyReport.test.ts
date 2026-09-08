@@ -115,4 +115,34 @@ describe('computeWeeklyAttendance', () => {
     expect(belowThreshold).toEqual([])
     expect(rows).toEqual([])
   })
+
+  it('excludes an excused phase from both the numerator and denominator', () => {
+    // Alice checks in AM+lunch every day but is excused for PM (appointment) on Monday only.
+    const records = weekDates.map(d => rec({
+      student_id: 's1', attendance_date: d,
+      am_checked_at: 'x', lunch_checked_at: 'x', // no pm
+    }))
+    const excusals = new Map([[`s1|${weekDates[0]}`, ['pm']]])
+    const { rows } = computeWeeklyAttendance(students, records, weekDates, today, excusals)
+    const alice = rows.find(r => r.id === 's1')!
+    // Mon: 2 checked / 2 possible (pm excused). Tue-Fri: 2 checked / 3 possible each.
+    // (2 + 2*4) / (2 + 3*4) = 10/14 = 71%
+    expect(alice.weekPct).toBe(71)
+    expect(alice.days[0].excusedCount).toBe(1)
+    expect(alice.days[1].excusedCount).toBe(0)
+  })
+
+  it('gives a student excused for the whole week a null % (no possible slots left), not a punishing 0%', () => {
+    // Bob is off ill all week (checks in nothing, every phase excused every day).
+    const excusals = new Map(weekDates.map(d => [`s2|${d}`, ['am', 'lunch', 'pm']]))
+    const { rows } = computeWeeklyAttendance(students, [], weekDates, today, excusals)
+    const bob = rows.find(r => r.id === 's2')!
+    expect(bob.weekPct).toBeNull()
+    expect(bob.days.every(d => d.excusedCount === 3)).toBe(true)
+  })
+
+  it('defaults to no excusals when the 5th argument is omitted', () => {
+    const { rows } = computeWeeklyAttendance(students, [], weekDates, today)
+    expect(rows.find(r => r.id === 's1')!.days.every(d => d.excusedCount === 0)).toBe(true)
+  })
 })

@@ -21,7 +21,7 @@ export type AttendanceRecord = {
 
 export type Student = { id: string; name: string }
 
-export type DayCell = { dateISO: string; isFuture: boolean; checkedCount: number }
+export type DayCell = { dateISO: string; isFuture: boolean; checkedCount: number; excusedCount: number }
 export type StudentWeekRow = { id: string; name: string; days: DayCell[]; weekPct: number | null }
 export type FlagNote = { name: string; dateISO: string; phase: string; reason: string }
 
@@ -66,6 +66,7 @@ export function computeWeeklyAttendance(
   records: AttendanceRecord[],
   weekDates: string[],
   todayISO: string,
+  excusalsByStudentDate: Map<string, string[]> = new Map(),
 ): WeeklyAttendanceSummary {
   const byStudent = new Map<string, Map<string, AttendanceRecord>>()
   for (const r of records) {
@@ -84,10 +85,12 @@ export function computeWeeklyAttendance(
       const isFuture = dateISO > todayISO
       const r = recByDate?.get(dateISO)
       const checkedCount = r ? PHASES.filter(p => r[`${p}_checked_at` as const]).length : 0
+      const excusedPhases = excusalsByStudentDate.get(`${s.id}|${dateISO}`) ?? []
+      const excusedCount = PHASES.filter(p => excusedPhases.includes(p)).length
 
       if (!isFuture) {
         weeklyChecked += checkedCount
-        weeklyPossible += 3
+        weeklyPossible += 3 - excusedCount
       }
       if (r) {
         for (const p of PHASES) {
@@ -101,7 +104,7 @@ export function computeWeeklyAttendance(
           }
         }
       }
-      return { dateISO, isFuture, checkedCount }
+      return { dateISO, isFuture, checkedCount, excusedCount }
     })
 
     const weekPct = weeklyPossible > 0 ? Math.round((weeklyChecked / weeklyPossible) * 100) : null
