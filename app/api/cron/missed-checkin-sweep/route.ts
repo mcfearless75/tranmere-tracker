@@ -18,6 +18,7 @@ import { sendPushNotification } from '@/lib/webpush'
 import { verifyCronSecret } from '@/lib/security'
 import { londonDateISO } from '@/lib/dates'
 import { toMinutes, londonMinutes } from '@/lib/attendance/phase'
+import { excusalCoversPhase } from '@/lib/attendance/excusal'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -68,9 +69,10 @@ export async function GET(request: Request) {
       continue
     }
 
-    const [{ data: students }, { data: rows }] = await Promise.all([
+    const [{ data: students }, { data: rows }, { data: excusals }] = await Promise.all([
       admin.from('users').select('id, name').eq('role', 'student').eq('is_active', true),
       admin.from('daily_attendance').select(`student_id, ${phase}_checked_at`).eq('attendance_date', today),
+      admin.from('attendance_excusals').select('student_id, phases').eq('excused_date', today),
     ])
 
     const checkedField = `${phase}_checked_at` as const
@@ -79,7 +81,10 @@ export async function GET(request: Request) {
         .filter(r => (r as Record<string, unknown>)[checkedField] !== null)
         .map(r => (r as { student_id: string }).student_id)
     )
-    const missing = (students ?? []).filter(s => !checkedIds.has(s.id))
+    const excusalByStudent = new Map((excusals ?? []).map(e => [e.student_id, e]))
+    const missing = (students ?? []).filter(
+      s => !checkedIds.has(s.id) && !excusalCoversPhase(excusalByStudent.get(s.id), phase)
+    )
 
     // Record the sweep regardless — the gate must fire exactly once per
     // phase per day whether or not anyone was actually missing.
