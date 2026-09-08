@@ -127,6 +127,7 @@ export default async function PrintWeeklyAttendancePage({
               <th key={d} className="py-2 pr-2 text-center">{fmtDayLabel(d)}</th>
             ))}
             <th className="py-2 pr-2 text-center">Week</th>
+            <th className="py-2 pr-2 text-center">Ill/Appt</th>
           </tr>
         </thead>
         <tbody>
@@ -155,6 +156,9 @@ export default async function PrintWeeklyAttendancePage({
               })}
               <td className={`py-1.5 pr-2 text-center font-bold ${r.weekPct !== null && r.weekPct < 80 ? 'text-red-600' : ''}`}>
                 {r.weekPct !== null ? `${r.weekPct}%` : '—'}
+              </td>
+              <td className="py-1.5 pr-2 text-center font-mono">
+                {r.excusedTotal > 0 ? r.excusedTotal : '—'}
               </td>
             </tr>
           ))}

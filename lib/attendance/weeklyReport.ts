@@ -22,7 +22,7 @@ export type AttendanceRecord = {
 export type Student = { id: string; name: string }
 
 export type DayCell = { dateISO: string; isFuture: boolean; checkedCount: number; excusedCount: number }
-export type StudentWeekRow = { id: string; name: string; days: DayCell[]; weekPct: number | null }
+export type StudentWeekRow = { id: string; name: string; days: DayCell[]; weekPct: number | null; excusedTotal: number }
 export type FlagNote = { name: string; dateISO: string; phase: string; reason: string }
 
 export type WeeklyAttendanceSummary = {
@@ -86,7 +86,13 @@ export function computeWeeklyAttendance(
       const r = recByDate?.get(dateISO)
       const checkedCount = r ? PHASES.filter(p => r[`${p}_checked_at` as const]).length : 0
       const excusedPhases = excusalsByStudentDate.get(`${s.id}|${dateISO}`) ?? []
-      const excusedCount = PHASES.filter(p => excusedPhases.includes(p)).length
+      // A phase that has a real check-in wins over a stale excusal (same rule
+      // enforced by the Daily Attendance page's PhaseCell, which checks !time
+      // before the excusal): never let a phase reduce weeklyPossible if it
+      // already counted toward weeklyChecked, or weekPct can exceed 100%.
+      const excusedCount = PHASES.filter(
+        p => excusedPhases.includes(p) && !r?.[`${p}_checked_at` as const]
+      ).length
 
       if (!isFuture) {
         weeklyChecked += checkedCount
@@ -108,7 +114,8 @@ export function computeWeeklyAttendance(
     })
 
     const weekPct = weeklyPossible > 0 ? Math.round((weeklyChecked / weeklyPossible) * 100) : null
-    return { id: s.id, name: s.name, days, weekPct }
+    const excusedTotal = days.reduce((sum, d) => sum + d.excusedCount, 0)
+    return { id: s.id, name: s.name, days, weekPct, excusedTotal }
   })
 
   const withData = rows.filter(r => r.weekPct !== null)

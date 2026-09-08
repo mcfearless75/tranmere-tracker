@@ -145,4 +145,48 @@ describe('computeWeeklyAttendance', () => {
     const { rows } = computeWeeklyAttendance(students, [], weekDates, today)
     expect(rows.find(r => r.id === 's1')!.days.every(d => d.excusedCount === 0)).toBe(true)
   })
+
+  it('a real check-in wins over a stale excusal on the same phase (Finding 1 regression)', () => {
+    // Alice was excused for the whole day (am+lunch+pm) on Monday only — staff
+    // excused her in the morning expecting her to be off all day — but she
+    // actually turned up and checked in for lunch and pm anyway. The check-in
+    // flow never touches attendance_excusals, so the stale excusal for
+    // lunch+pm is still sitting there alongside the real check-ins.
+    // Rest of the week: full 3/3 every day, no excusals.
+    const records = weekDates.map(d =>
+      d === weekDates[0]
+        ? rec({ student_id: 's1', attendance_date: d, lunch_checked_at: 'x', pm_checked_at: 'x' }) // no am
+        : rec({ student_id: 's1', attendance_date: d, am_checked_at: 'x', lunch_checked_at: 'x', pm_checked_at: 'x' })
+    )
+    const excusals = new Map([[`s1|${weekDates[0]}`, ['am', 'lunch', 'pm']]])
+    const { rows } = computeWeeklyAttendance(students, records, weekDates, today, excusals)
+    const alice = rows.find(r => r.id === 's1')!
+
+    // Monday: checkedCount=2 (lunch+pm). Of the 3 nominally-excused phases,
+    // only 'am' has no real check-in, so excusedCount=1 (not 3).
+    expect(alice.days[0].checkedCount).toBe(2)
+    expect(alice.days[0].excusedCount).toBe(1)
+
+    // Monday possible = 3 - 1(excused am) = 2; checked 2/2.
+    // Tue-Fri: 3 checked / 3 possible each, no excusals.
+    // weeklyChecked = 2 + 3*4 = 14. weeklyPossible = 2 + 3*4 = 14. 14/14 = 100%.
+    expect(alice.weekPct).toBe(100)
+    expect(alice.weekPct).toBeLessThanOrEqual(100)
+  })
+
+  it('sums each day\'s excusedCount into excusedTotal for the week', () => {
+    // Alice excused for pm on Monday and Tuesday, am+lunch on Wednesday; no
+    // excusals Thu/Fri. Total excused phases for the week = 1 + 1 + 2 = 4.
+    const excusals = new Map([
+      [`s1|${weekDates[0]}`, ['pm']],
+      [`s1|${weekDates[1]}`, ['pm']],
+      [`s1|${weekDates[2]}`, ['am', 'lunch']],
+    ])
+    const { rows } = computeWeeklyAttendance(students, [], weekDates, today, excusals)
+    const alice = rows.find(r => r.id === 's1')!
+    expect(alice.excusedTotal).toBe(4)
+
+    const bob = rows.find(r => r.id === 's2')!
+    expect(bob.excusedTotal).toBe(0)
+  })
 })
