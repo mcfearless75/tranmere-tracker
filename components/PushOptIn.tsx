@@ -134,10 +134,21 @@ export function PushOptIn() {
       // on Android where the SW could transition between install → activating
       // before the listener was attached, leaving sw null and the race never
       // resolving → the 15 s timeout fired.
+      //
+      // 2026-09-08: reproduced live — activation is gated on the FULL
+      // precache finishing (workbox's install handler awaits it before the
+      // SW can activate), and this build's precache manifest is 172 files /
+      // ~4.5MB. Every single one of those 172 URLs was confirmed valid
+      // (zero 404s) — a genuinely cold install (no browser HTTP cache, no
+      // warm CDN edge for this deploy's hashed filenames yet) can just take
+      // longer than 20s to pull all of it down, especially on a slower
+      // morning WiFi/cellular connection. That's not a failure, just slow —
+      // 20s was too impatient and was reporting real-but-slow installs as
+      // broken. A second attempt minutes later (warm cache) resolved in ~1ms.
       const reg = await Promise.race([
         navigator.serviceWorker.ready,
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Service worker install timed out — try reloading the page and tapping this again')), 20000)
+          setTimeout(() => reject(new Error('Service worker install timed out — try reloading the page and tapping this again')), 45000)
         ),
       ])
 
