@@ -28,15 +28,15 @@ create index if not exists idx_attendance_excusals_date on attendance_excusals(e
 
 alter table attendance_excusals enable row level security;
 
+-- Uses public.is_staff() (SECURITY DEFINER, defined in 008_fix_rls_recursion.sql)
+-- rather than inlining the role subquery, matching every other staff-write
+-- policy in this schema. NOTE: this table was originally created with an
+-- inlined subquery here; the live database (avpdwutgtsurddvfxhmh) was
+-- corrected via 063_fix_attendance_excusals_rls.sql — this file is updated
+-- in place so a fresh database build ends up consistent too.
 create policy "excusals_staff_all"
   on attendance_excusals for all
-  using (
-    exists (
-      select 1 from public.users
-      where id = auth.uid()
-      and role in ('admin', 'coach', 'teacher')
-    )
-  );
+  using (public.is_staff());
 
 create policy "excusals_self_read"
   on attendance_excusals for select
