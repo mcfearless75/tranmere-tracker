@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { CheckCircle, AlertCircle, Loader2, Sun, Moon, Utensils, MapPin, type LucideIcon } from 'lucide-react'
 import type { AttendancePhase } from '@/lib/attendance/phase'
+import { getGeoFix, type GeoFix } from '@/lib/attendance/getGeoFix'
 
 type ScanState = 'idle' | 'locating' | 'submitting' | 'success' | 'already' | 'error'
 
@@ -20,53 +21,34 @@ const PHASE_UI: Record<AttendancePhase, { icon: LucideIcon; button: string; succ
 export function InAppCheckIn({ phase, onSuccess }: Props) {
   const [state, setState] = useState<ScanState>('idle')
   const [error, setError] = useState('')
-  const geoRef = useRef<{ lat: number; lng: number; accuracy: number } | null>(null)
+  const geoRef = useRef<GeoFix | null>(null)
 
   const ui = PHASE_UI[phase]
   const PhaseIcon = ui.icon
 
   // Start acquiring GPS as soon as component mounts — reduces wait on tap.
-  // Generous timeout: this path HARD-REJECTS on missing/out-of-fence GPS
-  // (unlike the NFC sticker, which only flags), and end-of-day check-outs
-  // are disproportionately indoors (changing rooms, corridor by reception)
-  // — much harder for a fix than an outdoor morning arrival.
+  // This path HARD-REJECTS on missing/out-of-fence GPS (unlike the NFC
+  // sticker, which only flags), and end-of-day check-outs are
+  // disproportionately indoors (changing rooms, corridor by reception) —
+  // much harder for a satellite fix than an outdoor morning arrival.
+  // getGeoFix falls back to fast network-based positioning when high-accuracy
+  // can't get a fix at all indoors — see its doc comment for the incident
+  // history (100% of AM check-ins flagged "No GPS provided" on 2026-09-08
+  // even with a generous high-accuracy-only timeout).
   useEffect(() => {
-    if (!('geolocation' in navigator)) return
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        geoRef.current = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-        }
-      },
-      () => {},
-      { enableHighAccuracy: true, timeout: 15000 },
-    )
+    getGeoFix({ highAccuracyTimeoutMs: 10000, fallbackTimeoutMs: 5000 }).then(fix => {
+      if (fix) geoRef.current = fix
+    })
   }, [])
 
   const handleCheckIn = useCallback(async () => {
     setState('locating')
     setError('')
 
-    // Try to get a fresh GPS fix (up to 13s); fall back to cached or null.
-    // This path hard-rejects (422) on a missing/out-of-fence result, so a
-    // too-short budget directly blocks a legitimately on-site student —
-    // widened after live reports of exactly that at end-of-day check-out.
-    const geo = await new Promise<{ lat: number; lng: number; accuracy: number } | null>(resolve => {
-      if (!('geolocation' in navigator)) { resolve(geoRef.current); return }
-      const timer = setTimeout(() => resolve(geoRef.current), 13000)
-      navigator.geolocation.getCurrentPosition(
-        pos => {
-          clearTimeout(timer)
-          const g = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }
-          geoRef.current = g
-          resolve(g)
-        },
-        () => { clearTimeout(timer); resolve(geoRef.current) },
-        { enableHighAccuracy: true, timeout: 12000 },
-      )
-    })
+    // Try to get a fresh fix; fall back to the mount-time prewarm's cached
+    // one, then to null (which the server hard-rejects on this path).
+    const geo = (await getGeoFix()) ?? geoRef.current
+    if (geo) geoRef.current = geo
 
     setState('submitting')
     try {

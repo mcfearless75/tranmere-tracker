@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle, AlertCircle, Loader2, Sun, Moon, Utensils, type LucideIcon } from 'lucide-react'
 import type { AttendancePhase } from '@/lib/attendance/phase'
+import { getGeoFix } from '@/lib/attendance/getGeoFix'
 
 type State = 'working' | 'success' | 'already' | 'error'
 
@@ -35,23 +36,14 @@ export function AutoCheckIn({ phase, nfcToken }: Props) {
 
     async function run() {
       // Best-effort GPS (audit only — NFC tap is the proof). Never blocks the
-      // check-in itself — the RPC flags-not-rejects on missing GPS — but a
-      // too-short budget here is exactly what was flooding staff with "No GPS
-      // provided" flags: a first-ever tap needs time for the browser's own
-      // permission prompt (human reaction time) AND a cold high-accuracy GPS
-      // fix (slow indoors near reception), and 5-6s covers neither. A denied
-      // or already-blocked permission still resolves near-instantly via the
-      // error callback below, so this only lengthens the genuinely-pending
-      // case — it doesn't add wait time for anyone who's said no.
-      const geo = await new Promise<{ lat: number; lng: number; accuracy: number } | null>(resolve => {
-        if (!('geolocation' in navigator)) { resolve(null); return }
-        const timer = setTimeout(() => resolve(null), 13000)
-        navigator.geolocation.getCurrentPosition(
-          pos => { clearTimeout(timer); resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }) },
-          () => { clearTimeout(timer); resolve(null) },
-          { enableHighAccuracy: true, timeout: 12000 },
-        )
-      })
+      // check-in itself — the RPC flags-not-rejects on missing GPS. A
+      // high-accuracy-only attempt still flagged 100% of AM check-ins on
+      // 2026-09-08 despite an earlier timeout extension (5-6s -> 12-13s) —
+      // more time doesn't help a GPS chip that physically can't get a
+      // satellite lock indoors near reception on a cold first-tap-of-the-day.
+      // getGeoFix falls back to fast network-based positioning, which works
+      // indoors — see its own doc comment for the full incident history.
+      const geo = await getGeoFix()
 
       try {
         const res = await fetch('/api/attendance/check-in', {
