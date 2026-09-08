@@ -5,6 +5,18 @@
 // module — supabase/migrations/030_safeguarding.sql) rather than just
 // firing a push that can be missed or ignored.
 //
+// TWO-STAGE grace (added 2026-09-08 after one run auto-raised 28 cases in a
+// single batch — mostly students who'd simply forgotten to tap in for lunch,
+// not genuine whereabouts emergencies, per that day's actual check-in data):
+//   Stage 1 (NUDGE_GRACE_MINUTES after pm_window_start): push nudge to staff
+//     only, no case raised — deduped once per day via
+//     attendance_safeguarding_nudge_log (supabase/migrations/064).
+//   Stage 2 (CASE_GRACE_MINUTES after pm_window_start): re-check the SAME
+//     cohort fresh — anyone who's since checked in or been excused naturally
+//     drops out — and for anyone STILL unaccounted for, raise the actual
+//     case. This is the original single-stage logic, unchanged, just gated
+//     behind a later threshold.
+//
 // Deliberately narrower than missed-checkin-sweep: only fires for a student
 // who WAS checked in this morning (am_checked_at set) and is then missing
 // BOTH lunch and PM by a grace period after the afternoon session should
@@ -17,8 +29,9 @@
 //
 // Runs every 15 min through the working day (window times are staff-
 // configurable, so a fixed UTC schedule can't target the exact deadline).
-// Dedup is per-student: skips anyone who already has an attendance-category
-// concern raised today, so re-running never double-raises the same case.
+// Stage 2 dedup is per-student: skips anyone who already has an attendance-
+// category concern raised today, so re-running never double-raises the same
+// case.
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushNotification } from '@/lib/webpush'
@@ -30,7 +43,8 @@ import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-const GRACE_MINUTES = 30
+const NUDGE_GRACE_MINUTES = 30 // stage 1: push nudge only, no case raised
+const CASE_GRACE_MINUTES = 90  // stage 2: raise a real case for anyone still unaccounted for
 
 export async function GET(request: Request) {
   if (!verifyCronSecret(request)) {
@@ -40,6 +54,7 @@ export async function GET(request: Request) {
   const admin = createAdminClient()
   const now = new Date()
   const today = londonDateISO(now)
+  const nowMinutes = londonMinutes(now)
 
   const { data: settings } = await admin
     .from('academy_settings')
@@ -48,11 +63,18 @@ export async function GET(request: Request) {
     .maybeSingle()
   if (!settings) return NextResponse.json({ error: 'Academy not configured' }, { status: 500 })
 
-  const deadline = toMinutes(settings.pm_window_start) + GRACE_MINUTES
-  if (londonMinutes(now) < deadline) {
+  const pmStart = toMinutes(settings.pm_window_start)
+  const nudgeDeadline = pmStart + NUDGE_GRACE_MINUTES
+  const caseDeadline = pmStart + CASE_GRACE_MINUTES
+
+  if (nowMinutes < nudgeDeadline) {
     return NextResponse.json({ skipped: true, reason: 'grace period not reached yet' })
   }
 
+  // Recomputed fresh on every run — a student who's since checked in for
+  // lunch/pm, or been excused, drops out of this list on the next 15-min
+  // pass, whether we're still in the nudge stage or already past the case
+  // stage.
   const [{ data: students }, { data: rows }, { data: excusals }] = await Promise.all([
     admin.from('users').select('id, name').eq('role', 'student').eq('is_active', true),
     admin
@@ -74,7 +96,49 @@ export async function GET(request: Request) {
     return !excusalCoversPhase(excusalByStudent.get(s.id), 'lunch')
   })
 
-  if (!atRisk.length) return NextResponse.json({ checked: 0 })
+  const result: Record<string, unknown> = { checked: atRisk.length }
+
+  // ── Stage 1: nudge (push only, once per day, no case raised) ─────────────
+  if (atRisk.length) {
+    const { data: existingNudge } = await admin
+      .from('attendance_safeguarding_nudge_log')
+      .select('attendance_date')
+      .eq('attendance_date', today)
+      .maybeSingle()
+
+    if (!existingNudge) {
+      // Race-guard identical in spirit to attendance_sweep_log: only the
+      // invocation that wins this unique-constrained insert sends the nudge.
+      const { error: nudgeLogError } = await admin
+        .from('attendance_safeguarding_nudge_log')
+        .insert({ attendance_date: today, notified_count: atRisk.length })
+
+      if (!nudgeLogError) {
+        const { data: dsl } = await admin.from('users').select('id').eq('role', 'admin')
+        const { data: subs } = dsl?.length
+          ? await admin.from('push_subscriptions').select('endpoint, p256dh, auth').in('user_id', dsl.map(d => d.id))
+          : { data: [] }
+
+        const names = atRisk.slice(0, 3).map(s => s.name?.split(' ')[0] ?? 'Unknown').join(', ')
+        const more = atRisk.length > 3 ? ` +${atRisk.length - 3} more` : ''
+        const nudgePayload = {
+          title: `👀 ${atRisk.length} quiet since lunch`,
+          body: `${names}${more} checked in this morning but hasn't checked in since — please take a look. A safeguarding case opens automatically if still unaccounted for.`,
+          url: '/admin/attendance',
+        }
+
+        await Promise.allSettled(
+          (subs ?? []).map(s => sendPushNotification({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, nudgePayload))
+        )
+        result.nudged = atRisk.length
+      }
+    }
+  }
+
+  // ── Stage 2: raise a case for anyone STILL unaccounted for ───────────────
+  if (nowMinutes < caseDeadline || !atRisk.length) {
+    return NextResponse.json(result)
+  }
 
   const todayStartUTC = londonWallTimeToUTC(today, '00:00').toISOString()
 
@@ -135,7 +199,7 @@ export async function GET(request: Request) {
     if (concern) raised.push({ id: concern.id, name: student.name ?? 'Unknown' })
   }
 
-  if (!raised.length) return NextResponse.json({ checked: atRisk.length, raised: 0 })
+  if (!raised.length) return NextResponse.json({ ...result, raised: 0 })
 
   // Safeguarding cases are admin-only (the DSL) — coaches/teachers can't
   // even open the linked page, so unlike every other alert in this app this
@@ -157,5 +221,5 @@ export async function GET(request: Request) {
     (subs ?? []).map(s => sendPushNotification({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, payload))
   )
 
-  return NextResponse.json({ checked: atRisk.length, raised: raised.length })
+  return NextResponse.json({ ...result, raised: raised.length })
 }
