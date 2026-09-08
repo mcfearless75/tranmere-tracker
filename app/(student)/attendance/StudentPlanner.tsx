@@ -127,7 +127,7 @@ export function StudentPlanner({ sessions, daily, today, windows, serverPhase, e
 
   // Window-open state comes from the server (Europe/London), not the device clock.
   const activePhase: AttendancePhase | null =
-    serverPhase && !checkedAt[serverPhase] ? serverPhase : null
+    serverPhase && !checkedAt[serverPhase] && !excusalCoversPhase(excusal, serverPhase) ? serverPhase : null
 
   const dayLabel = new Date(today + 'T12:00:00').toLocaleDateString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long',
