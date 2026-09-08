@@ -111,14 +111,18 @@ export async function POST(request: Request) {
   // if any), so flag it here for staff review — same column convention as
   // lib/attendance/manualOverride.ts's buildOverridePatch.
   if (bypassForPermissionDenied) {
-    await admin
-      .from('daily_attendance')
-      .update({
-        [`${phase}_is_flagged`]: true,
-        [`${phase}_flag_reason`]: 'Location permission denied on device — check-in allowed without GPS proof',
-      })
-      .eq('student_id', user.id)
-      .eq('attendance_date', today)
+    try {
+      await admin
+        .from('daily_attendance')
+        .update({
+          [`${phase}_is_flagged`]: true,
+          [`${phase}_flag_reason`]: 'Location permission denied on device — check-in allowed without GPS proof',
+        })
+        .eq('student_id', user.id)
+        .eq('attendance_date', today)
+    } catch (err) {
+      console.error('Failed to flag permission-denied bypass check-in:', err)
+    }
   }
 
   return NextResponse.json({ ok: true, success: true, id: result?.id })
