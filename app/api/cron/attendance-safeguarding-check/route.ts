@@ -25,6 +25,7 @@ import { sendPushNotification } from '@/lib/webpush'
 import { verifyCronSecret } from '@/lib/security'
 import { londonDateISO, londonWallTimeToUTC } from '@/lib/dates'
 import { toMinutes, londonMinutes } from '@/lib/attendance/phase'
+import { excusalCoversPhase } from '@/lib/attendance/excusal'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -52,20 +53,25 @@ export async function GET(request: Request) {
     return NextResponse.json({ skipped: true, reason: 'grace period not reached yet' })
   }
 
-  const [{ data: students }, { data: rows }] = await Promise.all([
+  const [{ data: students }, { data: rows }, { data: excusals }] = await Promise.all([
     admin.from('users').select('id, name').eq('role', 'student').eq('is_active', true),
     admin
       .from('daily_attendance')
       .select('student_id, am_checked_at, lunch_checked_at, pm_checked_at')
       .eq('attendance_date', today),
+    admin.from('attendance_excusals').select('student_id, phases').eq('excused_date', today),
   ])
 
   const rowByStudent = new Map((rows ?? []).map(r => [r.student_id, r]))
+  const excusalByStudent = new Map((excusals ?? []).map(e => [e.student_id, e]))
 
-  // Was here this morning, then went quiet for both lunch and the afternoon.
+  // Was here this morning, then went quiet for both lunch and the afternoon —
+  // unless staff already logged a known reason (e.g. sent home ill after AM,
+  // an afternoon appointment) covering lunch.
   const atRisk = (students ?? []).filter(s => {
     const row = rowByStudent.get(s.id)
-    return row?.am_checked_at != null && row.lunch_checked_at == null && row.pm_checked_at == null
+    if (row?.am_checked_at == null || row.lunch_checked_at != null || row.pm_checked_at != null) return false
+    return !excusalCoversPhase(excusalByStudent.get(s.id), 'lunch')
   })
 
   if (!atRisk.length) return NextResponse.json({ checked: 0 })
