@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { sendPushNotification } from '@/lib/webpush'
+import { sendFcmBatch } from '@/lib/firebase-admin'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 /** True if userId is a member of roomId. Guards actions that touch a room. */
@@ -262,19 +263,33 @@ export async function notifyRoomMembers(
   const senderName = sender?.name ?? 'Someone'
 
   const otherIds = members.map(m => m.user_id)
+  const notification = { title: senderName, body: preview.slice(0, 100), url: `/chat/${roomId}` }
+
+  // ── Web push (VAPID) ──────────────────────────────────────────────────
   const { data: subs } = await admin
     .from('push_subscriptions')
     .select('endpoint, p256dh, auth')
     .in('user_id', otherIds)
 
-  if (!subs || subs.length === 0) return
+  if (subs && subs.length > 0) {
+    await Promise.allSettled(
+      subs.map(s => sendPushNotification(
+        { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
+        notification
+      ))
+    )
+  }
 
-  await Promise.allSettled(
-    subs.map(s => sendPushNotification(
-      { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
-      { title: senderName, body: preview.slice(0, 100), url: `/chat/${roomId}` }
-    ))
-  )
+  // ── Native push (FCM via Firebase Admin) ─────────────────────────────
+  const { data: nativeTokens } = await admin
+    .from('native_push_tokens')
+    .select('token')
+    .in('user_id', otherIds)
+
+  const tokens = (nativeTokens ?? []).map(r => r.token as string)
+  if (tokens.length > 0) {
+    await sendFcmBatch(tokens, notification)
+  }
 }
 
 /** Send a push nudge to all other members of a room */
@@ -302,21 +317,36 @@ export async function nudgeRoom(roomId: string): Promise<{ ok: boolean; error?: 
   const title = `${senderName} nudged you`
   const body = `You have unread messages in ${roomName}`
 
+  const notification = { title, body, url: `/chat/${roomId}` }
+
   // Get push subscriptions for all other members
   const otherIds = members.map(m => m.user_id)
+
+  // ── Web push (VAPID) ──────────────────────────────────────────────────
   const { data: subs } = await admin
     .from('push_subscriptions')
     .select('endpoint, p256dh, auth')
     .in('user_id', otherIds)
 
-  if (!subs || subs.length === 0) return { ok: true }
+  if (subs && subs.length > 0) {
+    await Promise.allSettled(
+      subs.map(s => sendPushNotification(
+        { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
+        notification
+      ))
+    )
+  }
 
-  await Promise.allSettled(
-    subs.map(s => sendPushNotification(
-      { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
-      { title, body, url: `/chat/${roomId}` }
-    ))
-  )
+  // ── Native push (FCM via Firebase Admin) ─────────────────────────────
+  const { data: nativeTokens } = await admin
+    .from('native_push_tokens')
+    .select('token')
+    .in('user_id', otherIds)
+
+  const tokens = (nativeTokens ?? []).map(r => r.token as string)
+  if (tokens.length > 0) {
+    await sendFcmBatch(tokens, notification)
+  }
 
   return { ok: true }
 }
