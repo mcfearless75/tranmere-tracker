@@ -219,7 +219,6 @@ export default async function AttendancePage({
       <div className="flex flex-wrap gap-2">
         <Link
           href={`/admin/attendance/print?date=${date}&phase=both`}
-          target="_blank"
           className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
         >
           <Printer size={14} /> Print full report
@@ -232,7 +231,6 @@ export default async function AttendancePage({
         </a>
         <Link
           href={`/admin/attendance/print/week?start=${date}`}
-          target="_blank"
           className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
         >
           <FileText size={14} /> Weekly report (for college)
@@ -374,7 +372,6 @@ function ReportCard({
       <div className="flex gap-2 pt-1 border-t mt-1">
         <Link
           href={`/admin/attendance/print?date=${date}&phase=${phase}`}
-          target="_blank"
           className={`flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold rounded-md py-1.5 transition-colors ${
             tone === 'blue' ? 'text-blue-700 hover:bg-blue-50' : 'text-purple-700 hover:bg-purple-50'
           }`}
