@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { CheckCircle, AlertCircle, Loader2, Sun, Moon, Utensils, MapPin, type LucideIcon } from 'lucide-react'
 import type { AttendancePhase } from '@/lib/attendance/phase'
-import { getGeoFix, type GeoFix } from '@/lib/attendance/getGeoFix'
+import { getGeoFix, type GeoFix, type GeoDiagnostic } from '@/lib/attendance/getGeoFix'
+import { reportClientError } from '@/lib/reportClientError'
 
 type ScanState = 'idle' | 'locating' | 'submitting' | 'success' | 'already' | 'error'
 
@@ -47,8 +48,15 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
 
     // Try to get a fresh fix; fall back to the mount-time prewarm's cached
     // one, then to null (which the server hard-rejects on this path).
-    const geo = (await getGeoFix()) ?? geoRef.current
+    let diagnostic: GeoDiagnostic | null = null
+    const fresh = await getGeoFix({ onDiagnostic: d => { diagnostic = d } })
+    const geo = fresh ?? geoRef.current
     if (geo) geoRef.current = geo
+    // See AutoCheckIn.tsx — same still-~54%-flagged follow-up: report which
+    // attempt actually failed and why, not just "no coordinates".
+    if (!fresh && !geoRef.current && diagnostic) {
+      reportClientError(new Error(`getGeoFix failed: ${JSON.stringify(diagnostic)}`), 'checkin-geo-diagnostic')
+    }
 
     setState('submitting')
     try {

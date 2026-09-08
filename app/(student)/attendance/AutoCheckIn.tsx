@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle, AlertCircle, Loader2, Sun, Moon, Utensils, type LucideIcon } from 'lucide-react'
 import type { AttendancePhase } from '@/lib/attendance/phase'
-import { getGeoFix } from '@/lib/attendance/getGeoFix'
+import { getGeoFix, type GeoDiagnostic } from '@/lib/attendance/getGeoFix'
+import { reportClientError } from '@/lib/reportClientError'
 
 type State = 'working' | 'success' | 'already' | 'error'
 
@@ -43,7 +44,15 @@ export function AutoCheckIn({ phase, nfcToken }: Props) {
       // satellite lock indoors near reception on a cold first-tap-of-the-day.
       // getGeoFix falls back to fast network-based positioning, which works
       // indoors — see its own doc comment for the full incident history.
-      const geo = await getGeoFix()
+      // onDiagnostic: still ~54% flagged after the fallback landed —
+      // permission-denied and still-timed-out look identical as a bare null
+      // in daily_attendance, and need opposite fixes. Report which actually
+      // happened so the next batch of real check-ins answers that.
+      let diagnostic: GeoDiagnostic | null = null
+      const geo = await getGeoFix({ onDiagnostic: d => { diagnostic = d } })
+      if (!geo && diagnostic) {
+        reportClientError(new Error(`getGeoFix failed: ${JSON.stringify(diagnostic)}`), 'checkin-geo-diagnostic')
+      }
 
       try {
         const res = await fetch('/api/attendance/check-in', {

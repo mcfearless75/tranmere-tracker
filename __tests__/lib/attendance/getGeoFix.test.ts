@@ -1,4 +1,4 @@
-import { getGeoFix } from '@/lib/attendance/getGeoFix'
+import { getGeoFix, type GeoDiagnostic } from '@/lib/attendance/getGeoFix'
 
 /**
  * Regression coverage for the "No GPS provided" flagging incident: a
@@ -11,20 +11,18 @@ import { getGeoFix } from '@/lib/attendance/getGeoFix'
  */
 
 type Coords = { latitude: number; longitude: number; accuracy: number }
+type Outcome = { coords: Coords } | 'timeout' | { error: number }
 
-function mockGeolocation(behavior: {
-  highAccuracy?: { coords: Coords } | 'error' | 'timeout'
-  lowAccuracy?: { coords: Coords } | 'error' | 'timeout'
-}) {
+function mockGeolocation(behavior: { highAccuracy?: Outcome; lowAccuracy?: Outcome }) {
   const getCurrentPosition = jest.fn(
     (
       success: (pos: { coords: Coords }) => void,
-      error: () => void,
+      error: (err: { code: number }) => void,
       options: PositionOptions,
     ) => {
       const outcome = options.enableHighAccuracy ? behavior.highAccuracy : behavior.lowAccuracy
-      if (outcome === 'error') { error(); return }
       if (outcome === 'timeout') return // never calls back — the helper's own timer must fire
+      if (outcome && 'error' in outcome) { error({ code: outcome.error }); return }
       if (outcome) success(outcome)
     },
   )
@@ -52,7 +50,7 @@ describe('getGeoFix', () => {
   // network-based positioning succeeds — this must not come back null.
   it('falls back to a low-accuracy fix when high-accuracy errors out', async () => {
     mockGeolocation({
-      highAccuracy: 'error',
+      highAccuracy: { error: 2 }, // POSITION_UNAVAILABLE
       lowAccuracy: { coords: { latitude: 53.39, longitude: -3.02, accuracy: 65 } },
     })
     const fix = await getGeoFix()
@@ -75,9 +73,51 @@ describe('getGeoFix', () => {
   })
 
   it('returns null when both high- and low-accuracy fail', async () => {
-    mockGeolocation({ highAccuracy: 'error', lowAccuracy: 'error' })
+    mockGeolocation({ highAccuracy: { error: 2 }, lowAccuracy: { error: 2 } })
     const fix = await getGeoFix()
     expect(fix).toBeNull()
+  })
+
+  // Same-day follow-up regression: after the low-accuracy fallback shipped,
+  // ~54% of check-ins were STILL flagged. Permission-denied and
+  // still-timed-out look identical as a bare null in daily_attendance, and
+  // need opposite fixes — onDiagnostic must tell them apart.
+  describe('onDiagnostic', () => {
+    it('reports success on the high-accuracy attempt without touching lowAccuracy', async () => {
+      mockGeolocation({ highAccuracy: { coords: { latitude: 1, longitude: 2, accuracy: 5 } } })
+      let diagnostic: GeoDiagnostic | undefined
+      await getGeoFix({ onDiagnostic: d => { diagnostic = d } })
+      expect(diagnostic).toEqual({ highAccuracy: 'success' })
+    })
+
+    it('reports permission-denied (code 1) distinctly from position-unavailable (code 2)', async () => {
+      mockGeolocation({ highAccuracy: { error: 1 }, lowAccuracy: { error: 1 } })
+      let diagnostic: GeoDiagnostic | undefined
+      await getGeoFix({ onDiagnostic: d => { diagnostic = d } })
+      expect(diagnostic).toEqual({ highAccuracy: 'permission-denied', lowAccuracy: 'permission-denied' })
+    })
+
+    it('reports timeout when the helper\'s own backstop timer fires', async () => {
+      jest.useFakeTimers()
+      mockGeolocation({ highAccuracy: 'timeout', lowAccuracy: 'timeout' })
+      let diagnostic: GeoDiagnostic | undefined
+      const promise = getGeoFix({
+        highAccuracyTimeoutMs: 1000,
+        fallbackTimeoutMs: 1000,
+        onDiagnostic: d => { diagnostic = d },
+      })
+      await jest.advanceTimersByTimeAsync(4001)
+      await promise
+      expect(diagnostic).toEqual({ highAccuracy: 'timeout', lowAccuracy: 'timeout' })
+    })
+
+    it('reports unsupported when there is no Geolocation API at all', async () => {
+      // @ts-expect-error -- simulating an environment with no Geolocation API
+      delete global.navigator.geolocation
+      let diagnostic: GeoDiagnostic | undefined
+      await getGeoFix({ onDiagnostic: d => { diagnostic = d } })
+      expect(diagnostic).toEqual({ highAccuracy: 'unsupported' })
+    })
   })
 
   it('never attempts the fallback when high-accuracy already succeeded', async () => {
