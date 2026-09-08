@@ -177,7 +177,7 @@ export default async function AttendancePage({
 
       {/* Roster */}
       <div className="bg-white border rounded-xl overflow-hidden">
-        <div className="grid grid-cols-[1fr_auto_auto_auto] sm:grid-cols-[1fr_110px_110px_110px] items-center px-4 py-2.5 border-b bg-gray-50/60 text-[11px] font-bold uppercase tracking-wide text-muted-foreground gap-3">
+        <div className="hidden sm:grid sm:grid-cols-[1fr_110px_110px_110px] items-center px-4 py-2.5 border-b bg-gray-50/60 text-[11px] font-bold uppercase tracking-wide text-muted-foreground gap-3">
           <span>Student</span>
           <span className="text-center">AM</span>
           <span className="text-center">Lunch</span>
@@ -191,9 +191,9 @@ export default async function AttendancePage({
             {rows.map(r => (
               <li
                 key={r.id}
-                className="grid grid-cols-[1fr_auto_auto_auto] sm:grid-cols-[1fr_110px_110px_110px] items-center px-4 py-2.5 gap-3 text-sm hover:bg-gray-50/60 transition-colors"
+                className="flex flex-col gap-2 sm:grid sm:grid-cols-[1fr_110px_110px_110px] sm:items-center px-4 py-2.5 sm:gap-3 text-sm hover:bg-gray-50/60 transition-colors"
               >
-                <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex items-center flex-wrap gap-2.5 min-w-0">
                   {r.avatar_url
                     // eslint-disable-next-line @next/next/no-img-element
                     ? <img src={r.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
@@ -204,9 +204,11 @@ export default async function AttendancePage({
                   <span className="font-medium truncate">{r.name}</span>
                   <ExcuseButton studentId={r.id} date={date} excusal={r.excusal ? { reason: r.excusal.reason, note: r.excusal.note } : null} />
                 </div>
-                <PhaseCell time={r.am}    flagged={r.am_flagged}    reason={r.am_reason}    studentId={r.id} date={date} phase="am"    excusal={r.excusal} />
-                <PhaseCell time={r.lunch} flagged={r.lunch_flagged} reason={r.lunch_reason} studentId={r.id} date={date} phase="lunch" excusal={r.excusal} />
-                <PhaseCell time={r.pm}    flagged={r.pm_flagged}    reason={r.pm_reason}    studentId={r.id} date={date} phase="pm"    excusal={r.excusal} />
+                <div className="grid grid-cols-3 gap-2 sm:contents">
+                  <PhaseCell time={r.am}    flagged={r.am_flagged}    reason={r.am_reason}    studentId={r.id} date={date} phase="am"    excusal={r.excusal} />
+                  <PhaseCell time={r.lunch} flagged={r.lunch_flagged} reason={r.lunch_reason} studentId={r.id} date={date} phase="lunch" excusal={r.excusal} />
+                  <PhaseCell time={r.pm}    flagged={r.pm_flagged}    reason={r.pm_reason}    studentId={r.id} date={date} phase="pm"    excusal={r.excusal} />
+                </div>
               </li>
             ))}
           </ul>
