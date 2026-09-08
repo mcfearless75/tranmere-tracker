@@ -28,11 +28,12 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ ok: false, error: 'Unauthorised' }, { status: 401 })
 
-  const { phase, geo_lat, geo_lng, geo_accuracy_m } = await request.json() as {
+  const { phase, geo_lat, geo_lng, geo_accuracy_m, geo_permission_denied } = await request.json() as {
     phase: AttendancePhase
     geo_lat?: number | null
     geo_lng?: number | null
     geo_accuracy_m?: number | null
+    geo_permission_denied?: boolean
   }
 
   if (!PHASES.includes(phase)) {
@@ -53,12 +54,19 @@ export async function POST(request: Request) {
 
   const today = londonDateISO()
 
-  // Hard geofence — missing or out-of-range GPS is a rejection on this path.
-  // Recorded + alerted to staff (awaited, never throws) so "tried to check in
-  // but isn't at the academy" surfaces immediately — first attempt per
-  // student/phase/day only; repeats just update the attempt count.
+  // Hard geofence — missing or out-of-range GPS is normally a rejection on
+  // this path. Exception: the browser flatly refused location permission
+  // (common in a third-party QR-scanner app's embedded in-app browser, which
+  // often blocks geolocation entirely and can't be fixed from iOS Settings).
+  // That student may well be physically present with no way to self-resolve
+  // the block, so let the check-in through — flagged for staff review below
+  // — instead of hard-rejecting with a misleading "you're not at the
+  // academy" error. Genuine "couldn't get a fix" (timeout/position-
+  // unavailable) still hard-rejects unchanged — that's real anti-fraud
+  // signal this path relies on.
   const fence = isInsideFence(geo_lat, geo_lng, settings.geo_lat, settings.geo_lng, settings.radius_m)
-  if (!fence.inside) {
+  const bypassForPermissionDenied = !fence.inside && geo_permission_denied === true
+  if (!fence.inside && !bypassForPermissionDenied) {
     await recordAndNotifyRejection(admin, user.id, today, phase, fence.distanceM)
     return NextResponse.json({ ok: false, error: NOT_AT_ACADEMY }, { status: 422 })
   }
@@ -97,6 +105,21 @@ export async function POST(request: Request) {
   // submit_daily_check_in now returns TABLE(id, won) instead of a bare uuid —
   // see supabase/migrations/052_checkin_won_flag.sql.
   const result = (Array.isArray(data) ? data[0] : data) as { id: string; won: boolean } | null
+
+  // Permission-denied bypass: the RPC has no idea this check-in was let
+  // through without GPS proof (it just saw whatever coordinates were sent,
+  // if any), so flag it here for staff review — same column convention as
+  // lib/attendance/manualOverride.ts's buildOverridePatch.
+  if (bypassForPermissionDenied) {
+    await admin
+      .from('daily_attendance')
+      .update({
+        [`${phase}_is_flagged`]: true,
+        [`${phase}_flag_reason`]: 'Location permission denied on device — check-in allowed without GPS proof',
+      })
+      .eq('student_id', user.id)
+      .eq('attendance_date', today)
+  }
 
   return NextResponse.json({ ok: true, success: true, id: result?.id })
 }

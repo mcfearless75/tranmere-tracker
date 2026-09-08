@@ -52,6 +52,13 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
     const fresh = await getGeoFix({ onDiagnostic: d => { diagnostic = d } })
     const geo = fresh ?? geoRef.current
     if (geo) geoRef.current = geo
+
+    // The browser flatly refused location (common in a third-party QR-scanner
+    // app's embedded in-app browser, which often blocks geolocation entirely
+    // and can't be fixed from iOS Settings). Both attempts fail identically
+    // in every real sample, so checking highAccuracy alone is sufficient.
+    const geoPermissionDenied = (diagnostic as GeoDiagnostic | null)?.highAccuracy === 'permission-denied'
+
     // See AutoCheckIn.tsx — same still-~54%-flagged follow-up: report which
     // attempt actually failed and why, not just "no coordinates".
     if (!fresh && !geoRef.current && diagnostic) {
@@ -65,9 +72,10 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phase,
-          geo_lat:        geo?.lat ?? null,
-          geo_lng:        geo?.lng ?? null,
-          geo_accuracy_m: geo?.accuracy ? Math.round(geo.accuracy) : null,
+          geo_lat:              geo?.lat ?? null,
+          geo_lng:              geo?.lng ?? null,
+          geo_accuracy_m:       geo?.accuracy ? Math.round(geo.accuracy) : null,
+          geo_permission_denied: geoPermissionDenied,
         }),
       })
       const json = await res.json()
