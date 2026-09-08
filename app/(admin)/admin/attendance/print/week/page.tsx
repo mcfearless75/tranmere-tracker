@@ -32,19 +32,28 @@ export default async function PrintWeeklyAttendancePage({
   const friday = weekDates[4]
   const weekLabel = `${fmtDayLabel(monday)} – ${new Date(friday + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}`
 
-  const [{ data: students }, { data: records }] = await Promise.all([
+  const [{ data: students }, { data: records }, { data: excusals }] = await Promise.all([
     admin.from('users').select('id, name').eq('role', 'student').order('name'),
     admin
       .from('daily_attendance')
       .select('student_id, attendance_date, am_checked_at, lunch_checked_at, pm_checked_at, am_is_flagged, lunch_is_flagged, pm_is_flagged, am_flag_reason, lunch_flag_reason, pm_flag_reason')
       .in('attendance_date', weekDates),
+    admin
+      .from('attendance_excusals')
+      .select('student_id, excused_date, phases')
+      .in('excused_date', weekDates),
   ])
+
+  const excusalsByStudentDate = new Map(
+    (excusals ?? []).map(e => [`${e.student_id}|${e.excused_date}`, e.phases as string[]])
+  )
 
   const { rows, cohortAvgPct, belowThreshold, flagNotes } = computeWeeklyAttendance(
     students ?? [],
     (records ?? []) as AttendanceRecord[],
     weekDates,
     today,
+    excusalsByStudentDate,
   )
 
   const generatedAt = new Date().toLocaleString('en-GB', {
@@ -125,16 +134,25 @@ export default async function PrintWeeklyAttendancePage({
             <tr key={r.id} className="border-b border-black/10">
               <td className="py-1.5 pr-2 text-gray-500">{i + 1}</td>
               <td className="py-1.5 pr-2 font-medium">{r.name}</td>
-              {r.days.map(d => (
-                <td
-                  key={d.dateISO}
-                  className={`py-1.5 pr-2 text-center font-mono ${
-                    d.isFuture ? 'text-gray-300' : d.checkedCount < 3 ? 'text-red-600 font-bold' : ''
-                  }`}
-                >
-                  {d.isFuture ? '—' : `${d.checkedCount}/3`}
-                </td>
-              ))}
+              {r.days.map(d => {
+                const possible = 3 - d.excusedCount
+                const isShort = !d.isFuture && d.checkedCount < possible
+                return (
+                  <td
+                    key={d.dateISO}
+                    className={`py-1.5 pr-2 text-center font-mono ${
+                      d.isFuture ? 'text-gray-300' : isShort ? 'text-red-600 font-bold' : ''
+                    }`}
+                    title={d.excusedCount > 0 ? `${d.excusedCount} phase(s) authorised absence` : undefined}
+                  >
+                    {d.isFuture
+                      ? '—'
+                      : d.excusedCount === 3
+                        ? 'Ill/Appt'
+                        : `${d.checkedCount}/${possible}`}
+                  </td>
+                )
+              })}
               <td className={`py-1.5 pr-2 text-center font-bold ${r.weekPct !== null && r.weekPct < 80 ? 'text-red-600' : ''}`}>
                 {r.weekPct !== null ? `${r.weekPct}%` : '—'}
               </td>
@@ -145,6 +163,7 @@ export default async function PrintWeeklyAttendancePage({
 
       <p className="text-[10px] text-gray-500 mt-2">
         Each day shows checks completed out of 3 (AM in / lunch / PM out). Week % counts only days that have already happened.
+        Phases marked as ill or an authorised appointment are excluded from both the check count and the week %.
       </p>
 
       {/* Flagged notes */}
