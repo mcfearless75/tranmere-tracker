@@ -52,3 +52,38 @@ export function getSlotsDueForReminder(
     return minutesUntil >= 13 && minutesUntil < 18
   })
 }
+
+/**
+ * timetable_slots are recurring weekly (matched purely by day_of_week), so
+ * "the slots for a given calendar date" just means filtering to that date's
+ * weekday — computed from the y/m/d components directly (Date.UTC), never
+ * from a wall-clock instant, so this can't be thrown off by BST/GMT.
+ */
+export function getSlotsForDate<T extends { day_of_week: number }>(slots: T[], dateISO: string): T[] {
+  const [y, m, d] = dateISO.split('-').map(Number)
+  const dayOfWeek = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
+  return slots.filter(slot => slot.day_of_week === dayOfWeek)
+}
+
+/** A timetable_slots row shaped like an attendance_sessions row, so it can
+ *  be merged into the same "today's sessions" list the dashboard renders. */
+export type TimetableSlotAsSession = {
+  id: string
+  session_label: string
+  session_type: 'class'
+  opens_at: string
+  closes_at: string
+}
+
+export function timetableSlotToSession(
+  slot: Pick<TimetableSlotRow, 'id' | 'title' | 'location' | 'start_time' | 'end_time'>,
+  dateISO: string,
+): TimetableSlotAsSession {
+  return {
+    id: `timetable-${slot.id}`,
+    session_label: slot.location ? `${slot.title} — ${slot.location}` : slot.title,
+    session_type: 'class',
+    opens_at: londonWallTimeToUTC(dateISO, slot.start_time).toISOString(),
+    closes_at: londonWallTimeToUTC(dateISO, slot.end_time).toISOString(),
+  }
+}

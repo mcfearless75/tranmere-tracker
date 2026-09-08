@@ -7,6 +7,7 @@ import { PushOptIn } from '@/components/PushOptIn'
 import { Trophy, Dumbbell, Apple, Activity, CheckCircle2, Clock, Sun, Moon, CalendarDays, Brain, ChevronRight, Target, ClipboardList, BookOpen, GraduationCap, ShieldCheck, CheckSquare, Video, Satellite } from 'lucide-react'
 import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
 import { londonDateISO } from '@/lib/dates'
+import { VALID_TIMETABLE_YEAR_GROUPS, getSlotsForDate, timetableSlotToSession } from '@/lib/timetable/timetableUtils'
 import { StudentCharts } from '@/components/charts/StudentCharts'
 import { buildAttendanceWeeks, buildAttendanceDrillDown } from '@/lib/charts/attendanceUtils'
 import { WellbeingPromptCard } from '@/components/wellbeing/WellbeingPromptCard'
@@ -20,7 +21,7 @@ export default async function DashboardPage() {
 
   let { data: profile } = await supabase
     .from('users')
-    .select('name, course_id, avatar_url, courses(name), must_change_pin')
+    .select('name, course_id, avatar_url, courses(name), must_change_pin, year_group')
     .eq('id', user!.id)
     .single()
 
@@ -32,7 +33,7 @@ export default async function DashboardPage() {
     )
     const { data: existing } = await adminClient
       .from('users')
-      .select('name, course_id, avatar_url, role, must_change_pin')
+      .select('name, course_id, avatar_url, role, must_change_pin, year_group')
       .eq('id', user!.id)
       .single()
     if (existing) {
@@ -46,7 +47,7 @@ export default async function DashboardPage() {
         name: displayName,
         role: 'student',
       })
-      profile = { name: displayName, course_id: null, avatar_url: null, courses: null } as any
+      profile = { name: displayName, course_id: null, avatar_url: null, courses: null, year_group: null } as any
     }
   }
 
@@ -72,6 +73,7 @@ export default async function DashboardPage() {
     { data: chartAttended },
     { data: chartScheduled },
     { data: openSurvey },
+    { data: timetableSlots },
   ] = await Promise.all([
     supabase
       .from('nutrition_logs')
@@ -146,7 +148,29 @@ export default async function DashboardPage() {
       .eq('student_id', user!.id)
       .eq('status', 'open')
       .maybeSingle(),
+    // This student's weekly timetable — the actual source of truth for
+    // "what's on today". attendance_sessions (queried above) is the older
+    // PIN-session system and, for most days, now has zero rows: it was
+    // showing every student "No sessions today — day off" even on days
+    // with real timetable classes. See CLAUDE.md-adjacent commit 124161e
+    // and the 2026-09-08 live incident that caught this.
+    (profile?.year_group != null && VALID_TIMETABLE_YEAR_GROUPS.includes(profile.year_group))
+      ? supabase
+          .from('timetable_slots')
+          .select('id, day_of_week, start_time, end_time, title, location')
+          .eq('year_group', profile.year_group)
+      : Promise.resolve({ data: [] as never[] }),
   ])
+
+  // Merge real timetable classes into today's/tomorrow's session lists —
+  // attendance_sessions can still legitimately carry one-off entries
+  // (e.g. matches), so this adds to it rather than replacing it.
+  const todayTimetableSessions = getSlotsForDate(timetableSlots ?? [], today).map(s => timetableSlotToSession(s, today))
+  const tomorrowTimetableSessions = getSlotsForDate(timetableSlots ?? [], tomorrow).map(s => timetableSlotToSession(s, tomorrow))
+  const allTodaySessions = [...(todaySessions ?? []), ...todayTimetableSessions]
+    .sort((a, b) => new Date(a.opens_at).getTime() - new Date(b.opens_at).getTime())
+  const allTomorrowSessions = [...(tomorrowSessions ?? []), ...tomorrowTimetableSessions]
+    .sort((a, b) => new Date(a.opens_at).getTime() - new Date(b.opens_at).getTime())
 
   const totalCalories = todayFood?.reduce((sum, r) => sum + r.calories, 0) ?? 0
 
@@ -166,7 +190,7 @@ export default async function DashboardPage() {
     : null
 
   // Does tomorrow have a match session?
-  const tomorrowHasMatch = (tomorrowSessions ?? []).some(s => s.session_type === 'match')
+  const tomorrowHasMatch = allTomorrowSessions.some(s => s.session_type === 'match')
 
   // AI report summary — only show if cached and <24h old
   const reportAge = cachedReport?.generated_at
@@ -238,9 +262,9 @@ export default async function DashboardPage() {
         </div>
 
         {/* Session list */}
-        {todaySessions && todaySessions.length > 0 ? (
+        {allTodaySessions.length > 0 ? (
           <div className="space-y-1.5">
-            {todaySessions.map(s => {
+            {allTodaySessions.map(s => {
               const opens  = new Date(s.opens_at)
               const closes = s.closes_at ? new Date(s.closes_at) : null
               const now    = new Date()
@@ -332,9 +356,9 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {tomorrowSessions && tomorrowSessions.length > 0 ? (
+        {allTomorrowSessions.length > 0 ? (
           <div className="space-y-0.5">
-            {tomorrowSessions.map(s => {
+            {allTomorrowSessions.map(s => {
               const opens  = new Date(s.opens_at)
               const closes = s.closes_at ? new Date(s.closes_at) : null
               const dot = s.session_type === 'match' ? 'bg-green-500' : s.session_type === 'training' ? 'bg-blue-500' : 'bg-purple-500'
