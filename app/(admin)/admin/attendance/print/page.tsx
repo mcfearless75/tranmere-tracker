@@ -4,6 +4,7 @@ import { londonDateISO } from '@/lib/dates'
 import { redirect } from 'next/navigation'
 import Image from 'next/image'
 import { PrintToolbar } from './PrintToolbar'
+import { excusalCoversPhase, EXCUSAL_LABELS, type ExcusalReason } from '@/lib/attendance/excusal'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,18 +30,24 @@ export default async function PrintAttendancePage({
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
 
-  const [{ data: students }, { data: records }] = await Promise.all([
+  const [{ data: students }, { data: records }, { data: excusals }] = await Promise.all([
     admin.from('users').select('id, name').eq('role', 'student').order('name'),
     admin
       .from('daily_attendance')
       .select('student_id, am_checked_at, lunch_checked_at, pm_checked_at, am_is_flagged, lunch_is_flagged, pm_is_flagged, am_flag_reason, lunch_flag_reason, pm_flag_reason')
       .eq('attendance_date', date),
+    admin
+      .from('attendance_excusals')
+      .select('student_id, reason, phases')
+      .eq('excused_date', date),
   ])
 
   const recMap = new Map((records ?? []).map(r => [r.student_id, r]))
+  const excusalMap = new Map((excusals ?? []).map(e => [e.student_id, e]))
 
   const rows = (students ?? []).map(s => {
     const r = recMap.get(s.id)
+    const e = excusalMap.get(s.id)
     return {
       name:  s.name,
       am:    r?.am_checked_at ?? null,
@@ -52,6 +59,7 @@ export default async function PrintAttendancePage({
       am_reason:    r?.am_flag_reason ?? null,
       lunch_reason: r?.lunch_flag_reason ?? null,
       pm_reason:    r?.pm_flag_reason ?? null,
+      excusal: e ? { reason: e.reason as ExcusalReason, phases: e.phases as string[] } : null,
     }
   })
 
@@ -156,23 +164,27 @@ export default async function PrintAttendancePage({
               r.lunch_flagged ? `Lunch: ${r.lunch_reason}` : null,
               r.pm_flagged ? `PM: ${r.pm_reason}` : null,
             ].filter(Boolean).join('; ')
+            const amExcused    = !r.am    && excusalCoversPhase(r.excusal, 'am')
+            const lunchExcused = !r.lunch && excusalCoversPhase(r.excusal, 'lunch')
+            const pmExcused    = !r.pm    && excusalCoversPhase(r.excusal, 'pm')
+            const excusedLabel = r.excusal ? EXCUSAL_LABELS[r.excusal.reason] : null
             return (
               <tr key={r.name} className="border-b border-black/10">
                 <td className="py-1.5 pr-2 text-gray-500">{i + 1}</td>
                 <td className="py-1.5 pr-2 font-medium">{r.name}</td>
                 {showAm && (
-                  <td className={`py-1.5 pr-2 text-center font-mono ${!r.am ? 'text-red-600 font-bold' : ''}`}>
-                    {r.am ? fmtTime(r.am) : 'MISSING'}
+                  <td className={`py-1.5 pr-2 text-center font-mono ${!r.am && !amExcused ? 'text-red-600 font-bold' : ''}`}>
+                    {r.am ? fmtTime(r.am) : amExcused ? excusedLabel : 'MISSING'}
                   </td>
                 )}
                 {showLunch && (
-                  <td className={`py-1.5 pr-2 text-center font-mono ${!r.lunch ? 'text-red-600 font-bold' : ''}`}>
-                    {r.lunch ? fmtTime(r.lunch) : 'MISSING'}
+                  <td className={`py-1.5 pr-2 text-center font-mono ${!r.lunch && !lunchExcused ? 'text-red-600 font-bold' : ''}`}>
+                    {r.lunch ? fmtTime(r.lunch) : lunchExcused ? excusedLabel : 'MISSING'}
                   </td>
                 )}
                 {showPm && (
-                  <td className={`py-1.5 pr-2 text-center font-mono ${!r.pm ? 'text-red-600 font-bold' : ''}`}>
-                    {r.pm ? fmtTime(r.pm) : 'MISSING'}
+                  <td className={`py-1.5 pr-2 text-center font-mono ${!r.pm && !pmExcused ? 'text-red-600 font-bold' : ''}`}>
+                    {r.pm ? fmtTime(r.pm) : pmExcused ? excusedLabel : 'MISSING'}
                   </td>
                 )}
                 <td className="py-1.5 pr-2 text-xs text-gray-600">{note}</td>
