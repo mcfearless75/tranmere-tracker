@@ -73,3 +73,6 @@ android/build/
 public/worker-*.js
 
 .vercel
+
+# Local git worktrees (scratch, never committed)
+.worktrees/
