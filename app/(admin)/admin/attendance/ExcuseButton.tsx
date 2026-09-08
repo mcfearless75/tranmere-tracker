@@ -36,6 +36,7 @@ export function ExcuseButton({
       setPicking(false)
       startTransition(() => router.refresh())
     } catch {
+      setPicking(false)
       setError(true)
     } finally {
       setBusy(false)

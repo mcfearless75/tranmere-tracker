@@ -22,16 +22,21 @@ export function ExcusedPill({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(false)
 
   const clearPhase = async () => {
     setBusy(true)
+    setError(false)
     try {
       const res = await fetch('/api/attendance/excuse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ studentId, date, action: 'clear_phase', phase }),
       })
-      if (res.ok) startTransition(() => router.refresh())
+      if (!res.ok) throw new Error()
+      startTransition(() => router.refresh())
+    } catch {
+      setError(true)
     } finally {
       setBusy(false)
     }
@@ -47,9 +52,11 @@ export function ExcusedPill({
         type="button"
         onClick={clearPhase}
         disabled={busy || pending}
-        className="text-[10px] underline decoration-dotted disabled:opacity-40"
+        className={`text-[10px] font-semibold px-1 py-0.5 rounded border transition-colors disabled:opacity-40 ${
+          error ? 'border-red-300 text-red-600 bg-red-50' : 'underline decoration-dotted'
+        }`}
       >
-        {busy || pending ? '…' : 'undo'}
+        {busy || pending ? '…' : error ? 'Retry' : 'undo'}
       </button>
     </span>
   )
