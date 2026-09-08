@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { CalendarDays, CheckCircle2, Clock, Sun, Moon, Utensils, type LucideIcon } from 'lucide-react'
+import { CalendarDays, CalendarOff, CheckCircle2, Clock, Sun, Moon, Utensils, type LucideIcon } from 'lucide-react'
 import type { AttendancePhase, PhaseWindows } from '@/lib/attendance/phase'
+import { EXCUSAL_LABELS, excusalCoversPhase, type ExcusalReason } from '@/lib/attendance/excusal'
 import { InAppCheckIn } from './InAppCheckIn'
 
 export type PlannerSession = {
@@ -19,6 +20,12 @@ export type DailyAttendance = {
   pm_checked_at: string | null
 } | null
 
+export type PlannerExcusal = {
+  reason: ExcusalReason
+  note: string | null
+  phases: string[]
+} | null
+
 type Props = {
   sessions: PlannerSession[]
   daily:    DailyAttendance
@@ -30,6 +37,8 @@ type Props = {
    * must not disagree with the academy clock about window state.
    */
   serverPhase: AttendancePhase | null
+  /** Today's excusal for this student, if staff have logged one. Null when none. */
+  excusal: PlannerExcusal
 }
 
 const TYPE_CHIP: Record<string, string> = {
@@ -52,12 +61,13 @@ function fmtTime(t: string) {
 }
 
 function PhaseCard({
-  phase, checkedAt, window, isOpen,
+  phase, checkedAt, window, isOpen, excusal,
 }: {
   phase: AttendancePhase
   checkedAt: string | null
   window: { start: string; end: string }
   isOpen: boolean
+  excusal: PlannerExcusal
 }) {
   const { icon: Icon, title } = PHASE_META[phase]
 
@@ -70,6 +80,20 @@ function PhaseCard({
         </div>
         <p className="text-sm font-bold text-green-800">Checked in</p>
         <p className="text-[11px] text-green-700/80">at {fmt(checkedAt)}</p>
+      </div>
+    )
+  }
+
+  // A real check-in always wins above — this only applies when there is none.
+  if (excusalCoversPhase(excusal, phase)) {
+    return (
+      <div className="flex-1 rounded-2xl border border-blue-200 bg-blue-50/60 p-4 space-y-1">
+        <div className="flex items-center gap-2">
+          <CalendarOff size={18} className="text-blue-600" />
+          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">{title}</p>
+        </div>
+        <p className="text-sm font-bold text-blue-800">Excused</p>
+        <p className="text-[11px] text-blue-700/80">{EXCUSAL_LABELS[excusal!.reason]}</p>
       </div>
     )
   }
@@ -92,7 +116,7 @@ function PhaseCard({
   )
 }
 
-export function StudentPlanner({ sessions, daily, today, windows, serverPhase }: Props) {
+export function StudentPlanner({ sessions, daily, today, windows, serverPhase, excusal }: Props) {
   const now = new Date() // only used for absolute session timestamps below — never for window state
 
   const [checkedAt, setCheckedAt] = useState<Record<AttendancePhase, string | null>>({
@@ -123,6 +147,21 @@ export function StudentPlanner({ sessions, daily, today, windows, serverPhase }:
         </div>
       </div>
 
+      {/* Excusal banner — reassuring, not alarming: staff already know and logged it */}
+      {excusal && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 flex items-start gap-3">
+          <CalendarOff size={18} className="text-blue-600 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <p className="text-sm font-bold text-blue-800">
+              You&apos;re marked off today — {EXCUSAL_LABELS[excusal.reason]}
+            </p>
+            {excusal.note && (
+              <p className="text-xs text-blue-700/80">{excusal.note}</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* AM / Lunch / PM status cards */}
       <div className="flex gap-3">
         {phases.map(p => (
@@ -132,6 +171,7 @@ export function StudentPlanner({ sessions, daily, today, windows, serverPhase }:
             checkedAt={checkedAt[p]}
             window={windows[p]}
             isOpen={serverPhase === p}
+            excusal={excusal}
           />
         ))}
       </div>

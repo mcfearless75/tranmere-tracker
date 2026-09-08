@@ -67,7 +67,7 @@ export default async function StudentAttendancePage({
   // ── Default: planner view ─────────────────────────────────────────────────
   const today = new Date().toISOString().split('T')[0]
 
-  const [{ data: sessions }, { data: daily }] = await Promise.all([
+  const [{ data: sessions }, { data: daily }, { data: excusal }] = await Promise.all([
     admin
       .from('attendance_sessions')
       .select('id, session_label, session_type, opens_at, closes_at')
@@ -79,6 +79,12 @@ export default async function StudentAttendancePage({
       .eq('student_id', user.id)
       .eq('attendance_date', today)
       .maybeSingle(),
+    admin
+      .from('attendance_excusals')
+      .select('reason, note, phases')
+      .eq('student_id', user.id)
+      .eq('excused_date', today)
+      .maybeSingle(),
   ])
 
   return (
@@ -88,6 +94,7 @@ export default async function StudentAttendancePage({
       today={today}
       windows={windows}
       serverPhase={phase}
+      excusal={excusal ?? null}
     />
   )
 }
