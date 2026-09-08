@@ -6,9 +6,12 @@ import Link from 'next/link'
 import {
   ClipboardList, ChevronLeft, ChevronRight,
   CheckCircle2, AlertTriangle, UserX, Sun, Moon, ArrowRightCircle,
-  Printer, Download, Settings, UtensilsCrossed, FileText,
+  Printer, Download, Settings, UtensilsCrossed, FileText, CalendarOff,
 } from 'lucide-react'
 import { OverrideButton } from './OverrideButton'
+import { excusalCoversPhase } from '@/lib/attendance/excusal'
+import { ExcuseButton } from './ExcuseButton'
+import { ExcusedPill } from './ExcusedPill'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,16 +48,21 @@ export default async function AttendancePage({
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
 
-  // Roster + records in parallel
-  const [{ data: students }, { data: records }] = await Promise.all([
+  // Roster + records + excusals in parallel
+  const [{ data: students }, { data: records }, { data: excusals }] = await Promise.all([
     admin.from('users').select('id, name, avatar_url').eq('role', 'student').order('name'),
     admin
       .from('daily_attendance')
       .select('student_id, am_checked_at, lunch_checked_at, pm_checked_at, am_is_flagged, lunch_is_flagged, pm_is_flagged, am_flag_reason, lunch_flag_reason, pm_flag_reason, am_selfie_path, pm_selfie_path')
       .eq('attendance_date', date),
+    admin
+      .from('attendance_excusals')
+      .select('student_id, reason, note, phases')
+      .eq('excused_date', date),
   ])
 
   const recMap = new Map((records ?? []).map(r => [r.student_id, r]))
+  const excusalMap = new Map((excusals ?? []).map(e => [e.student_id, e]))
 
   type StudentRow = {
     id: string
@@ -69,10 +77,12 @@ export default async function AttendancePage({
     am_reason: string | null
     lunch_reason: string | null
     pm_reason: string | null
+    excusal: { reason: 'ill' | 'appointment' | 'other'; note: string | null; phases: string[] } | null
   }
 
   const rows: StudentRow[] = (students ?? []).map(s => {
     const r = recMap.get(s.id)
+    const e = excusalMap.get(s.id)
     return {
       id: s.id,
       name: s.name,
@@ -86,21 +96,27 @@ export default async function AttendancePage({
       am_reason: r?.am_flag_reason ?? null,
       lunch_reason: r?.lunch_flag_reason ?? null,
       pm_reason: r?.pm_flag_reason ?? null,
+      excusal: e ? { reason: e.reason, note: e.note, phases: e.phases } : null,
     }
   })
 
   const amIn       = rows.filter(r => r.am).length
   const lunchIn    = rows.filter(r => r.lunch).length
   const pmOut      = rows.filter(r => r.pm).length
-  const amMissing    = rows.length - amIn
-  const lunchMissing = rows.length - lunchIn
-  const pmMissing    = rows.length - pmOut
+  const amMissing    = rows.filter(r => !r.am && !excusalCoversPhase(r.excusal, 'am')).length
+  const lunchMissing = rows.filter(r => !r.lunch && !excusalCoversPhase(r.excusal, 'lunch')).length
+  const pmMissing    = rows.filter(r => !r.pm && !excusalCoversPhase(r.excusal, 'pm')).length
   const flagged    = rows.filter(r => r.am_flagged || r.lunch_flagged || r.pm_flagged).length
+  const excused    = rows.filter(r => r.excusal).length
 
-  // Sort: missing first, then by name
+  // Sort: genuinely missing (not checked in AND not excused for that phase) first, then by name
+  const isGenuinelyMissing = (r: StudentRow) =>
+    (!r.am && !excusalCoversPhase(r.excusal, 'am')) ||
+    (!r.lunch && !excusalCoversPhase(r.excusal, 'lunch')) ||
+    (!r.pm && !excusalCoversPhase(r.excusal, 'pm'))
   rows.sort((a, b) => {
-    const aMissing = !a.am || !a.lunch || !a.pm
-    const bMissing = !b.am || !b.lunch || !b.pm
+    const aMissing = isGenuinelyMissing(a)
+    const bMissing = isGenuinelyMissing(b)
     if (aMissing !== bMissing) return aMissing ? -1 : 1
     return a.name.localeCompare(b.name)
   })
@@ -150,11 +166,12 @@ export default async function AttendancePage({
       </div>
 
       {/* Summary tiles */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5">
         <SummaryTile icon={<Sun size={14} />}             label="AM In"   value={`${amIn}/${rows.length}`} tone="blue" />
         <SummaryTile icon={<UtensilsCrossed size={14} />} label="Lunch"   value={`${lunchIn}/${rows.length}`} tone="green" />
         <SummaryTile icon={<Moon size={14} />}            label="PM Out"  value={`${pmOut}/${rows.length}`} tone="purple" />
         <SummaryTile icon={<UserX size={14} />}           label="Missing" value={`${Math.max(amMissing, lunchMissing, pmMissing)}`} tone={Math.max(amMissing, lunchMissing, pmMissing) > 0 ? 'red' : 'gray'} />
+        <SummaryTile icon={<CalendarOff size={14} />}     label="Excused" value={`${excused}`} tone="gray" />
         <SummaryTile icon={<AlertTriangle size={14} />}   label="Flagged" value={`${flagged}`} tone={flagged > 0 ? 'amber' : 'gray'} />
       </div>
 
@@ -185,10 +202,11 @@ export default async function AttendancePage({
                       </div>
                   }
                   <span className="font-medium truncate">{r.name}</span>
+                  <ExcuseButton studentId={r.id} date={date} excusal={r.excusal ? { reason: r.excusal.reason, note: r.excusal.note } : null} />
                 </div>
-                <PhaseCell time={r.am}    flagged={r.am_flagged}    reason={r.am_reason}    studentId={r.id} date={date} phase="am" />
-                <PhaseCell time={r.lunch} flagged={r.lunch_flagged} reason={r.lunch_reason} studentId={r.id} date={date} phase="lunch" />
-                <PhaseCell time={r.pm}    flagged={r.pm_flagged}    reason={r.pm_reason}    studentId={r.id} date={date} phase="pm" />
+                <PhaseCell time={r.am}    flagged={r.am_flagged}    reason={r.am_reason}    studentId={r.id} date={date} phase="am"    excusal={r.excusal} />
+                <PhaseCell time={r.lunch} flagged={r.lunch_flagged} reason={r.lunch_reason} studentId={r.id} date={date} phase="lunch" excusal={r.excusal} />
+                <PhaseCell time={r.pm}    flagged={r.pm_flagged}    reason={r.pm_reason}    studentId={r.id} date={date} phase="pm"    excusal={r.excusal} />
               </li>
             ))}
           </ul>
@@ -274,7 +292,7 @@ function SummaryTile({
 }
 
 function PhaseCell({
-  time, flagged, reason, studentId, date, phase,
+  time, flagged, reason, studentId, date, phase, excusal,
 }: {
   time: string | null
   flagged: boolean
@@ -282,7 +300,19 @@ function PhaseCell({
   studentId: string
   date: string
   phase: 'am' | 'lunch' | 'pm'
+  excusal: { reason: 'ill' | 'appointment' | 'other'; note: string | null; phases: string[] } | null
 }) {
+  if (!time && excusalCoversPhase(excusal, phase)) {
+    return (
+      <ExcusedPill
+        studentId={studentId}
+        date={date}
+        phase={phase}
+        reason={excusal!.reason}
+        note={excusal!.note}
+      />
+    )
+  }
   if (!time) {
     return (
       <span className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
