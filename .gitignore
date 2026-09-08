@@ -76,3 +76,6 @@ public/worker-*.js
 
 # Local git worktrees (scratch, never committed)
 .worktrees/
+
+# Subagent-driven-development scratch (progress ledger, briefs, reports)
+.superpowers/
