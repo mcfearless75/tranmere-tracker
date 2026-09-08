@@ -52,12 +52,13 @@ export async function POST(request: Request) {
   }
 
   if (action === 'clear_phase') {
-    const { data: existing } = await admin
+    const { data: existing, error: existingError } = await admin
       .from('attendance_excusals')
       .select('phases')
       .eq('student_id', studentId)
       .eq('excused_date', date)
       .maybeSingle()
+    if (existingError) return NextResponse.json({ error: existingError.message }, { status: 500 })
     if (!existing) return NextResponse.json({ ok: true, action, phases: [] })
 
     const remaining = removePhase(existing.phases, body.phase)
@@ -82,12 +83,13 @@ export async function POST(request: Request) {
   // action === 'excuse' — drop any requested phase that already has a real
   // check-in, so an excusal can never claim a phase the student actually
   // attended (see stripCheckedPhases).
-  const { data: existingAttendance } = await admin
+  const { data: existingAttendance, error: attendanceError } = await admin
     .from('daily_attendance')
     .select('am_checked_at, lunch_checked_at, pm_checked_at')
     .eq('student_id', studentId)
     .eq('attendance_date', date)
     .maybeSingle()
+  if (attendanceError) return NextResponse.json({ error: attendanceError.message }, { status: 500 })
 
   const requestedPhases = resolvePhases(body.phases)
   const phases = stripCheckedPhases(requestedPhases, {
