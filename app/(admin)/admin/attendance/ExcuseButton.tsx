@@ -22,22 +22,28 @@ export function ExcuseButton({
   const [busy, setBusy] = useState(false)
   const [picking, setPicking] = useState(false)
   const [error, setError] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const submit = async (body: Record<string, unknown>) => {
     setBusy(true)
     setError(false)
+    setErrorMessage(null)
     try {
       const res = await fetch('/api/attendance/excuse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ studentId, date, ...body }),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null)
+        throw new Error(typeof errBody?.error === 'string' ? errBody.error : undefined)
+      }
       setPicking(false)
       startTransition(() => router.refresh())
-    } catch {
+    } catch (e) {
       setPicking(false)
       setError(true)
+      setErrorMessage(e instanceof Error && e.message ? e.message : null)
     } finally {
       setBusy(false)
     }
@@ -90,7 +96,11 @@ export function ExcuseButton({
     <button
       type="button"
       onClick={() => setPicking(true)}
-      title="Record a known reason (ill / appointment) — suppresses missing-checkin alerts for the day"
+      title={
+        error
+          ? errorMessage ?? 'Something went wrong — try again'
+          : 'Record a known reason (ill / appointment) — suppresses missing-checkin alerts for the day'
+      }
       className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border shrink-0 transition-colors ${
         error ? 'border-red-300 text-red-600 bg-red-50' : 'border-gray-200 text-muted-foreground hover:bg-gray-100'
       }`}
