@@ -29,8 +29,25 @@ describe('detectDistressSignals', () => {
     expect(detectDistressSignals("someone is hurting me and I don't know what to do")).toEqual(['abuse_disclosure'])
   })
 
+  it('matches abuse disclosure with relationship/family words instead of pronouns', () => {
+    expect(detectDistressSignals('my dad hits me')).toEqual(['abuse_disclosure'])
+    expect(detectDistressSignals('mum hurts me')).toEqual(['abuse_disclosure'])
+    expect(detectDistressSignals('my mother abuses me')).toEqual(['abuse_disclosure'])
+    expect(detectDistressSignals('my boyfriend hits me')).toEqual(['abuse_disclosure'])
+    expect(detectDistressSignals('dad touches me')).toEqual(['abuse_disclosure'])
+    expect(detectDistressSignals('my sister hurts me')).toEqual(['abuse_disclosure'])
+    expect(detectDistressSignals('uncle abuses me')).toEqual(['abuse_disclosure'])
+  })
+
   it('matches hopelessness phrasing', () => {
     expect(detectDistressSignals("nothing matters anymore, I've given up on everything")).toEqual(['hopelessness'])
+  })
+
+  it('matches the direct word "hopeless" / "hopelessness"', () => {
+    expect(detectDistressSignals('I feel so hopeless')).toEqual(['hopelessness'])
+    expect(detectDistressSignals('I am hopeless')).toEqual(['hopelessness'])
+    expect(detectDistressSignals('This is hopelessness')).toEqual(['hopelessness'])
+    expect(detectDistressSignals("I'm hopeless")).toEqual(['hopelessness'])
   })
 
   it('returns multiple categories when a message matches more than one', () => {

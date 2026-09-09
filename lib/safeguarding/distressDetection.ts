@@ -15,9 +15,9 @@ const PATTERNS: Record<DistressCategory, RegExp> = {
   self_harm_or_suicide:
     /\b(kill(?:ing)?\s+myself|end(?:ing)?\s+my\s+life|suicidal|suicide|self[- ]harm(?:ing)?|hurt(?:ing)?\s+myself|cut(?:ting)?\s+myself|want(?:ed)?\s+to\s+die|don'?t\s+want\s+to\s+(?:be\s+here|live|exist)(?:\s+anymore)?|no\s+reason\s+to\s+live)\b/i,
   abuse_disclosure:
-    /\b(?:he|she|they)\s+(?:hits?|hurts?|touche?d?|abuses?)\s+me\b|\bsomeone\s+(?:is\s+)?(?:hurting|abusing|hitting)\s+me\b|\b(?:sexually\s+abus\w*|being\s+abused)\b/i,
+    /\b(?:he|she|they)\s+(?:hits?|hurts?|touch(?:ed|es?)?|abuses?)\s+me\b|\b(?:my\s+)?(?:mom|mother|dad|father|stepmom|stepdad|mum|boyfriend|girlfriend|brother|sister|uncle|aunt)\s+(?:hits?|hurts?|touch(?:ed|es?)?|abuses?)\s+me\b|\bsomeone\s+(?:is\s+)?(?:hurting|abusing|hitting)\s+me\b|\b(?:sexually\s+abus\w*|being\s+abused)\b/i,
   hopelessness:
-    /\b(?:no\s*one\s+(?:would\s+)?care|nothing\s+matters\s+anymore|can'?t\s+(?:take|cope\s+with|handle)\s+(?:it|this)\s+anymore|given?\s+up\s+on\s+(?:everything|life))\b/i,
+    /\b(?:hopeless(?:ness)?|no\s*one\s+(?:would\s+)?care|nothing\s+matters\s+anymore|can'?t\s+(?:take|cope\s+with|handle)\s+(?:it|this)\s+anymore|given?\s+up\s+on\s+(?:everything|life))\b/i,
 }
 
 export function detectDistressSignals(text: string): DistressCategory[] {
