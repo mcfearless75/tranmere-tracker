@@ -1,5 +1,4 @@
 import {
-  isFortnightlyWeek,
   getRedFlags,
   validateSurveyAnswers,
   buildWellbeingTrend,
@@ -9,35 +8,6 @@ import {
 } from '@/lib/wellbeing/wellbeingUtils'
 
 const ALL_KEYS = SURVEY_QUESTIONS.map(q => q.key)
-
-describe('isFortnightlyWeek', () => {
-  it('returns true on ISO week 1 (odd)', () => {
-    // 2024-01-01 is ISO week 1 — Monday
-    expect(isFortnightlyWeek(new Date('2024-01-01T12:00:00Z'))).toBe(true)
-  })
-
-  it('returns false on ISO week 2 (even)', () => {
-    // 2024-01-08 is ISO week 2
-    expect(isFortnightlyWeek(new Date('2024-01-08T12:00:00Z'))).toBe(false)
-  })
-
-  it('returns true on ISO week 3 (odd)', () => {
-    // 2024-01-15 is ISO week 3
-    expect(isFortnightlyWeek(new Date('2024-01-15T12:00:00Z'))).toBe(true)
-  })
-
-  it('returns false on ISO week 4 (even)', () => {
-    // 2024-01-22 is ISO week 4
-    expect(isFortnightlyWeek(new Date('2024-01-22T12:00:00Z'))).toBe(false)
-  })
-
-  it('same-week mid-week date gives same result as Monday', () => {
-    // 2024-01-03 Wednesday is still week 1 — should match Monday
-    expect(isFortnightlyWeek(new Date('2024-01-03T12:00:00Z'))).toBe(
-      isFortnightlyWeek(new Date('2024-01-01T12:00:00Z'))
-    )
-  })
-})
 
 describe('getRedFlags', () => {
   it('returns empty array when all scores are above threshold', () => {

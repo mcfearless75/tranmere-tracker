@@ -30,17 +30,6 @@ export function normalizedScore(key: string, score: number): number {
   return INVERTED_KEYS.has(key) ? 6 - score : score
 }
 
-/** Returns true on odd ISO weeks (1, 3, 5...) — the fortnightly fire weeks */
-export function isFortnightlyWeek(date: Date): boolean {
-  // ISO week: Thursday determines the week year
-  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
-  const day = d.getUTCDay() || 7 // make Sunday = 7
-  d.setUTCDate(d.getUTCDate() + 4 - day) // move to Thursday
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
-  return weekNo % 2 !== 0
-}
-
 /** Returns responses that should trigger a pastoral alert */
 export function getRedFlags(responses: SurveyResponse[]): SurveyResponse[] {
   return responses.filter(

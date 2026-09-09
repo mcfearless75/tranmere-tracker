@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendPushNotification } from '@/lib/webpush'
-import { isFortnightlyWeek } from '@/lib/wellbeing/wellbeingUtils'
+import { notifyUsers } from '@/lib/notifications/notifyStaff'
 import { verifyCronSecret } from '@/lib/security'
 
 export const dynamic = 'force-dynamic'
@@ -12,11 +11,6 @@ export async function GET(request: NextRequest) {
   }
 
   const now = new Date()
-
-  // Only fire on fortnightly (odd ISO) weeks
-  if (!isFortnightlyWeek(now)) {
-    return NextResponse.json({ skipped: true, reason: 'even week' })
-  }
 
   const admin = createAdminClient()
 
@@ -59,26 +53,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: insertErr.message }, { status: 500 })
   }
 
-  // Send push notifications
-  const { data: subs } = await admin
-    .from('push_subscriptions')
-    .select('endpoint, p256dh, auth')
-    .in('user_id', targets.map(s => s.id))
-
-  if (subs?.length) {
-    await Promise.allSettled(
-      subs.map(s =>
-        sendPushNotification(
-          { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
-          {
-            title: 'Wellbeing Check-in 💙',
-            body: 'Your fortnightly wellbeing survey is ready — takes 60 seconds.',
-            url: '/wellbeing',
-          }
-        )
-      )
-    )
-  }
+  // Notify targets — dual-channel (web push + native/FCM)
+  await notifyUsers(
+    admin,
+    targets.map(s => s.id),
+    {
+      title: 'Wellbeing Check-in 💙',
+      body: 'Your weekly wellbeing survey is ready — takes 60 seconds.',
+      url: '/wellbeing',
+    }
+  )
 
   return NextResponse.json({ sent: targets.length })
 }

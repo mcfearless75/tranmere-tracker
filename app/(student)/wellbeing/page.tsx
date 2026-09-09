@@ -85,7 +85,7 @@ export default function WellbeingPage() {
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-tranmere-blue">Wellbeing Check-in</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">Takes about 60 seconds · Every two weeks</p>
+        <p className="text-xs text-muted-foreground mt-0.5">Takes about 60 seconds · Every week</p>
       </div>
 
       {/* Progress */}

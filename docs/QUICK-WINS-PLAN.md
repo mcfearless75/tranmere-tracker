@@ -16,7 +16,7 @@
 
 ---
 
-## Quick Win 1 — Bi-weekly Wellbeing Survey
+## Quick Win 1 — Weekly Wellbeing Survey
 
 **Why first**: self-contained, no third-party integration, direct safeguarding/pastoral value.
 
@@ -24,7 +24,7 @@
 - Migration `023_wellbeing.sql`: tables `wellbeing_surveys` (id, student_id, sent_at, completed_at, status) and `wellbeing_responses` (survey_id, question_key, score 1-5, note). RLS: students see/write own; admins read all.
 - 5-question survey (mood, sleep, energy, stress, football enjoyment) — 1-5 scale + optional note. Keep it 60 seconds.
 - Student UI: `app/(student)/wellbeing/page.tsx` — card on dashboard when a survey is open + not completed (mirror the attendance check-in pattern in `StudentPlanner.tsx`).
-- Cron `app/api/cron/wellbeing-survey/route.ts` — runs every **2nd Monday** (cron can't do fortnightly natively → run every Monday, gate in code on ISO-week parity). Creates a survey row per active student + push notification. Add to `vercel.json`.
+- Cron `app/api/cron/wellbeing-survey/route.ts` — runs every **Monday**. Creates a survey row per active student + push notification (`vercel.json`, unchanged).
 - Admin view: `app/(admin)/admin/wellbeing/page.tsx` — table of latest scores, red-flag any low score (e.g. ≤2 on mood/stress) for follow-up.
 
 **Effort**: small. ~1 migration, 2 pages, 1 cron, 1 alert rule.

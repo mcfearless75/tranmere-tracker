@@ -48,7 +48,7 @@ export default function PrivacyPage() {
               coach ratings, GPS session metrics.</li>
             <li><strong>Health and lifestyle</strong> — nutrition, hydration and gym logs,
               and optional meal photos, entered by the student.</li>
-            <li><strong>Wellbeing and pastoral</strong> — fortnightly wellbeing survey answers,
+            <li><strong>Wellbeing and pastoral</strong> — weekly wellbeing survey answers,
               learner reviews, and safeguarding records (staff-recorded, strictly access-controlled).</li>
             <li><strong>Trial applications</strong> — details submitted through our public
               trials form, including parent/guardian contact information, with explicit consent.</li>

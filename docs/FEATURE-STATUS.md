@@ -19,7 +19,7 @@ _Last reviewed: 2026-06-10. Build green, 508 tests passing. Migrations applied l
 | Learning Hub | ✅ (curated links) |
 | Moodle integration | 🔗 link live · 🔑 data sync needs API key |
 | Messaging & notifications | ✅ |
-| Bi-weekly wellbeing survey (2nd Monday) | ✅ |
+| Weekly wellbeing survey (every Monday) | ✅ |
 | VEO match analysis access | 🔗 link page live · 🔑 embed/data needs API |
 | Catapult performance data access | 🔗 link page live · 🔑 data needs API |
 | Digital portfolio | ✅ |
