@@ -68,37 +68,37 @@ export async function POST(request: Request) {
     .eq('id', user.id)
     .maybeSingle()
 
+  // Safeguarding safety net: built BEFORE the try block below, and before
+  // anything that could throw (e.g. getAnthropic() when ANTHROPIC_API_KEY is
+  // unset) — detection must run independently of whether the AI path
+  // succeeds AT ALL, not just independently of what the AI replies.
+  // autoRaiseConcern is best-effort and never throws, so starting it here
+  // is always safe.
+  const signals = detectDistressSignals(latestUserMessage)
+  const escalationPromise = signals.length > 0
+    ? autoRaiseConcern(admin, {
+        studentId: user.id,
+        category: 'wellbeing',
+        severity: 'high',
+        description:
+          `Auto-detected by the AI Coach chat: a message from ${profile?.name ?? 'this student'} ` +
+          `matched distress signals (${signals.join(', ')}). This was detected in an AI Coach ` +
+          `conversation, not a direct disclosure to a staff member — please check in with the ` +
+          `student directly to understand what's going on.`,
+        notifyTitle: `⚠️ Possible distress signal: ${profile?.name ?? 'A student'}`,
+        notifyBody: 'A message in the AI Coach chat matched distress signals. Please review and follow up.',
+        notifyUrl: '/admin/safeguarding',
+      })
+    : Promise.resolve({ raised: false })
+
   try {
     const anthropic = getAnthropic()
-
-    // Safeguarding safety net: detection runs independently of the AI's own
-    // reply, so a human is notified regardless of what Claude says. Awaited
-    // alongside the Claude call (not fire-and-forget) — a serverless
-    // function suspends the instant the response is returned, so an
-    // un-awaited notification can silently never send. Best-effort —
-    // autoRaiseConcern never throws, so it can never fail the chat reply.
-    const signals = detectDistressSignals(latestUserMessage)
-    const escalationPromise = signals.length > 0
-      ? autoRaiseConcern(admin, {
-          studentId: user.id,
-          category: 'wellbeing',
-          severity: 'high',
-          description:
-            `Auto-detected by the AI Coach chat: a message from ${profile?.name ?? 'this student'} ` +
-            `matched distress signals (${signals.join(', ')}). Review the conversation in the ` +
-            `student's chat and follow up directly — the AI's reply to the student is not a ` +
-            `substitute for a welfare check.`,
-          notifyTitle: `⚠️ Possible distress signal: ${profile?.name ?? 'A student'}`,
-          notifyBody: 'A message in the AI Coach chat matched distress signals. Please review and follow up.',
-          notifyUrl: `/chat/${roomId}`,
-        })
-      : Promise.resolve({ raised: false })
 
     // Use allSettled (not all) so a Claude-call rejection can never cut the escalation's
     // own async work short: allSettled always waits for BOTH promises to settle before we
     // decide whether to throw, so the safeguarding notification still completes even when
     // the Claude API call fails (timeout, rate limit, transient 5xx).
-    const [claudeResult] = await Promise.allSettled([
+    const [claudeResult, escalationResult] = await Promise.allSettled([
       anthropic.messages.create({
         model: MODELS.sonnet,
         max_tokens: 512,
@@ -109,6 +109,12 @@ If a message shows signs of real distress — self-harm, suicidal thoughts, abus
       }),
       escalationPromise,
     ])
+
+    if (escalationResult.status === 'rejected') {
+      // autoRaiseConcern is documented to never throw — this is a defensive
+      // log for a contract violation, not an expected path.
+      console.error('[ai-chat] escalation promise rejected unexpectedly:', escalationResult.reason)
+    }
     if (claudeResult.status === 'rejected') throw claudeResult.reason
 
     const reply = extractText(claudeResult.value)
@@ -122,6 +128,11 @@ If a message shows signs of real distress — self-harm, suicidal thoughts, abus
 
     return NextResponse.json({ ok: true })
   } catch (err: any) {
+    // Whatever failed above (including getAnthropic() itself throwing before
+    // Promise.allSettled ever ran), the escalation was already started
+    // outside this try block — make sure it has actually finished before we
+    // respond, for the same serverless-suspension reason noted above.
+    await escalationPromise.catch(() => {})
     return NextResponse.json({ error: err.message || 'AI request failed' }, { status: 500 })
   }
 }

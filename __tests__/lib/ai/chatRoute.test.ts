@@ -14,8 +14,11 @@ jest.mock('@/lib/supabase/server', () => ({
 jest.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => ({ from: adminFromMock }),
 }))
+const getAnthropicMock = jest.fn(() => ({
+  messages: { create: (...args: unknown[]) => anthropicCreateMock(...args) },
+}))
 jest.mock('@/lib/ai', () => ({
-  getAnthropic: () => ({ messages: { create: (...args: unknown[]) => anthropicCreateMock(...args) } }),
+  getAnthropic: (...args: unknown[]) => getAnthropicMock(...args),
   MODELS: { sonnet: 'claude-sonnet-4-5' },
   extractText: (response: { content: { type: string; text: string }[] }) =>
     response.content
@@ -95,6 +98,7 @@ beforeEach(() => {
   adminFromMock.mockReset()
   anthropicCreateMock.mockClear()
   autoRaiseConcernMock.mockClear()
+  getAnthropicMock.mockClear()
   getUserMock.mockResolvedValue({ data: { user: { id: STUDENT_ID } } })
 })
 
@@ -137,7 +141,7 @@ describe('POST /api/ai/chat', () => {
         studentId: STUDENT_ID,
         category: 'wellbeing',
         severity: 'high',
-        notifyUrl: `/chat/${ROOM_ID}`,
+        notifyUrl: '/admin/safeguarding',
       })
     )
   })
@@ -174,6 +178,33 @@ describe('POST /api/ai/chat', () => {
     expect(res.status).toBe(500)
     // The escalation's own async work must have completed before the route returned —
     // not merely have been started.
+    expect(concernSettled).toBe(true)
+    expect(autoRaiseConcernMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('still raises the concern to completion even when getAnthropic() itself throws (e.g. missing API key)', async () => {
+    // getAnthropic() throwing synchronously is a DIFFERENT failure mode from the Claude
+    // call rejecting: it happens before Promise.allSettled is ever entered. The escalation
+    // must still be started (outside the try block) and awaited to completion (in the
+    // catch block) regardless.
+    let concernSettled = false
+    autoRaiseConcernMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => {
+            concernSettled = true
+            resolve({ raised: true })
+          }, 10)
+        })
+    )
+    getAnthropicMock.mockImplementationOnce(() => {
+      throw new Error('ANTHROPIC_API_KEY is not set')
+    })
+    setupAdmin({ history: [{ sender_id: STUDENT_ID, body: "I've been thinking about ending my life" }] })
+
+    const res = await POST(makeRequest({ roomId: ROOM_ID }))
+
+    expect(res.status).toBe(500)
     expect(concernSettled).toBe(true)
     expect(autoRaiseConcernMock).toHaveBeenCalledTimes(1)
   })

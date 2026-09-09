@@ -28,11 +28,26 @@ export async function notifyUsers(
       .in('user_id', userIds)
 
     if (subs?.length) {
-      await Promise.allSettled(
+      const results = await Promise.allSettled(
         subs.map(s =>
           sendPushNotification({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, notification)
         )
       )
+
+      // Prune dead subscriptions: 404/410 from the push service means the
+      // browser has expired or revoked the subscription — the row will
+      // never deliver again. Matches lib/webpush.ts's sendPushNotificationToUser.
+      const deadEndpoints = results
+        .map((r, i) =>
+          r.status === 'rejected' &&
+          [404, 410].includes((r.reason as { statusCode?: number } | undefined)?.statusCode ?? 0)
+            ? subs[i]?.endpoint
+            : null
+        )
+        .filter((e): e is string => typeof e === 'string')
+      if (deadEndpoints.length > 0) {
+        await admin.from('push_subscriptions').delete().in('endpoint', deadEndpoints)
+      }
     }
   } catch (err) {
     console.error('[notifyUsers] web-push channel failed:', err)

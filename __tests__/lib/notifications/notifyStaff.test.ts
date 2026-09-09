@@ -107,4 +107,33 @@ describe('notifyUsers', () => {
 
     errorSpy.mockRestore()
   })
+
+  it('prunes a push subscription whose send failed with 404/410 (expired/revoked)', async () => {
+    sendPushNotificationMock.mockRejectedValueOnce(
+      Object.assign(new Error('Gone'), { statusCode: 410 })
+    )
+    const deleteIn = jest.fn(() => Promise.resolve({ data: null, error: null }))
+    const admin = {
+      from: jest.fn((table: string) => {
+        if (table === 'push_subscriptions') {
+          return {
+            select: jest.fn(() => ({
+              in: jest.fn(() =>
+                Promise.resolve({ data: [{ endpoint: 'https://push.example/dead', p256dh: 'p', auth: 'a' }] })
+              ),
+            })),
+            delete: jest.fn(() => ({ in: deleteIn })),
+          }
+        }
+        if (table === 'native_push_tokens') {
+          return { select: jest.fn(() => ({ in: jest.fn(() => Promise.resolve({ data: [] })) })) }
+        }
+        throw new Error(`Unexpected table: ${table}`)
+      }),
+    }
+
+    await notifyUsers(admin as any, ['user-1'], NOTIFICATION)
+
+    expect(deleteIn).toHaveBeenCalledWith('endpoint', ['https://push.example/dead'])
+  })
 })
