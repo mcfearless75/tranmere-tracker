@@ -57,6 +57,10 @@ export async function sendFcmNotification(
     ...(notification.url ? { data: { url: notification.url } } : {}),
     android: {
       priority: 'high',
+      // channelId must match the 'messages' channel created client-side in
+      // components/PushOptIn.tsx — without it Android posts to an
+      // unconfigured default channel that is silent on most devices.
+      notification: { channelId: 'messages', sound: 'default' },
     },
     apns: {
       payload: {

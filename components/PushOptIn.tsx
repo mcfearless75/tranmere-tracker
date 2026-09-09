@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { isNative, getPlatform } from '@/lib/native'
+import { isNative, isAndroid, getPlatform } from '@/lib/native'
 import { reportClientError } from '@/lib/reportClientError'
 
 type State = 'idle' | 'loading' | 'subscribed' | 'denied' | 'unsupported' | 'error'
@@ -36,6 +36,27 @@ export function PushOptIn() {
   async function checkAndRegisterNative(silent = false): Promise<boolean> {
     try {
       const { PushNotifications } = await import('@capacitor/push-notifications')
+
+      // Android 8+ silently drops sound/vibration on any notification posted
+      // to a channel that doesn't exist yet — createChannel is idempotent, so
+      // it's safe (and necessary) to call this on every registration, not
+      // just the first. iOS has no channel concept; createChannel() there is
+      // a no-op in the plugin, but skip it anyway to avoid relying on that.
+      // Must match the channelId sent from lib/firebase-admin.ts.
+      if (isAndroid()) {
+        try {
+          await PushNotifications.createChannel({
+            id: 'messages',
+            name: 'Messages & alerts',
+            description: 'Chat messages, attendance and safeguarding alerts',
+            importance: 4, // HIGH — required for heads-up + sound
+            visibility: 1,
+            vibration: true,
+          })
+        } catch {
+          // Best effort — worst case the OS falls back to its default channel.
+        }
+      }
 
       const permStatus = await PushNotifications.checkPermissions()
 

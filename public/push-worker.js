@@ -19,6 +19,12 @@ self.addEventListener('push', event => {
       badge: '/icons/icon-192.png',
       data: { url: data.url ?? '/' },
       requireInteraction: false,
+      // Browsers don't expose a custom-sound option for web push (removed
+      // from the spec years ago) — the OS/browser plays its own default
+      // notification sound automatically unless silent:true. Vibration is
+      // the one thing we CAN control, and Android Chrome doesn't vibrate
+      // without an explicit pattern.
+      vibrate: [200, 100, 200],
     })
   )
 })
