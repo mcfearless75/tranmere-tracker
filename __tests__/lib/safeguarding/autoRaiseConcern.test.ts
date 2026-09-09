@@ -15,7 +15,7 @@ const BASE_PARAMS = {
   description: 'test description',
   notifyTitle: 'Test title',
   notifyBody: 'Test body',
-  notifyUrl: '/chat/room-1',
+  notifyUrl: '/admin/safeguarding',
 }
 
 /** Minimal admin-client double for the two tables autoRaiseConcern touches. */

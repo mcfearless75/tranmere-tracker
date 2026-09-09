@@ -79,7 +79,9 @@ A distressed student still receives a normal, supportive AI reply either way —
 
 ## Privacy note
 
-The auto-raised concern's `description` field references that a concerning message was detected in an AI Coach conversation and directs staff to open the chat thread — it does **not** copy the student's raw message text into the safeguarding_concerns table. Staff follow the link to read the actual conversation in context (chat rooms are already admin-visible per existing chat schema), rather than duplicating sensitive text into a second table.
+The auto-raised concern's `description` field references that a concerning message was detected in an AI Coach conversation — it does **not** copy the student's raw message text into the safeguarding_concerns table.
+
+**Correction made during final review (2026-09-09):** this section originally assumed staff could follow a link to open the chat thread itself, on the premise that "chat rooms are already admin-visible per existing chat schema." That premise is wrong — a bot room's `chat_members` only ever contains the student and the bot, so a DSL opening `/chat/<roomId>` hits the same membership gate any other non-member would ("You're not a member of this conversation"). The shipped notification instead points staff at `/admin/safeguarding` (the existing case-management page) and the description explicitly tells them to check in with the student directly, rather than implying a transcript they can't actually reach. Net effect: staff get a category label and a name, not the message text or a route to it — follow-up depends on speaking to the student. Giving the DSL real read access to bot-room conversations (or including a bounded excerpt in the concern) is a separate product decision, not made here.
 
 ## Error handling
 
