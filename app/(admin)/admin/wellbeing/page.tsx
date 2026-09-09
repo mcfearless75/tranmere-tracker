@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { getRedFlags, buildWellbeingTrend, SURVEY_QUESTIONS } from '@/lib/wellbeing/wellbeingUtils'
+import { getRedFlags, buildWellbeingTrend, normalizedScore, SURVEY_QUESTIONS } from '@/lib/wellbeing/wellbeingUtils'
 import { WellbeingSparkline } from '@/components/wellbeing/WellbeingSparkline'
 import { AlertTriangle } from 'lucide-react'
 
@@ -63,7 +63,7 @@ export default async function AdminWellbeingPage() {
             const flags = getRedFlags(survey.wellbeing_responses)
             const hasFlagged = flags.length > 0
             const avgScore = survey.wellbeing_responses.length > 0
-              ? Math.round(survey.wellbeing_responses.reduce((s, r) => s + r.score, 0) / survey.wellbeing_responses.length * 10) / 10
+              ? Math.round(survey.wellbeing_responses.reduce((s, r) => s + normalizedScore(r.question_key, r.score), 0) / survey.wellbeing_responses.length * 10) / 10
               : null
 
             // Build trend from the group (oldest → newest for left-to-right progression)
@@ -125,17 +125,32 @@ export default async function AdminWellbeingPage() {
                     {SURVEY_QUESTIONS.map(q => {
                       const r = survey.wellbeing_responses.find(x => x.question_key === q.key)
                       const isFlag = flags.some(f => f.question_key === q.key)
+                      const normalized = r ? normalizedScore(q.key, r.score) : null
                       return (
                         <div key={q.key} className={`rounded-lg text-center py-1.5 text-xs ${
                           isFlag ? 'bg-red-200 text-red-800' :
-                          !r ? 'bg-gray-100 text-gray-400' :
-                          r.score >= 4 ? 'bg-emerald-100 text-emerald-700' :
-                          r.score >= 3 ? 'bg-amber-100 text-amber-700' :
+                          normalized === null ? 'bg-gray-100 text-gray-400' :
+                          normalized >= 4 ? 'bg-emerald-100 text-emerald-700' :
+                          normalized >= 3 ? 'bg-amber-100 text-amber-700' :
                           'bg-red-100 text-red-600'
                         }`}>
                           <p className="text-base leading-none">{q.emoji}</p>
                           <p className="font-bold mt-0.5">{r?.score ?? '—'}</p>
                         </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Notes — free-text follow-up per question, the highest-signal field in the survey */}
+                {survey.wellbeing_responses.some(r => r.note?.trim()) && (
+                  <div className="rounded-xl bg-gray-50 border border-gray-200 px-3 py-2 space-y-1">
+                    {survey.wellbeing_responses.filter(r => r.note?.trim()).map(r => {
+                      const q = SURVEY_QUESTIONS.find(sq => sq.key === r.question_key)
+                      return (
+                        <p key={r.question_key} className="text-xs text-gray-700">
+                          <span className="font-medium">{q?.label ?? r.question_key}:</span> “{r.note}”
+                        </p>
                       )
                     })}
                   </div>

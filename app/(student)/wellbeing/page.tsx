@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
-import { SURVEY_QUESTIONS } from '@/lib/wellbeing/wellbeingUtils'
+import { SURVEY_QUESTIONS, getScoreLabel } from '@/lib/wellbeing/wellbeingUtils'
 import { CheckCircle2, ChevronRight } from 'lucide-react'
-
-const SCORE_LABELS = ['', 'Very Low', 'Low', 'Okay', 'Good', 'Great']
 
 export default function WellbeingPage() {
   const [survey, setSurvey] = useState<{ id: string } | null | undefined>(undefined)
@@ -132,7 +130,7 @@ export default function WellbeingPage() {
         {/* Score label */}
         {canAdvance && (
           <p className="text-center text-sm text-muted-foreground">
-            {SCORE_LABELS[answers[q.key]]}
+            {getScoreLabel(q.key, answers[q.key])}
           </p>
         )}
 

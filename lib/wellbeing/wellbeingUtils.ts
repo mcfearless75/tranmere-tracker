@@ -13,9 +13,22 @@ export type SurveyResponse = {
   score: number
 }
 
-// Red-flag keys: mood and stress are safeguarding-sensitive
+// Red-flag keys: mood and stress are safeguarding-sensitive.
+// Every other question is answered "higher = better" (e.g. great mood, great sleep).
+// `stress` is the one question where a HIGH score means a bad outcome ("How stressed
+// are you feeling?" — 5 = extremely stressed), so it must be normalized before it's
+// compared, averaged, or color-coded alongside the rest.
 const RED_FLAG_KEYS: Set<string> = new Set(['mood', 'stress'])
+const INVERTED_KEYS: Set<string> = new Set(['stress'])
 const RED_FLAG_THRESHOLD = 2
+
+/**
+ * Converts a raw 1-5 answer into a "higher = better wellbeing" scale so it can be
+ * safely compared/averaged/colored against every other question's score.
+ */
+export function normalizedScore(key: string, score: number): number {
+  return INVERTED_KEYS.has(key) ? 6 - score : score
+}
 
 /** Returns true on odd ISO weeks (1, 3, 5...) — the fortnightly fire weeks */
 export function isFortnightlyWeek(date: Date): boolean {
@@ -31,7 +44,7 @@ export function isFortnightlyWeek(date: Date): boolean {
 /** Returns responses that should trigger a pastoral alert */
 export function getRedFlags(responses: SurveyResponse[]): SurveyResponse[] {
   return responses.filter(
-    r => RED_FLAG_KEYS.has(r.question_key) && r.score <= RED_FLAG_THRESHOLD
+    r => RED_FLAG_KEYS.has(r.question_key) && normalizedScore(r.question_key, r.score) <= RED_FLAG_THRESHOLD
   )
 }
 
@@ -42,15 +55,26 @@ export type SurveyTrendPoint = {
 
 /** Converts an array of surveys (each with responses) into avg-score trend points */
 export function buildWellbeingTrend(
-  surveys: Array<{ sent_at: string; wellbeing_responses: { score: number }[] }>
+  surveys: Array<{ sent_at: string; wellbeing_responses: { question_key?: string; score: number }[] }>
 ): SurveyTrendPoint[] {
   return surveys.map(s => {
-    const scores = s.wellbeing_responses.map(r => r.score)
+    const scores = s.wellbeing_responses.map(r =>
+      r.question_key ? normalizedScore(r.question_key, r.score) : r.score
+    )
     const avg = scores.length > 0
       ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 10) / 10
       : 0
     return { sentAt: s.sent_at, avg }
   })
+}
+
+const GENERIC_SCORE_LABELS = ['', 'Very Low', 'Low', 'Okay', 'Good', 'Great']
+const STRESS_SCORE_LABELS = ['', 'Not at all', 'A little', 'Moderately', 'Very', 'Extremely']
+
+/** Question-aware label for a raw 1-5 score — stress reads as "how much", not "how good" */
+export function getScoreLabel(key: string, score: number): string {
+  const labels = key === 'stress' ? STRESS_SCORE_LABELS : GENERIC_SCORE_LABELS
+  return labels[score] ?? ''
 }
 
 /** Validates all 5 survey questions are answered with scores 1-5 */

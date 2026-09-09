@@ -3,6 +3,8 @@ import {
   getRedFlags,
   validateSurveyAnswers,
   buildWellbeingTrend,
+  normalizedScore,
+  getScoreLabel,
   SURVEY_QUESTIONS,
 } from '@/lib/wellbeing/wellbeingUtils'
 
@@ -60,8 +62,26 @@ describe('getRedFlags', () => {
     expect(getRedFlags([{ question_key: 'mood', score: 3 }])).toHaveLength(0)
   })
 
-  it('flags stress score of 2 (≤ 2 means severely low energy/mood on that axis)', () => {
-    expect(getRedFlags([{ question_key: 'stress', score: 2 }])).toHaveLength(1)
+  // Stress is the one question answered "higher = worse" (how STRESSED, not how good) —
+  // it must flag on HIGH scores, the opposite direction from mood/sleep/energy/enjoyment.
+  it('flags stress score of 5 (extremely stressed)', () => {
+    expect(getRedFlags([{ question_key: 'stress', score: 5 }])).toHaveLength(1)
+  })
+
+  it('flags stress score of 4 (very stressed)', () => {
+    expect(getRedFlags([{ question_key: 'stress', score: 4 }])).toHaveLength(1)
+  })
+
+  it('does NOT flag stress score of 3 (moderate)', () => {
+    expect(getRedFlags([{ question_key: 'stress', score: 3 }])).toHaveLength(0)
+  })
+
+  it('does NOT flag stress score of 2 (a little stressed — a good outcome)', () => {
+    expect(getRedFlags([{ question_key: 'stress', score: 2 }])).toHaveLength(0)
+  })
+
+  it('does NOT flag stress score of 1 (not at all stressed — the best outcome)', () => {
+    expect(getRedFlags([{ question_key: 'stress', score: 1 }])).toHaveLength(0)
   })
 
   it('does NOT flag sleep at score 2 (not a safeguarding key)', () => {
@@ -76,13 +96,38 @@ describe('getRedFlags', () => {
     expect(getRedFlags([{ question_key: 'football_enjoyment', score: 2 }])).toHaveLength(0)
   })
 
-  it('flags multiple red-flag keys at once', () => {
+  it('flags multiple red-flag keys at once, each in its own correct direction', () => {
     const responses = [
-      { question_key: 'mood',   score: 1 },
-      { question_key: 'stress', score: 2 },
-      { question_key: 'sleep',  score: 1 }, // not flagged
+      { question_key: 'mood',   score: 1 }, // low mood — flagged
+      { question_key: 'stress', score: 5 }, // extremely stressed — flagged
+      { question_key: 'sleep',  score: 1 }, // not a safeguarding key — not flagged
     ]
     expect(getRedFlags(responses)).toHaveLength(2)
+  })
+})
+
+describe('normalizedScore', () => {
+  it('leaves non-inverted keys unchanged', () => {
+    expect(normalizedScore('mood', 4)).toBe(4)
+    expect(normalizedScore('sleep', 1)).toBe(1)
+  })
+
+  it('inverts stress so higher raw score means lower (worse) normalized score', () => {
+    expect(normalizedScore('stress', 1)).toBe(5) // not at all stressed → best
+    expect(normalizedScore('stress', 5)).toBe(1) // extremely stressed → worst
+    expect(normalizedScore('stress', 3)).toBe(3)
+  })
+})
+
+describe('getScoreLabel', () => {
+  it('uses the generic Very Low..Great scale for non-stress questions', () => {
+    expect(getScoreLabel('mood', 1)).toBe('Very Low')
+    expect(getScoreLabel('mood', 5)).toBe('Great')
+  })
+
+  it('uses an intensity scale for stress instead of Very Low..Great', () => {
+    expect(getScoreLabel('stress', 1)).toBe('Not at all')
+    expect(getScoreLabel('stress', 5)).toBe('Extremely')
   })
 })
 
@@ -169,5 +214,25 @@ describe('buildWellbeingTrend', () => {
     expect(result[0].avg).toBe(5)
     expect(result[1].avg).toBe(3)
     expect(result[2].avg).toBe(1)
+  })
+
+  it('inverts stress responses (via question_key) so the trend reads "higher = better"', () => {
+    // mood=5 (great) + stress=5 (extremely stressed, normalizes to 1) → avg (5+1)/2 = 3
+    const result = buildWellbeingTrend([{
+      sent_at: '2026-01-01',
+      wellbeing_responses: [
+        { question_key: 'mood', score: 5 },
+        { question_key: 'stress', score: 5 },
+      ],
+    }])
+    expect(result[0].avg).toBe(3)
+  })
+
+  it('treats a response with no question_key as already-normalized (backward compatible)', () => {
+    const result = buildWellbeingTrend([{
+      sent_at: '2026-01-01',
+      wellbeing_responses: [{ score: 5 }, { score: 1 }],
+    }])
+    expect(result[0].avg).toBe(3)
   })
 })
