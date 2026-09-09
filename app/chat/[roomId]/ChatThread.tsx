@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { Send, Paperclip, X, Bot } from 'lucide-react'
 import { markRead, notifyRoomMembers } from '../actions'
 
@@ -17,6 +18,40 @@ type Member = { user_id: string; users: { id: string; name: string | null; avata
 
 const BOT_USER_ID = '00000000-0000-0000-0000-000000000099'
 
+// How long to wait for the AI's reply via Realtime before falling back to a
+// direct DB check. The reply can land in chat_messages successfully while the
+// Realtime subscription has silently dropped (backgrounded tab, brief network
+// blip) — without this, the typing indicator would spin forever with no way
+// to recover other than a manual page refresh.
+const AI_REPLY_TIMEOUT_MS = 20_000
+
+/**
+ * Looks up the earliest bot message in `roomId` created after `sentAt`.
+ * Used as a one-shot fallback when Realtime hasn't delivered the AI's reply
+ * within AI_REPLY_TIMEOUT_MS. Never throws — a query failure here must not
+ * crash the chat, it just means the fallback found nothing this time.
+ */
+export async function fetchBotReplyAfter(
+  supabase: SupabaseClient,
+  roomId: string,
+  sentAt: string,
+): Promise<Message | null> {
+  try {
+    const { data } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .eq('room_id', roomId)
+      .eq('sender_id', BOT_USER_ID)
+      .gt('created_at', sentAt)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    return (data as Message | null) ?? null
+  } catch {
+    return null
+  }
+}
+
 export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, members, canSend = true }: {
   roomId: string
   roomKind: string
@@ -30,6 +65,7 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [aiTyping, setAiTyping] = useState(false)
+  const [aiTimedOut, setAiTimedOut] = useState(false)
   const [typingUsers, setTypingUsers] = useState<string[]>([])
   const [attachment, setAttachment] = useState<{ file: File; preview: string | null } | null>(null)
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
@@ -37,6 +73,7 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
   const fileInputRef = useRef<HTMLInputElement>(null)
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const aiReplyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const memberById: Record<string, Member> = {}
   for (const m of members) memberById[m.user_id] = m
@@ -58,7 +95,14 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
           })
           if ((payload.new as Message).sender_id !== currentUserId) {
             markRead(roomId)
-            if ((payload.new as Message).sender_id === BOT_USER_ID) setAiTyping(false)
+            if ((payload.new as Message).sender_id === BOT_USER_ID) {
+              setAiTyping(false)
+              setAiTimedOut(false)
+              if (aiReplyTimeoutRef.current) {
+                clearTimeout(aiReplyTimeoutRef.current)
+                aiReplyTimeoutRef.current = null
+              }
+            }
           }
         },
       )
@@ -77,7 +121,10 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
       })
 
     channelRef.current = channel
-    return () => { supabase.removeChannel(channel) }
+    return () => {
+      supabase.removeChannel(channel)
+      if (aiReplyTimeoutRef.current) clearTimeout(aiReplyTimeoutRef.current)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, currentUserId])
 
@@ -176,14 +223,30 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
     }
 
     if (roomKind === 'bot' && body) {
+      const sentAt = new Date().toISOString()
       setAiTyping(true)
+      setAiTimedOut(false)
+      if (aiReplyTimeoutRef.current) clearTimeout(aiReplyTimeoutRef.current)
       try {
         const res = await fetch('/api/ai/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ roomId }),
         })
-        if (!res.ok) setAiTyping(false)
+        if (!res.ok) {
+          setAiTyping(false)
+        } else {
+          aiReplyTimeoutRef.current = setTimeout(async () => {
+            const reply = await fetchBotReplyAfter(supabase, roomId, sentAt)
+            if (reply) {
+              setMessages(prev => (prev.find(p => p.id === reply.id) ? prev : [...prev, reply]))
+              setAiTyping(false)
+            } else {
+              setAiTyping(false)
+              setAiTimedOut(true)
+            }
+          }, AI_REPLY_TIMEOUT_MS)
+        }
       } catch {
         setAiTyping(false)
       }
@@ -273,6 +336,13 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
               </div>
             </div>
           </div>
+        )}
+
+        {/* Realtime dropped and the fallback DB check also found nothing yet */}
+        {aiTimedOut && !aiTyping && (
+          <p className="text-xs text-muted-foreground px-1">
+            Taking longer than usual — try refreshing in a moment.
+          </p>
         )}
 
         {/* Human typing indicator */}
