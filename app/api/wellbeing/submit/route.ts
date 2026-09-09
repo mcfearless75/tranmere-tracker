@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendPushNotificationToUser } from '@/lib/webpush'
+import { notifyUsers } from '@/lib/notifications/notifyStaff'
 import { validateSurveyAnswers, getRedFlags, SURVEY_QUESTIONS } from '@/lib/wellbeing/wellbeingUtils'
 
 /**
@@ -26,16 +26,14 @@ async function notifyStaffOfRedFlag(studentId: string): Promise<void> {
     if (!staff?.length) return
 
     const studentName = student?.name ?? 'A student'
-    await Promise.allSettled(
-      staff.map(s =>
-        sendPushNotificationToUser(
-          adminClient,
-          s.id,
-          'Wellbeing alert',
-          `${studentName}'s latest wellbeing survey needs attention.`,
-          '/admin/wellbeing',
-        )
-      )
+    await notifyUsers(
+      adminClient,
+      staff.map(s => s.id),
+      {
+        title: 'Wellbeing alert',
+        body: `${studentName}'s latest wellbeing survey needs attention.`,
+        url: '/admin/wellbeing',
+      }
     )
   } catch {
     // Never let notification failures affect the submission
