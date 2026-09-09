@@ -94,7 +94,11 @@ export async function POST(request: Request) {
         })
       : Promise.resolve({ raised: false })
 
-    const [response] = await Promise.all([
+    // Use allSettled (not all) so a Claude-call rejection can never cut the escalation's
+    // own async work short: allSettled always waits for BOTH promises to settle before we
+    // decide whether to throw, so the safeguarding notification still completes even when
+    // the Claude API call fails (timeout, rate limit, transient 5xx).
+    const [claudeResult] = await Promise.allSettled([
       anthropic.messages.create({
         model: MODELS.sonnet,
         max_tokens: 512,
@@ -105,8 +109,9 @@ If a message shows signs of real distress — self-harm, suicidal thoughts, abus
       }),
       escalationPromise,
     ])
+    if (claudeResult.status === 'rejected') throw claudeResult.reason
 
-    const reply = extractText(response)
+    const reply = extractText(claudeResult.value)
 
     // Insert bot reply
     await admin.from('chat_messages').insert({

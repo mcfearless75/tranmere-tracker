@@ -149,4 +149,32 @@ describe('POST /api/ai/chat', () => {
     expect(call.system).toMatch(/Childline/)
     expect(call.system).toMatch(/Samaritans/)
   })
+
+  it('waits for the escalation to fully settle (not just be attempted) before responding, even when the Claude call fails', async () => {
+    // autoRaiseConcern is invoked synchronously (before the Claude call structure even
+    // resolves), so merely asserting "was called" doesn't prove its internal async work
+    // (dedup check, insert, staff notification) actually finished. Use a delayed resolution
+    // to prove the route genuinely waits for that work to settle, not just that it started it.
+    let concernSettled = false
+    autoRaiseConcernMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => {
+            concernSettled = true
+            resolve({ raised: true })
+          }, 10)
+        })
+    )
+    setupAdmin({ history: [{ sender_id: STUDENT_ID, body: "I've been thinking about ending my life" }] })
+    anthropicCreateMock.mockRejectedValueOnce(new Error('Claude API timeout'))
+
+    const res = await POST(makeRequest({ roomId: ROOM_ID }))
+
+    // The Claude failure must still be surfaced as a 500 to the caller.
+    expect(res.status).toBe(500)
+    // The escalation's own async work must have completed before the route returned —
+    // not merely have been started.
+    expect(concernSettled).toBe(true)
+    expect(autoRaiseConcernMock).toHaveBeenCalledTimes(1)
+  })
 })
