@@ -51,6 +51,20 @@ docs/          # documentation
 - The admin PIN login (`app/admin-login/AdminPinForm.tsx`) authenticates as `superuser@tranmeretracker.internal` with the PIN as the GoTrue password. This account must NEVER be deleted. If it is, recreate it via `admin.auth.admin.create_user()` — SQL inserts will not work. PIN is 5–7 digits.
 - Before any mass user deletion in Supabase, audit all migrations first: `grep -r "REFERENCES public.users" supabase/migrations/`. `ON DELETE CASCADE` = safe, handled automatically. Plain `REFERENCES` (no ON DELETE clause) = must handle manually: nullable columns → `UPDATE ... SET col = NULL WHERE col IN (target_ids)`; NOT NULL columns → `DELETE FROM table WHERE col IN (target_ids)`. Do this audit upfront — the SQL editor stops on the first FK violation and every miss means another failed run.
 
+## Native iOS/Android App (Capacitor)
+- The native apps (Codemagic-built, TestFlight/Play) are thin WebView shells — `capacitor.config.ts`'s `server.url` points at `https://app.thesolarcampus.com` (live production), so they render the deployed site directly, not a bundled copy of the code.
+- **Regular web work (features, UI tweaks, bug fixes, new pages) needs NO native rebuild.** `git push` to `master` → Vercel deploys → every native app instance sees it on next load, same as the PWA. This is the common case — don't trigger a Codemagic build for it.
+- **A new Codemagic build (`ios-release` / `android-release`) is only needed when:**
+  - Native permissions/capabilities change (camera, push, location entitlements)
+  - A Capacitor plugin is added/upgraded
+  - App icon, splash screen, or app name changes
+  - `android/app/build.gradle`'s `versionCode`/`versionName`, or the iOS build number, needs bumping for a store listing refresh
+  - Anything under `android/`, `ios/`, or `capacitor.config.ts` itself changes
+- To trigger: bump the relevant version number, commit, push, then in Codemagic (codemagic.io/builds) → Start new build → branch `master` → pick `ios-release` or `android-release`.
+- iOS signing is fully automated as of 2026-09-09 — Codemagic reuses a stored `IOS_DIST_PRIVATE_KEY` (in the `appstore_credentials` env var group) to sign every build against the same Apple Distribution certificate. Don't regenerate/replace that key — it'll orphan the existing certificate and require another manual Apple Developer cert cleanup.
+- New iOS builds auto-upload and submit to TestFlight (`submit_to_testflight: true`). External tester review needs `Beta App Description`, `Feedback Email`, and `Beta App Review Information` (contact name/phone/email) filled in at App Store Connect → TestFlight → Test Information — this only needs doing once, it persists across builds.
+- Android builds produce a signed `app-release.aab` artifact but are NOT auto-published — upload to Play Console manually.
+
 ## Supabase SSR Pattern
 ```ts
 import { createServerClient } from '@supabase/ssr'
