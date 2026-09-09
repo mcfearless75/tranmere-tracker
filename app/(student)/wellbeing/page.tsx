@@ -71,7 +71,7 @@ export default function WellbeingPage() {
       <div className="text-center py-12 space-y-3">
         <CheckCircle2 size={48} className="text-emerald-500 mx-auto" />
         <p className="text-xl font-bold text-gray-900">Thanks for checking in 💙</p>
-        <p className="text-sm text-muted-foreground">Your responses have been saved. See you in two weeks.</p>
+        <p className="text-sm text-muted-foreground">Your responses have been saved. See you next week.</p>
       </div>
     )
   }
