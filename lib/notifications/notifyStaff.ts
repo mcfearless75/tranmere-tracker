@@ -20,6 +20,7 @@ export async function notifyUsers(
 ): Promise<void> {
   if (userIds.length === 0) return
 
+  // Web-push channel: independent error handling
   try {
     const { data: subs } = await admin
       .from('push_subscriptions')
@@ -33,7 +34,12 @@ export async function notifyUsers(
         )
       )
     }
+  } catch (err) {
+    console.error('[notifyUsers] web-push channel failed:', err)
+  }
 
+  // Native/FCM channel: independent error handling
+  try {
     const { data: nativeTokens } = await admin
       .from('native_push_tokens')
       .select('token')
@@ -44,6 +50,6 @@ export async function notifyUsers(
       await sendFcmBatch(tokens, notification)
     }
   } catch (err) {
-    console.error('[notifyUsers] failed:', err)
+    console.error('[notifyUsers] native/FCM channel failed:', err)
   }
 }

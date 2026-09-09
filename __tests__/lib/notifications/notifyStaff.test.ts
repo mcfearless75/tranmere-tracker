@@ -79,4 +79,32 @@ describe('notifyUsers', () => {
     await expect(notifyUsers(admin as any, ['user-1'], NOTIFICATION)).resolves.toBeUndefined()
     errorSpy.mockRestore()
   })
+
+  it('still attempts FCM even when web-push query fails (channel independence)', async () => {
+    // web-push query throws, but native-push query should succeed
+    const admin = {
+      from: jest.fn((table: string) => {
+        if (table === 'push_subscriptions') {
+          throw new Error('push_subscriptions query failed')
+        }
+        if (table === 'native_push_tokens') {
+          return {
+            select: jest.fn(() => ({
+              in: jest.fn(() => Promise.resolve({ data: [{ token: 'fcm-token-1' }] })),
+            })),
+          }
+        }
+        throw new Error(`Unexpected table: ${table}`)
+      }),
+    }
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+
+    await notifyUsers(admin as any, ['user-1'], NOTIFICATION)
+
+    // Verify that even though web-push failed, FCM was still attempted
+    expect(sendFcmBatchMock).toHaveBeenCalledWith(['fcm-token-1'], NOTIFICATION)
+    expect(sendPushNotificationMock).not.toHaveBeenCalled()
+
+    errorSpy.mockRestore()
+  })
 })
