@@ -21,7 +21,7 @@ import { POST } from '@/app/api/wellbeing/submit/route'
 
 const STUDENT_ID = 'student-1'
 const SURVEY_ID = 'survey-1'
-const VALID_ANSWERS = { mood: 5, sleep: 5, energy: 5, stress: 1, football_enjoyment: 5 }
+const VALID_ANSWERS = { mood: 5, sleep: 5, energy: 5, stress: 1, connection: 5, football_enjoyment: 5 }
 
 function makeRequest(body: unknown): NextRequest {
   return new NextRequest('http://localhost/api/wellbeing/submit', {
@@ -35,6 +35,8 @@ function makeRequest(body: unknown): NextRequest {
 function setupSupabase(opts: { surveyExists?: boolean; insertError?: { message: string } | null } = {}) {
   const { surveyExists = true, insertError = null } = opts
 
+  const updateMock = jest.fn(() => ({ eq: async () => ({ data: null, error: null }) }))
+
   supabaseFromMock.mockImplementation((table: string) => {
     if (table === 'wellbeing_surveys') {
       return {
@@ -47,7 +49,7 @@ function setupSupabase(opts: { surveyExists?: boolean; insertError?: { message: 
             }),
           }),
         }),
-        update: () => ({ eq: async () => ({ data: null, error: null }) }),
+        update: updateMock,
       }
     }
     if (table === 'wellbeing_responses') {
@@ -55,6 +57,8 @@ function setupSupabase(opts: { surveyExists?: boolean; insertError?: { message: 
     }
     throw new Error(`Unexpected table (supabase): ${table}`)
   })
+
+  return { updateMock }
 }
 
 /** Wires the admin client used inside notifyStaffOfRedFlag. */
@@ -114,5 +118,39 @@ describe('POST /api/wellbeing/submit', () => {
     expect([...staffIds].sort()).toEqual(['staff-1', 'staff-2'])
     expect(notification).toEqual(expect.objectContaining({ title: 'Wellbeing alert', url: '/admin/wellbeing' }))
     expect(notification.body).toContain('Test Student')
+  })
+
+  it('saves context_tags on the survey when provided', async () => {
+    const { updateMock } = setupSupabase()
+    setupAdmin()
+    const res = await POST(makeRequest({
+      survey_id: SURVEY_ID, answers: VALID_ANSWERS, notes: {}, context_tags: ['home', 'money'],
+    }))
+    expect(res.status).toBe(200)
+    expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ context_tags: ['home', 'money'] }))
+  })
+
+  it('defaults context_tags to null when not provided', async () => {
+    const { updateMock } = setupSupabase()
+    setupAdmin()
+    const res = await POST(makeRequest({ survey_id: SURVEY_ID, answers: VALID_ANSWERS, notes: {} }))
+    expect(res.status).toBe(200)
+    expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ context_tags: null }))
+  })
+
+  it('rejects more than 2 context_tags with 400', async () => {
+    setupSupabase()
+    const res = await POST(makeRequest({
+      survey_id: SURVEY_ID, answers: VALID_ANSWERS, notes: {}, context_tags: ['home', 'money', 'friends'],
+    }))
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects an unrecognized context tag with 400', async () => {
+    setupSupabase()
+    const res = await POST(makeRequest({
+      survey_id: SURVEY_ID, answers: VALID_ANSWERS, notes: {}, context_tags: ['not-a-real-tag'],
+    }))
+    expect(res.status).toBe(400)
   })
 })

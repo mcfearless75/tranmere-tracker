@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyUsers } from '@/lib/notifications/notifyStaff'
-import { validateSurveyAnswers, getRedFlags, SURVEY_QUESTIONS } from '@/lib/wellbeing/wellbeingUtils'
+import { validateSurveyAnswers, getRedFlags, isValidContextTags, SURVEY_QUESTIONS } from '@/lib/wellbeing/wellbeingUtils'
 
 /**
  * Alert staff (admins, coaches, teachers) that a submission contained a
@@ -48,10 +48,11 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { survey_id, answers, notes } = body as {
+  const { survey_id, answers, notes, context_tags } = body as {
     survey_id: string
     answers: Record<string, number>
     notes: Record<string, string>
+    context_tags?: unknown
   }
 
   if (!survey_id || !answers) {
@@ -59,7 +60,11 @@ export async function POST(request: NextRequest) {
   }
 
   if (!validateSurveyAnswers(answers)) {
-    return NextResponse.json({ error: 'All 5 questions must be answered with scores 1-5' }, { status: 400 })
+    return NextResponse.json({ error: 'All questions must be answered with scores 1-5' }, { status: 400 })
+  }
+
+  if (context_tags !== undefined && !isValidContextTags(context_tags)) {
+    return NextResponse.json({ error: 'context_tags must be at most 2 recognized tags' }, { status: 400 })
   }
 
   // Verify this survey belongs to the current user and is still open
@@ -94,7 +99,11 @@ export async function POST(request: NextRequest) {
   // Mark survey complete
   await supabase
     .from('wellbeing_surveys')
-    .update({ status: 'completed', completed_at: new Date().toISOString() })
+    .update({
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+      context_tags: context_tags ?? null,
+    })
     .eq('id', survey_id)
 
   // Red-flag check: awaited, not fire-and-forget — serverless suspends after the
