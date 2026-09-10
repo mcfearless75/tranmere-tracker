@@ -62,6 +62,9 @@ export async function POST(request: Request) {
       name,
       role,
       course_id: courseId || null,
+      // Whoever set this recovery PIN chose it directly (same as a fresh
+      // create below) — prompt them to personalize it on first login too.
+      must_change_pin: true,
     })
     if (upsertError) return NextResponse.json({ error: `Recovery failed: ${upsertError.message}` })
 
@@ -88,6 +91,11 @@ export async function POST(request: Request) {
     name,
     role,
     course_id: courseId || null,
+    // The admin just chose this PIN directly (visible on their own screen
+    // while typing it) — prompt the new owner to set their own on first
+    // login, same nudge already shown to the shared-default-PIN cohort.
+    // See supabase/migrations/049_must_change_pin.sql.
+    must_change_pin: true,
   })
 
   if (upsertError) {
