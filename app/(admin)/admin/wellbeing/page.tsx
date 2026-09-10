@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { getRedFlags, buildWellbeingTrend, normalizedScore, SURVEY_QUESTIONS } from '@/lib/wellbeing/wellbeingUtils'
+import { getRedFlags, buildWellbeingTrend, normalizedScore, CONTEXT_TAGS, SURVEY_QUESTIONS } from '@/lib/wellbeing/wellbeingUtils'
 import { WellbeingSparkline } from '@/components/wellbeing/WellbeingSparkline'
 import { AlertTriangle } from 'lucide-react'
 
@@ -31,7 +31,7 @@ export default async function AdminWellbeingPage() {
   const { data: surveys } = await admin
     .from('wellbeing_surveys')
     .select(`
-      id, sent_at, completed_at, status,
+      id, sent_at, completed_at, status, context_tags,
       users!student_id(name),
       wellbeing_responses(question_key, score, note)
     `)
@@ -43,6 +43,7 @@ export default async function AdminWellbeingPage() {
     sent_at: string
     completed_at: string | null
     status: string
+    context_tags: string[] | null
     users: { name: string } | null
     wellbeing_responses: { question_key: string; score: number; note: string | null }[]
   }
@@ -134,7 +135,7 @@ export default async function AdminWellbeingPage() {
 
                 {/* Score grid */}
                 {survey.wellbeing_responses.length > 0 && (
-                  <div className="grid grid-cols-5 gap-1.5">
+                  <div className="grid grid-cols-6 gap-1.5">
                     {SURVEY_QUESTIONS.map(q => {
                       const r = survey.wellbeing_responses.find(x => x.question_key === q.key)
                       const isFlag = flags.some(f => f.question_key === q.key)
@@ -150,6 +151,23 @@ export default async function AdminWellbeingPage() {
                           <p className="text-base leading-none">{q.emoji}</p>
                           <p className="font-bold mt-0.5">{r?.score ?? '—'}</p>
                         </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Context tags — "what's been on your mind" picker, not scored */}
+                {survey.context_tags && survey.context_tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {survey.context_tags.map(tagKey => {
+                      const tag = CONTEXT_TAGS.find(t => t.key === tagKey)
+                      return (
+                        <span
+                          key={tagKey}
+                          className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-tranmere-blue text-xs font-medium px-2.5 py-1"
+                        >
+                          {tag?.emoji} {tag?.label ?? tagKey}
+                        </span>
                       )
                     })}
                   </div>
