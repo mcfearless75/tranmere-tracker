@@ -65,8 +65,13 @@ export function SideNav({ userName, avatarUrl, role, showTimetable = false, show
         </div>
       </div>
 
-      {/* Nav links */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      {/* Nav links — scrolls internally so a long list (up to 12 items with
+          Timetable/Coursework/GPS all shown) never pushes Sign Out below
+          the viewport. The layout root clips overflow (app/(student)/layout.tsx),
+          so without this, Sign Out could become genuinely unreachable on a
+          shorter window — confirmed live 2026-09-10. Matches the same
+          overflow-y-auto AdminSidebar already uses for the same reason. */}
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {nav.map(({ href, label, icon: Icon, external }) => {
           const active = !external && (pathname === href || pathname.startsWith(href + '/'))
           const className = `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
