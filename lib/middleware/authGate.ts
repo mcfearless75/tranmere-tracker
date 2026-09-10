@@ -64,10 +64,25 @@ export function isAuthRetryable(error: { name?: string } | null | undefined): bo
  */
 export function safeNextPath(next: string | null | undefined): string | null {
   if (!next) return null
+  // The WHATWG URL parser strips ASCII tab/newline BEFORE parsing, so
+  // "/\t/evil.example" is really "//evil.example" — a protocol-relative URL.
+  // String-sniffing the raw value is not enough; refuse any control
+  // character outright, then let the parser decide what the value means.
+  if (/[\u0000-\u001f\u007f]/.test(next)) return null
   if (!next.startsWith('/')) return null
-  if (next.startsWith('//') || next.startsWith('/\\')) return null
-  if (/^\/(login|signup|admin-login|staff-login)(\/|\?|$)/.test(next)) return null
-  return next
+  let parsed: URL
+  try {
+    parsed = new URL(next, 'http://next-check.invalid')
+  } catch {
+    return null
+  }
+  // Anything that resolved to a different origin was an absolute or
+  // protocol-relative URL in disguise (backslashes included — the parser
+  // treats "/\evil" as "//evil").
+  if (parsed.origin !== 'http://next-check.invalid') return null
+  const path = parsed.pathname + parsed.search
+  if (/^\/(login|signup|admin-login|staff-login)(\/|\?|$)/.test(path)) return null
+  return path
 }
 
 export type UnauthenticatedAction =

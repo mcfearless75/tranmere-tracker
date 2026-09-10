@@ -75,6 +75,27 @@ describe('safeNextPath', () => {
   it('does not reject a path that merely starts with the word login', () => {
     expect(safeNextPath('/login-help')).toBe('/login-help')
   })
+
+  // The WHATWG URL parser strips ASCII tab and newline before parsing, so a
+  // raw "/\t/evil.example" resolves to https://evil.example — an open
+  // redirect if only the raw string is inspected. Found in review of 6c03409.
+  it.each([
+    ['tab-smuggled protocol-relative', '/\t/evil.example/x'],
+    ['newline-smuggled protocol-relative', '/\n/evil.example'],
+    ['carriage return', '/\r/evil.example'],
+    ['NUL byte', '/attendance\u0000'],
+    ['DEL', '/attendance\u007f'],
+  ])('rejects %s', (_label, value) => {
+    expect(safeNextPath(value)).toBeNull()
+  })
+
+  it('keeps a percent-encoded tab (harmless — it stays on this origin)', () => {
+    expect(safeNextPath('/%09/x')).toBe('/%09/x')
+  })
+
+  it('returns the normalised path + query, never a fragment', () => {
+    expect(safeNextPath('/attendance?tag=abc#frag')).toBe('/attendance?tag=abc')
+  })
 })
 
 describe('unauthenticatedAction', () => {

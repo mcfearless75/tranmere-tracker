@@ -72,6 +72,7 @@ describe('isInsideFence', () => {
     const r = isInsideFence(lat as number | null | undefined, lng as number | null | undefined, ACADEMY_LAT, ACADEMY_LNG, RADIUS_M)
     expect(r.inside).toBe(false)
     expect(r.distanceM).toBeNull()
+    expect(r.viaTolerance).toBe(false)
   })
 
   it('rejects non-number coordinate types smuggled in as strings', () => {
@@ -85,15 +86,23 @@ describe('isInsideFence', () => {
     // students, identical coordinates, one Wi-Fi provider address lookup.
     const COARSE_LAT = ACADEMY_LAT + 0.03
 
-    it('accepts a coarse fix whose error radius covers the academy', () => {
+    it('accepts a coarse fix whose error radius covers the academy, and says so via viaTolerance', () => {
       const r = isInsideFence(COARSE_LAT, ACADEMY_LNG, ACADEMY_LAT, ACADEMY_LNG, RADIUS_M, 3400)
       expect(r.inside).toBe(true)
+      expect(r.viaTolerance).toBe(true)
       expect(r.distanceM).toBeGreaterThan(3000)
     })
 
     it('still rejects the same fix when the error radius does not reach the academy', () => {
       const r = isInsideFence(COARSE_LAT, ACADEMY_LNG, ACADEMY_LAT, ACADEMY_LNG, RADIUS_M, 500)
       expect(r.inside).toBe(false)
+      expect(r.viaTolerance).toBe(false)
+    })
+
+    it('does not mark a genuinely inside reading as viaTolerance even with huge accuracy', () => {
+      const r = isInsideFence(ACADEMY_LAT + 0.001, ACADEMY_LNG, ACADEMY_LAT, ACADEMY_LNG, RADIUS_M, 3000)
+      expect(r.inside).toBe(true)
+      expect(r.viaTolerance).toBe(false)
     })
 
     it('is exactly the old behaviour when accuracy is absent, null, zero, negative or NaN', () => {

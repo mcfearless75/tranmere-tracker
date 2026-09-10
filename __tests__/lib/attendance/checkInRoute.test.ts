@@ -187,6 +187,22 @@ describe('POST /api/attendance/check-in', () => {
     expect(notifyStaffOfFlaggedCheckInMock).not.toHaveBeenCalled()
   })
 
+  it('ignores geo_permission_denied when real coordinates were sent (client-controlled field)', async () => {
+    // An off-site tap could otherwise relabel its own "GPS 5000m from
+    // academy" flag as benign AND mute the staff push. Coordinates win.
+    getUserMock.mockResolvedValue({ data: { user: { id: 'student-1' } } })
+    const { updateMock } = setupAdmin({ flagged: true, flagReason: 'GPS 5000m from academy' })
+    rpcMock.mockResolvedValue({ data: [{ id: 'rec-1', won: true }], error: null })
+
+    const res = await POST(makeRequest({ ...validBody, geo_lat: 53.0, geo_lng: -3.0, geo_permission_denied: true }))
+    expect(res.status).toBe(200)
+
+    expect(updateMock).not.toHaveBeenCalled()
+    expect(notifyStaffOfFlaggedCheckInMock).toHaveBeenCalledWith(
+      expect.anything(), 'student-1', 'am', 'GPS 5000m from academy',
+    )
+  })
+
   it('never fires staff/parent notifications for a racing duplicate call (won: false)', async () => {
     getUserMock.mockResolvedValue({ data: { user: { id: 'student-1' } } })
     setupAdmin({ flagged: true })

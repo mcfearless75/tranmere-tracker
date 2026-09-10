@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import type { GeoDiagnostic, GeoFix } from '@/lib/attendance/getGeoFix'
 
 const mockReplace = jest.fn()
@@ -35,8 +35,15 @@ const fetchMock = jest.fn()
 
 beforeEach(() => {
   jest.clearAllMocks()
+  // Fake timers so the 2.5s auto-return is asserted, not skipped. Async
+  // mocks still resolve because microtasks are unaffected.
+  jest.useFakeTimers()
   global.fetch = fetchMock as unknown as typeof fetch
   fetchMock.mockResolvedValue({ json: async () => ({ ok: true, success: true, id: 'row-1' }) })
+})
+
+afterEach(() => {
+  jest.useRealTimers()
 })
 
 describe('AutoCheckIn', () => {
@@ -51,6 +58,12 @@ describe('AutoCheckIn', () => {
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
     expect(body).toMatchObject({ phase: 'am', nfc_token: 'tok', geo_lat: null, geo_permission_denied: true })
+
+    // The screen must HOLD so the notice can be read — no auto-navigation.
+    await act(async () => { jest.advanceTimersByTime(10_000) })
+    expect(mockReplace).not.toHaveBeenCalled()
+    expect(mockPush).not.toHaveBeenCalled()
+    expect(mockRefresh).not.toHaveBeenCalled()
   })
 
   it('shows the notice on the already-checked-in screen too', async () => {
@@ -71,8 +84,13 @@ describe('AutoCheckIn', () => {
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
     expect(body).toMatchObject({ geo_lat: 53.4209, geo_lng: -3.0867, geo_accuracy_m: 12, geo_permission_denied: false })
+
+    // Auto-return after the tick has been shown — via a single replace().
     // push()+refresh() in the same tick is a known trigger of the Next 14
     // router crash recorded on this exact URL in production.
+    expect(mockReplace).not.toHaveBeenCalled()
+    await act(async () => { jest.advanceTimersByTime(2_600) })
+    expect(mockReplace).toHaveBeenCalledWith('/attendance')
     expect(mockRefresh).not.toHaveBeenCalled()
     expect(mockPush).not.toHaveBeenCalled()
   })

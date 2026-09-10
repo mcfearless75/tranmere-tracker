@@ -61,8 +61,13 @@ const withPWA = require('next-pwa')({
       entry => entry.options?.cacheName !== 'apis' && entry.options?.cacheName !== 'others',
     ),
   ],
-  // `/` is a server redirect() (app/page.tsx) — caching the start URL stores
-  // an opaque redirect that replays as an empty 200 on later launches.
+  // `/` is a server redirect() (app/page.tsx). With next-pwa's defaults the
+  // registration script writes an EMPTY 200 response for `/` into a
+  // 'start-url' runtime cache on every page load, and a NetworkFirst rule
+  // serves it whenever a fetch of `/` fails — a blank page on launch.
+  // `dynamicStartUrl: false` removes both the rule and the page-side write;
+  // `cacheStartUrl: false` additionally keeps `/` out of the precache.
+  dynamicStartUrl: false,
   cacheStartUrl: false,
   // next-pwa's default hard-reloads the page the moment the browser fires
   // 'online' — i.e. while the connection is still flapping, which is exactly

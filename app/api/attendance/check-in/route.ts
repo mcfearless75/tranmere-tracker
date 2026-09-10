@@ -49,6 +49,12 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient()
 
+  // geo_permission_denied is client-controlled. It is only credible when no
+  // coordinates came with it — real coordinates plus "denied" is a
+  // contradiction, and honouring it would let an off-site tap relabel its
+  // own "GPS 5000m from academy" flag as benign and mute the staff push.
+  const permissionDenied = geo_permission_denied === true && geo_lat == null && geo_lng == null
+
   // Idempotency: if this phase is already recorded today, short-circuit BEFORE
   // the RPC so a double-tap can never re-fire the parent push (first-tap-wins
   // in the RPC protects the data; this protects the notifications).
@@ -113,7 +119,7 @@ export async function POST(request: Request) {
     // is NOT evidence of a third-party in-app browser. The fix lives in the
     // student UI (AutoCheckIn tells them how to re-enable it) and in moving
     // the stickers to app.thesolarcampus.com — not here.
-    if (geo_permission_denied) {
+    if (permissionDenied) {
       try {
         await admin
           .from('daily_attendance')
@@ -141,7 +147,7 @@ export async function POST(request: Request) {
       .eq('attendance_date', today)
       .maybeSingle()
     const flagged = (flagRow as Record<string, unknown> | null)?.[`${phase}_is_flagged`] === true
-    if (flagged && !geo_permission_denied) {
+    if (flagged && !permissionDenied) {
       const reason = String((flagRow as Record<string, unknown>)?.[`${phase}_flag_reason`] ?? 'flagged')
       await notifyStaffOfFlaggedCheckIn(admin, user.id, phase, reason)
     }

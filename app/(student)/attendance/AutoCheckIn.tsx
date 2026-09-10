@@ -136,7 +136,10 @@ export function AutoCheckIn({ phase, nfcToken }: Props) {
         }
         if (!json.ok) { setError(json.error ?? 'Check-in failed'); setState('error'); return }
         setState('success')
-        setTimeout(() => { router.push('/attendance'); router.refresh() }, 2500)
+        // Same as the already-checked-in branch above: one replace(), and
+        // hold the screen when location was denied so the fix-it notice
+        // is actually readable.
+        if (!geoPermissionDenied) setTimeout(() => router.replace('/attendance'), 2500)
       } catch {
         setError('Network error — try again')
         setState('error')

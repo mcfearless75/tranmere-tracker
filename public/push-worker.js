@@ -13,7 +13,13 @@
 // to 24h and could still hit the crash once more. Deleting a cache that
 // doesn't exist is a harmless no-op, so this is safe to leave in place.
 self.addEventListener('activate', event => {
-  event.waitUntil(caches.delete('others').catch(() => {}))
+  event.waitUntil(
+    Promise.all(
+      // 'start-url' held the blank 200 for `/` written by next-pwa's
+      // registration script (dynamicStartUrl, also switched off).
+      ['others', 'start-url'].map(name => caches.delete(name).catch(() => {})),
+    ),
+  )
 })
 
 self.addEventListener('push', event => {

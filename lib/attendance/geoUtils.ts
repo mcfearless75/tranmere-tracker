@@ -33,6 +33,13 @@ export type FenceResult = {
   inside: boolean
   /** Distance in metres, or null when no usable coordinates were supplied. */
   distanceM: number | null
+  /**
+   * True when the raw distance is outside the radius and the reading only
+   * counts as inside because its reported accuracy circle reaches the
+   * academy. Callers whose ONLY presence proof is the fence should flag
+   * (not reject) these for staff review.
+   */
+  viaTolerance: boolean
 }
 
 /**
@@ -67,10 +74,12 @@ export function isInsideFence(
     !Number.isFinite(lat) ||
     !Number.isFinite(lng)
   ) {
-    return { inside: false, distanceM: null }
+    return { inside: false, distanceM: null, viaTolerance: false }
   }
   const distanceM = flatEarthDistanceMetres(lat, lng, centreLat, centreLng)
   const tolerance =
     typeof accuracyM === 'number' && Number.isFinite(accuracyM) && accuracyM > 0 ? accuracyM : 0
-  return { inside: Math.max(distanceM - tolerance, 0) <= radiusM, distanceM }
+  const rawInside = distanceM <= radiusM
+  const inside = rawInside || Math.max(distanceM - tolerance, 0) <= radiusM
+  return { inside, distanceM, viaTolerance: inside && !rawInside }
 }

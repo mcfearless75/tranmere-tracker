@@ -65,7 +65,11 @@ export async function POST(request: Request) {
   // unavailable) still hard-rejects unchanged — that's real anti-fraud
   // signal this path relies on.
   const fence = isInsideFence(geo_lat, geo_lng, settings.geo_lat, settings.geo_lng, settings.radius_m, geo_accuracy_m)
-  const bypassForPermissionDenied = !fence.inside && geo_permission_denied === true
+  // The bypass is only credible when the client genuinely has NO fix. Real
+  // coordinates plus geo_permission_denied:true is a contradiction — treat
+  // the coordinates as authoritative and let the fence decide.
+  const bypassForPermissionDenied =
+    !fence.inside && geo_permission_denied === true && geo_lat == null && geo_lng == null
   if (!fence.inside && !bypassForPermissionDenied) {
     await recordAndNotifyRejection(admin, user.id, today, phase, fence.distanceM)
     return NextResponse.json({ ok: false, error: NOT_AT_ACADEMY }, { status: 422 })
@@ -110,18 +114,33 @@ export async function POST(request: Request) {
   // through without GPS proof (it just saw whatever coordinates were sent,
   // if any), so flag it here for staff review — same column convention as
   // lib/attendance/manualOverride.ts's buildOverridePatch.
-  if (bypassForPermissionDenied) {
+  //
+  // Coarse fix (viaTolerance): the reading was outside the radius and only
+  // passed because its reported accuracy circle reaches the academy — e.g.
+  // a Wi-Fi/cell position at ±1500m. On the sticker path that's fine (the
+  // tap is the proof); here the fence IS the proof, so let the student
+  // through but flag it for staff review with the honest numbers. The RPC
+  // applies the same tolerance and records it as clean, so set it here.
+  const flagPatch = bypassForPermissionDenied
+    ? {
+        [`${phase}_is_flagged`]: true,
+        [`${phase}_flag_reason`]: 'Location permission denied on device — check-in allowed without GPS proof',
+      }
+    : fence.viaTolerance
+      ? {
+          [`${phase}_is_flagged`]: true,
+          [`${phase}_flag_reason`]: `GPS ${Math.round(fence.distanceM ?? 0)}m from academy (±${Math.round(geo_accuracy_m ?? 0)}m accuracy) — coarse fix, in-app tap`,
+        }
+      : null
+  if (flagPatch) {
     try {
       await admin
         .from('daily_attendance')
-        .update({
-          [`${phase}_is_flagged`]: true,
-          [`${phase}_flag_reason`]: 'Location permission denied on device — check-in allowed without GPS proof',
-        })
+        .update(flagPatch)
         .eq('student_id', user.id)
         .eq('attendance_date', today)
     } catch (err) {
-      console.error('Failed to flag permission-denied bypass check-in:', err)
+      console.error('Failed to flag tap check-in:', err)
     }
   }
 
