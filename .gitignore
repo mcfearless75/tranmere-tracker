@@ -79,3 +79,8 @@ public/worker-*.js
 
 # Subagent-driven-development scratch (progress ledger, briefs, reports)
 .superpowers/
+
+# Local claude-flow/swarm tool state (vector index, memory db, policy state)
+# — machine-local cache, not project source.
+.claude-flow/
+.swarm/

@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { reportClientError } from '@/lib/reportClientError'
-import { resetOrReload } from '@/lib/errorBoundaryReset'
+import { resetOrReload, useAutoRecoverFromRouterCrash } from '@/lib/errorBoundaryReset'
 
 // Global error boundary — replaces the root layout, so Tailwind CSS is not
 // available here. Inline styles only.
@@ -16,6 +16,7 @@ export default function GlobalError({
   useEffect(() => {
     reportClientError(error, 'global')
   }, [error])
+  useAutoRecoverFromRouterCrash(error, reset)
 
   return (
     <html lang="en">

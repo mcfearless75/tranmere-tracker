@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { reportClientError } from '@/lib/reportClientError'
-import { resetOrReload } from '@/lib/errorBoundaryReset'
+import { resetOrReload, useAutoRecoverFromRouterCrash } from '@/lib/errorBoundaryReset'
 
 export default function StudentError({
   error,
@@ -14,6 +14,7 @@ export default function StudentError({
   useEffect(() => {
     reportClientError(error, 'student')
   }, [error])
+  useAutoRecoverFromRouterCrash(error, reset)
 
   return (
     <div className="flex items-center justify-center p-6">

@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { reportClientError } from '@/lib/reportClientError'
-import { resetOrReload } from '@/lib/errorBoundaryReset'
+import { resetOrReload, useAutoRecoverFromRouterCrash } from '@/lib/errorBoundaryReset'
 
 export default function RootError({
   error,
@@ -14,6 +14,7 @@ export default function RootError({
   useEffect(() => {
     reportClientError(error, 'root')
   }, [error])
+  useAutoRecoverFromRouterCrash(error, reset)
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center p-4">

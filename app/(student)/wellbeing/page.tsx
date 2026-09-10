@@ -136,7 +136,7 @@ export default function WellbeingPage() {
           <div className="rounded-2xl bg-white border border-gray-200 p-6 space-y-5 shadow-sm">
             <div className="text-center space-y-2">
               <p className="text-4xl">🤔</p>
-              <p className="text-base font-semibold text-gray-900">What's been on your mind most this week?</p>
+              <p className="text-base font-semibold text-gray-900">What&apos;s been on your mind most this week?</p>
               <p className="text-xs text-muted-foreground">Pick up to two — or skip</p>
             </div>
             <div className="flex flex-wrap gap-2 justify-center">
