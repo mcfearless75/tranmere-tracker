@@ -22,8 +22,16 @@ export default async function AdminWellbeingPage() {
   // signal (e.g. a coach-facing summary instead of raw scores) was built
   // either time — still an open, separate decision if this needs revisiting.
 
-  // Fetch recent surveys — enough to build a 3-survey trend per student
-  const { data: surveys } = await admin
+  // Fetch recent surveys — enough to build a 3-survey trend per student.
+  // Confirmed live 2026-09-10: this query silently returned zero rows for
+  // weeks because migration 065 (context_tags) was written to the repo but
+  // never actually applied to production — PostgREST rejected the unknown
+  // column, and the unchecked error here fell straight through to "No
+  // surveys sent yet," indistinguishable from genuinely zero surveys, while
+  // 131 real rows sat in the table the whole time. Checking `error`
+  // explicitly now so a future schema-drift (or permissions) failure shows
+  // up as a clear diagnostic instead of silently looking like "no data."
+  const { data: surveys, error: surveysError } = await admin
     .from('wellbeing_surveys')
     .select(`
       id, sent_at, completed_at, status, context_tags,
@@ -32,6 +40,10 @@ export default async function AdminWellbeingPage() {
     `)
     .order('sent_at', { ascending: false })
     .limit(200)
+
+  if (surveysError) {
+    console.error('admin/wellbeing: failed to load surveys', surveysError)
+  }
 
   type Survey = {
     id: string
@@ -63,7 +75,12 @@ export default async function AdminWellbeingPage() {
         <p className="text-sm text-muted-foreground">Latest survey results — red flags highlighted</p>
       </div>
 
-      {studentGroups.length === 0 ? (
+      {surveysError ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="font-semibold">Couldn&apos;t load surveys</p>
+          <p className="mt-1 text-amber-700">{surveysError.message}</p>
+        </div>
+      ) : studentGroups.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">No surveys sent yet.</p>
       ) : (
         <div className="space-y-3">
