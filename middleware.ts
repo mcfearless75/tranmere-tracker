@@ -1,7 +1,17 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import {
+  copyCookies,
+  isAuthRetryable,
+  safeNextPath,
+  unauthenticatedAction,
+} from '@/lib/middleware/authGate'
 
 const PUBLIC_PATHS = ['/login', '/signup', '/setup', '/api/setup', '/admin-login', '/staff-login', '/trials', '/api/recruitment/apply', '/privacy', '/welcome']
+// Crash telemetry from error boundaries. A crash can happen before login (or
+// after a session has just died), and answering it with a 307 to /login
+// meant those reports never reached Vercel's logs at all.
+const NO_SESSION_PATHS = ['/api/client-error']
 // Public paths that signed-in users may still visit (no bounce to their dashboard).
 const OPEN_TO_ALL = ['/admin-login', '/staff-login', '/trials', '/api/recruitment/apply', '/privacy', '/welcome']
 const STUDENT_PREFIXES = ['/dashboard', '/coursework', '/nutrition', '/training', '/matches', '/profile', '/gps', '/attendance', '/timetable']
@@ -92,7 +102,7 @@ async function getUserRole(
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
 
-  if (SERVER_TO_SERVER_PREFIXES.some(p => path.startsWith(p))) {
+  if (SERVER_TO_SERVER_PREFIXES.some(p => path.startsWith(p)) || NO_SESSION_PATHS.includes(path)) {
     return NextResponse.next()
   }
 
@@ -115,15 +125,39 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
   const isPublic = PUBLIC_PATHS.some(p => path.startsWith(p))
 
-  // Unauthenticated on a protected page → /login (preserve destination)
+  // Any response we hand back must carry the auth cookies Supabase rotated
+  // (or deleted) while handling THIS request. A bare NextResponse.redirect()
+  // dropped them — the browser kept a refresh token GoTrue had just revoked,
+  // and the very next request died with "Invalid Refresh Token: Already Used"
+  // (56 forced logouts in the week to 2026-09-10). See lib/middleware/authGate.ts.
+  const withSessionCookies = (response: NextResponse): NextResponse => {
+    copyCookies(supabaseResponse.cookies, response.cookies)
+    return response
+  }
+
+  // GoTrue unreachable (network blip / 5xx) is not "logged out". Pass the
+  // request through untouched — the page's own server-side auth check will
+  // decide — instead of bouncing a live session to /login and wiping cookies.
+  if (!user && isAuthRetryable(authError) && !isPublic) {
+    return supabaseResponse
+  }
+
+  // Unauthenticated on a protected resource → /login (preserve destination),
+  // or a JSON 401 for /api/* so `res.json()` on the client gets a clean
+  // "Unauthorised" instead of throwing on the login page's HTML.
   if (!user && !isPublic) {
-    const next = request.nextUrl.pathname + request.nextUrl.search
+    const action = unauthenticatedAction(request.nextUrl.pathname, request.nextUrl.search)
+    if (action.kind === 'json401') {
+      const res = NextResponse.json({ ok: false, error: 'Unauthorised' }, { status: 401 })
+      res.cookies.delete(ROLE_COOKIE)
+      return withSessionCookies(res)
+    }
     const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('next', next)
-    const redirect = NextResponse.redirect(loginUrl)
+    loginUrl.searchParams.set('next', action.next)
+    const redirect = withSessionCookies(NextResponse.redirect(loginUrl))
     redirect.cookies.delete(ROLE_COOKIE) // logged out — drop any cached role
     return redirect
   }
@@ -160,40 +194,54 @@ export async function middleware(request: NextRequest) {
   // On a fresh lookup, cache the role on whichever response we return.
   const finalise = (response: NextResponse): Promise<NextResponse> | NextResponse =>
     isCacheHit ? response : attachRoleCookie(response, user.id, role as string, cacheSecret)
+  // Role-based redirects are fresh responses too — they must carry the
+  // rotated session cookies for the same reason as the /login redirect above.
+  const redirectTo = (target: string) =>
+    finalise(withSessionCookies(NextResponse.redirect(new URL(target, request.url))))
 
   const isStaff = role === 'admin' || role === 'coach' || role === 'teacher'
   const isParent = role === 'parent'
 
-  // Authenticated user on auth page → role-appropriate home
+  // Authenticated user on auth page → role-appropriate home. If they arrived
+  // with a safe `next` (e.g. a second NFC/QR tap while already signed in:
+  // /login?next=/attendance?tag=…) honour it — previously this bounced them
+  // to their home and the check-in silently never happened.
   if (isPublic && !OPEN_TO_ALL.some(p => path.startsWith(p))) {
+    const next = safeNextPath(request.nextUrl.searchParams.get('next'))
     const home = isStaff ? '/admin/gps-dashboard' : isParent ? '/parent/dashboard' : '/dashboard'
-    return finalise(NextResponse.redirect(new URL(home, request.url)))
+    return redirectTo(next ?? home)
   }
 
   // Staff hitting student pages → admin area
   if (isStaff && STUDENT_PREFIXES.some(p => path === p || path.startsWith(p + '/'))) {
-    return finalise(NextResponse.redirect(new URL('/admin/gps-dashboard', request.url)))
+    return redirectTo('/admin/gps-dashboard')
   }
 
   // Students hitting admin pages → dashboard
   if (!isStaff && path.startsWith('/admin')) {
-    return finalise(NextResponse.redirect(new URL('/dashboard', request.url)))
+    return redirectTo('/dashboard')
   }
 
   // Parents hitting student or admin pages → parent portal
   if (isParent && (STUDENT_PREFIXES.some(p => path === p || path.startsWith(p + '/')) || path.startsWith('/admin'))) {
-    return finalise(NextResponse.redirect(new URL('/parent/dashboard', request.url)))
+    return redirectTo('/parent/dashboard')
   }
 
   // Non-parents hitting parent pages → appropriate home
   if (!isParent && PARENT_PREFIXES.some(p => path === p || path.startsWith(p + '/'))) {
-    const home = isStaff ? '/admin/gps-dashboard' : '/dashboard'
-    return finalise(NextResponse.redirect(new URL(home, request.url)))
+    return redirectTo(isStaff ? '/admin/gps-dashboard' : '/dashboard')
   }
 
   return finalise(supabaseResponse)
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons|manifest.json|.well-known).*)'],
+  // Excluded on top of the Next internals: the service-worker scripts
+  // (sw.js, workbox-*.js, push-worker.js) and static assets under /fonts.
+  // Each used to trigger a full GoTrue session refresh per fetch, and a
+  // logged-out browser's service-worker install was answered with a 307 to
+  // /login — an HTML body where a script was expected.
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|icons|manifest.json|.well-known|sw.js|workbox-|push-worker.js|fonts/).*)',
+  ],
 }

@@ -39,13 +39,27 @@ export type FenceResult = {
  * Is a reading inside the academy geofence?
  * Missing / non-numeric / non-finite coordinates are OUTSIDE by definition —
  * callers that require presence proof must treat "no GPS" as "not here".
+ *
+ * `accuracyM` (the browser's reported 68% error radius) is subtracted from
+ * the distance before comparing. Since fbc69b7 (2026-09-08) getGeoFix falls
+ * back to network/Wi-Fi positioning indoors, which routinely reports the
+ * position of the Wi-Fi provider's registered address with a 500-3000m
+ * error radius — confirmed live: seven students rejected at exactly 3319m
+ * on 2026-09-07 PM and two at exactly 1622m on 2026-09-08 lunch, identical
+ * coordinates each time, i.e. one access-point lookup, not seven phones
+ * 3.3km away. A coarse fix whose error circle covers the academy is
+ * consistent with being here and must not hard-reject. This adds no new
+ * spoofing vector: a client that can fake `accuracy` can fake `lat`/`lng`
+ * just as easily. Mirrored in the submit_daily_check_in RPC
+ * (supabase/migrations/066_accuracy_aware_geofence.sql).
  */
 export function isInsideFence(
   lat: number | null | undefined,
   lng: number | null | undefined,
   centreLat: number,
   centreLng: number,
-  radiusM: number
+  radiusM: number,
+  accuracyM?: number | null
 ): FenceResult {
   if (
     typeof lat !== 'number' ||
@@ -56,5 +70,7 @@ export function isInsideFence(
     return { inside: false, distanceM: null }
   }
   const distanceM = flatEarthDistanceMetres(lat, lng, centreLat, centreLng)
-  return { inside: distanceM <= radiusM, distanceM }
+  const tolerance =
+    typeof accuracyM === 'number' && Number.isFinite(accuracyM) && accuracyM > 0 ? accuracyM : 0
+  return { inside: Math.max(distanceM - tolerance, 0) <= radiusM, distanceM }
 }

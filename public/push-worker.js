@@ -4,6 +4,18 @@
 // (or its old location, worker/index.js) is dead code: subscriptions and
 // server-side sends can both succeed while the browser silently has nothing
 // listening for the 'push' event.
+// One-off purge of the runtime cache next-pwa used to fill with HTML
+// documents and RSC payloads (cacheName 'others' — removed from
+// next.config.js's runtimeCaching on 2026-09-10 because stale entries from
+// earlier deployments were the root cause of the recurring router crash).
+// Workbox only cleans up the PRECACHE on activate, so every device that
+// installed the old worker would keep its poisoned 'others' entries for up
+// to 24h and could still hit the crash once more. Deleting a cache that
+// doesn't exist is a harmless no-op, so this is safe to leave in place.
+self.addEventListener('activate', event => {
+  event.waitUntil(caches.delete('others').catch(() => {}))
+})
+
 self.addEventListener('push', event => {
   if (!event.data) return
   let data

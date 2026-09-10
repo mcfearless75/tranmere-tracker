@@ -99,11 +99,20 @@ export async function POST(request: Request) {
 
     // The RPC only ever sees "no coordinates" and flags it generically as
     // "No GPS provided" — which reads like a truancy signal. If the client
-    // told us the browser flatly refused location (common in a third-party
-    // QR-scanner app's in-app browser — confirmed 2026-09-10 as the cause of
-    // nearly every remaining flag on this path), relabel it so staff see the
-    // real reason. Same convention as tap-checkin/route.ts's
+    // told us the browser flatly refused location, relabel it so staff see
+    // the real reason. Same convention as tap-checkin/route.ts's
     // bypassForPermissionDenied.
+    //
+    // What "permission denied" actually is (deep-dive, 2026-09-10): the QR
+    // sticker encodes tranmeretracker.vercel.app, and iOS Safari remembers a
+    // per-site location choice — one "Don't Allow" on the very first scan
+    // (a prompt with no explanation, from a domain the student doesn't
+    // recognise) is then replayed instantly on every later tap. The
+    // `utm_source=QRCodeGeneratorHub` in the URL is baked into the QR code
+    // itself and appears on every scan, including iOS Camera → Safari; it
+    // is NOT evidence of a third-party in-app browser. The fix lives in the
+    // student UI (AutoCheckIn tells them how to re-enable it) and in moving
+    // the stickers to app.thesolarcampus.com — not here.
     if (geo_permission_denied) {
       try {
         await admin
@@ -120,6 +129,11 @@ export async function POST(request: Request) {
     // If the RPC flagged this tap (off-site GPS / no GPS), alert staff so an
     // off-track check-in surfaces immediately instead of waiting to be spotted
     // in the day view. Awaited; helper never throws.
+    //
+    // Not for permission-denied: the student physically tapped the sticker
+    // and the only thing missing is a browser setting. Pushing every
+    // admin/coach/teacher for each of those (~100 in 48h to 2026-09-10) buried
+    // the flags that do need a human. It stays visible in the day view.
     const { data: flagRow } = await admin
       .from('daily_attendance')
       .select(`${phase}_is_flagged, ${phase}_flag_reason`)
@@ -127,7 +141,7 @@ export async function POST(request: Request) {
       .eq('attendance_date', today)
       .maybeSingle()
     const flagged = (flagRow as Record<string, unknown> | null)?.[`${phase}_is_flagged`] === true
-    if (flagged) {
+    if (flagged && !geo_permission_denied) {
       const reason = String((flagRow as Record<string, unknown>)?.[`${phase}_flag_reason`] ?? 'flagged')
       await notifyStaffOfFlaggedCheckIn(admin, user.id, phase, reason)
     }

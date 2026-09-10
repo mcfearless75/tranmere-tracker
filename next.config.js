@@ -31,8 +31,44 @@ const withPWA = require('next-pwa')({
       urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith('/api/'),
       handler: 'NetworkOnly',
     },
-    ...defaultRuntimeCaching.filter(entry => entry.options?.cacheName !== 'apis'),
+    // Never cache page navigations or React Server Component payloads.
+    //
+    // Root cause of the #1 production crash (148 occurrences / 28 users,
+    // 2026-08-20 → 2026-09-10: "Cannot destructure property 'parallelRouterKey'
+    // of 'e' as it is null" and WebKit's "null is not an object (evaluating
+    // 't.parallelRoutes.get')"): next-pwa's default 'others' rule is
+    // NetworkFirst with a 10s timeout and a 24h expiry, and matches EVERY
+    // same-origin URL outside /api/ — HTML documents, `?_rsc=` flight
+    // payloads, and `chunk.js?dpl=…` script URLs. Runtime caches are never
+    // purged on a service-worker update (only the precache is), so with
+    // 10-30 deploys a day the cache always holds entries from several
+    // deployments. Any slow response (>10s on school Wi-Fi) or a fetch error
+    // (offline blip, iOS backgrounding) is answered with a document or RSC
+    // payload from an OLD deployment, hydrated against the CURRENT bundle —
+    // Next's router cache tree ends up null and the root error boundary fires.
+    // Serving navigations/RSC from the network only removes that mismatch
+    // at source. The precached static assets keep working offline as before.
+    {
+      urlPattern: ({ request, url, sameOrigin }) =>
+        sameOrigin &&
+        (request.mode === 'navigate' ||
+          request.headers.get('RSC') === '1' ||
+          request.headers.get('Next-Router-Prefetch') === '1' ||
+          url.searchParams.has('_rsc')),
+      handler: 'NetworkOnly',
+    },
+    ...defaultRuntimeCaching.filter(
+      entry => entry.options?.cacheName !== 'apis' && entry.options?.cacheName !== 'others',
+    ),
   ],
+  // `/` is a server redirect() (app/page.tsx) — caching the start URL stores
+  // an opaque redirect that replays as an empty 200 on later launches.
+  cacheStartUrl: false,
+  // next-pwa's default hard-reloads the page the moment the browser fires
+  // 'online' — i.e. while the connection is still flapping, which is exactly
+  // when the stale-cache crash above was being triggered. The app has no
+  // offline mode, so there is nothing for that reload to recover.
+  reloadOnOnline: false,
 })
 
 /** @type {import('next').NextConfig} */

@@ -64,7 +64,7 @@ export async function POST(request: Request) {
   // academy" error. Genuine "couldn't get a fix" (timeout/position-
   // unavailable) still hard-rejects unchanged — that's real anti-fraud
   // signal this path relies on.
-  const fence = isInsideFence(geo_lat, geo_lng, settings.geo_lat, settings.geo_lng, settings.radius_m)
+  const fence = isInsideFence(geo_lat, geo_lng, settings.geo_lat, settings.geo_lng, settings.radius_m, geo_accuracy_m)
   const bypassForPermissionDenied = !fence.inside && geo_permission_denied === true
   if (!fence.inside && !bypassForPermissionDenied) {
     await recordAndNotifyRejection(admin, user.id, today, phase, fence.distanceM)

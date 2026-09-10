@@ -79,4 +79,33 @@ describe('isInsideFence', () => {
     expect(r.inside).toBe(false)
     expect(r.distanceM).toBeNull()
   })
+
+  describe('accuracy tolerance (network/Wi-Fi fallback fixes)', () => {
+    // ~3.3km north — the exact signature seen live on 2026-09-07 PM: seven
+    // students, identical coordinates, one Wi-Fi provider address lookup.
+    const COARSE_LAT = ACADEMY_LAT + 0.03
+
+    it('accepts a coarse fix whose error radius covers the academy', () => {
+      const r = isInsideFence(COARSE_LAT, ACADEMY_LNG, ACADEMY_LAT, ACADEMY_LNG, RADIUS_M, 3400)
+      expect(r.inside).toBe(true)
+      expect(r.distanceM).toBeGreaterThan(3000)
+    })
+
+    it('still rejects the same fix when the error radius does not reach the academy', () => {
+      const r = isInsideFence(COARSE_LAT, ACADEMY_LNG, ACADEMY_LAT, ACADEMY_LNG, RADIUS_M, 500)
+      expect(r.inside).toBe(false)
+    })
+
+    it('is exactly the old behaviour when accuracy is absent, null, zero, negative or NaN', () => {
+      for (const acc of [undefined, null, 0, -50, NaN]) {
+        const r = isInsideFence(ACADEMY_LAT + 0.003, ACADEMY_LNG, ACADEMY_LAT, ACADEMY_LNG, RADIUS_M, acc)
+        expect(r.inside).toBe(false)
+      }
+    })
+
+    it('reports the raw distance, not the accuracy-adjusted one', () => {
+      const r = isInsideFence(COARSE_LAT, ACADEMY_LNG, ACADEMY_LAT, ACADEMY_LNG, RADIUS_M, 3400)
+      expect(r.distanceM).toBeCloseTo(flatEarthDistanceMetres(COARSE_LAT, ACADEMY_LNG, ACADEMY_LAT, ACADEMY_LNG), 6)
+    })
+  })
 })

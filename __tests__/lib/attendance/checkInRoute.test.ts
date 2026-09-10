@@ -171,7 +171,7 @@ describe('POST /api/attendance/check-in', () => {
     )
   })
 
-  it('relabels the flag reason and notifies staff with it when geo_permission_denied is true', async () => {
+  it('relabels the flag reason but does NOT push staff when geo_permission_denied is true', async () => {
     getUserMock.mockResolvedValue({ data: { user: { id: 'student-1' } } })
     const relabeled = 'Location permission denied on device — check-in allowed without GPS proof'
     const { updateMock } = setupAdmin({ flagged: true, flagReason: relabeled })
@@ -180,10 +180,11 @@ describe('POST /api/attendance/check-in', () => {
     const res = await POST(makeRequest({ ...validBody, geo_permission_denied: true }))
     expect(res.status).toBe(200)
 
+    // The flag stays visible in the day view with the honest reason…
     expect(updateMock).toHaveBeenCalledWith({ am_flag_reason: relabeled })
-    expect(notifyStaffOfFlaggedCheckInMock).toHaveBeenCalledWith(
-      expect.anything(), 'student-1', 'am', relabeled,
-    )
+    // …but a browser setting is not a truancy signal: ~100 of these pushes
+    // in 48h (2026-09-08 → 10) were drowning out the flags that need a human.
+    expect(notifyStaffOfFlaggedCheckInMock).not.toHaveBeenCalled()
   })
 
   it('never fires staff/parent notifications for a racing duplicate call (won: false)', async () => {
