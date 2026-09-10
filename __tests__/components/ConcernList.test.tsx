@@ -83,6 +83,21 @@ describe('ConcernList', () => {
     expect(screen.queryByText(/suggested concerns/i)).not.toBeInTheDocument()
   })
 
+  it('still shows a suggestion when the student has an active concern of a different category', () => {
+    const suggestions: SuggestedConcern[] = [
+      { studentId: 'student-1', studentName: 'Alice Smith', reason: 'Low wellbeing: mood (1/5)' },
+    ]
+    render(
+      <ConcernList
+        concerns={[makeConcern({ status: 'open', student_id: 'student-1', category: 'attendance' })]}
+        studentNames={studentNames}
+        suggestions={suggestions}
+      />,
+    )
+    expect(screen.getByText(/suggested concerns from wellbeing flags/i)).toBeInTheDocument()
+    expect(screen.getByText(/Low wellbeing: mood \(1\/5\)/)).toBeInTheDocument()
+  })
+
   it('shows an empty state when no concerns match', () => {
     render(<ConcernList concerns={[]} studentNames={{}} suggestions={[]} />)
     expect(screen.getByText(/no concerns match/i)).toBeInTheDocument()

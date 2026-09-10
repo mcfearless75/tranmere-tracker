@@ -39,9 +39,16 @@ export function ConcernList({ concerns, studentNames, suggestions }: ConcernList
     [concerns, status, severity],
   )
 
-  // Surface only red-flag students that do not already have an active concern.
+  // Only an OPEN WELLBEING concern should suppress a wellbeing-flag suggestion — an
+  // unrelated open concern (attendance, behaviour, etc.) must not hide it. Every
+  // SuggestedConcern this component receives is already wellbeing-sourced (its one
+  // caller, app/(admin)/admin/safeguarding/page.tsx, builds `suggestions` from
+  // getRedFlags(wellbeing_responses)), so filtering concerns to the same category
+  // here is a correct match, not a partial one.
   const openStudentIds = useMemo(
-    () => new Set(concerns.filter(c => c.status !== 'closed').map(c => c.student_id)),
+    () => new Set(
+      concerns.filter(c => c.status !== 'closed' && c.category === 'wellbeing').map(c => c.student_id)
+    ),
     [concerns],
   )
   const newSuggestions = suggestions.filter(s => !openStudentIds.has(s.studentId))
