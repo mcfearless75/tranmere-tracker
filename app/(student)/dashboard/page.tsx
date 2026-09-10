@@ -12,6 +12,8 @@ import { StudentCharts } from '@/components/charts/StudentCharts'
 import { buildAttendanceWeeks, buildAttendanceDrillDown } from '@/lib/charts/attendanceUtils'
 import { WellbeingPromptCard } from '@/components/wellbeing/WellbeingPromptCard'
 import { ChangePinPromptCard } from '@/components/account/ChangePinPromptCard'
+import { CompleteProfilePromptCard } from '@/components/account/CompleteProfilePromptCard'
+import { isProfileIncomplete } from '@/lib/profile/profileCompleteness'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,9 +21,12 @@ export default async function DashboardPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  const PROFILE_FIELDS =
+    'name, course_id, avatar_url, courses(name), must_change_pin, year_group, date_of_birth, position, height_cm, weight_kg, build, dominant_foot'
+
   let { data: profile } = await supabase
     .from('users')
-    .select('name, course_id, avatar_url, courses(name), must_change_pin, year_group')
+    .select(PROFILE_FIELDS)
     .eq('id', user!.id)
     .single()
 
@@ -33,7 +38,7 @@ export default async function DashboardPage() {
     )
     const { data: existing } = await adminClient
       .from('users')
-      .select('name, course_id, avatar_url, role, must_change_pin, year_group')
+      .select(`${PROFILE_FIELDS}, role`)
       .eq('id', user!.id)
       .single()
     if (existing) {
@@ -47,7 +52,10 @@ export default async function DashboardPage() {
         name: displayName,
         role: 'student',
       })
-      profile = { name: displayName, course_id: null, avatar_url: null, courses: null, year_group: null } as any
+      profile = {
+        name: displayName, course_id: null, avatar_url: null, courses: null, year_group: null,
+        date_of_birth: null, position: null, height_cm: null, weight_kg: null, build: null, dominant_foot: null,
+      } as any
     }
   }
 
@@ -250,6 +258,9 @@ export default async function DashboardPage() {
 
       {/* ═══════════ DEFAULT PIN NUDGE ═══════════ */}
       {(profile as any)?.must_change_pin === true && <ChangePinPromptCard />}
+
+      {/* ═══════════ INCOMPLETE PROFILE NUDGE ═══════════ */}
+      {isProfileIncomplete(profile as any) && <CompleteProfilePromptCard />}
 
       {/* ═══════════ TODAY'S ITINERARY — HERO ═══════════ */}
       <div className="rounded-2xl bg-gradient-to-br from-tranmere-blue to-blue-900 text-white p-5 shadow-lg space-y-4">
