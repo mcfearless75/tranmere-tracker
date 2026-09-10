@@ -29,6 +29,12 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Canonical domain (2026-09-10) — stickers point here now. -->
+                <data
+                    android:scheme="https"
+                    android:host="app.thesolarcampus.com"
+                    android:pathPrefix="/attendance" />
+                <!-- Legacy domain, kept so links still in circulation open the app. -->
                 <data
                     android:scheme="https"
                     android:host="tranmeretracker.vercel.app"
@@ -50,6 +56,10 @@
 
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Camera: nutrition barcode scanner (html5-qrcode via getUserMedia).
+         Without this the WebView's camera request is denied outright. -->
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <!-- Geolocation (foreground) -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />

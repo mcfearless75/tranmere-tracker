@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { ShieldCheck, User } from 'lucide-react'
+import { CheckInLoginNotice } from '@/components/auth/CheckInLoginNotice'
 
 export default function LoginPage({ searchParams }: { searchParams: { next?: string; error?: string } }) {
   return (
@@ -23,6 +24,8 @@ export default function LoginPage({ searchParams }: { searchParams: { next?: str
             {searchParams.error}
           </div>
         )}
+
+        <CheckInLoginNotice next={searchParams.next} />
 
         <div className="grid grid-cols-2 gap-2">
           <Link

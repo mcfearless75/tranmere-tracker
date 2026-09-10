@@ -53,6 +53,11 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 
+	<!-- Camera — nutrition barcode scanner. iOS terminates the app on first
+	     camera access if this string is missing. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Tranmere Tracker uses the camera to scan food barcodes for your nutrition log.</string>
+
 	<!-- Location permissions — required by Capacitor Geolocation + Background Geolocation -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Tranmere Tracker uses your location to verify attendance at the training ground.</string>

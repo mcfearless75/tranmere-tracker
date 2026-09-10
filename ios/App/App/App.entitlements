@@ -4,6 +4,7 @@
 <dict>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
+		<string>applinks:app.thesolarcampus.com</string>
 		<string>applinks:tranmeretracker.vercel.app</string>
 	</array>
 </dict>

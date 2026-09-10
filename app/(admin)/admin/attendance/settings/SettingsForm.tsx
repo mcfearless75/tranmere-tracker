@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, CheckCircle2, Eye, EyeOff, Sun, UtensilsCrossed, Moon, MapPin } from 'lucide-react'
 import { validateWindows, validateGeo } from '@/lib/attendance/windowValidation'
+import { StickerPanel } from '@/components/attendance/StickerPanel'
 
 type FormValues = {
   am_window_start: string
@@ -159,16 +160,19 @@ export function SettingsForm({
         <div className="bg-white border rounded-xl p-4 space-y-2">
           <h2 className="text-sm font-bold text-tranmere-blue">NFC sticker token</h2>
           <p className="text-[11px] text-muted-foreground">
-            Encode this token in the URL written to new NFC stickers. Keep it private — anyone with the token can check in.
+            Reveal to get the token and the ready-made check-in link + QR for stickers. Keep it private — anyone with the token can check in.
           </p>
           {revealed ? (
-            <div className="flex items-center gap-2">
-              <code className="text-xs bg-gray-100 border rounded-lg px-2.5 py-1.5 break-all select-all">{nfcToken}</code>
-              <button type="button" onClick={() => setRevealed(false)}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-tranmere-blue shrink-0">
-                <EyeOff size={13} /> Hide
-              </button>
-            </div>
+            <>
+              <div className="flex items-center gap-2">
+                <code className="text-xs bg-gray-100 border rounded-lg px-2.5 py-1.5 break-all select-all">{nfcToken}</code>
+                <button type="button" onClick={() => setRevealed(false)}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-tranmere-blue shrink-0">
+                  <EyeOff size={13} /> Hide
+                </button>
+              </div>
+              <StickerPanel token={nfcToken} />
+            </>
           ) : (
             <button type="button" onClick={() => setRevealed(true)}
               className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors">

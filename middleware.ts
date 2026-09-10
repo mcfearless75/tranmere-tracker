@@ -6,6 +6,7 @@ import {
   safeNextPath,
   unauthenticatedAction,
 } from '@/lib/middleware/authGate'
+import { canonicalRedirectTarget, readCanonicalConfig } from '@/lib/middleware/canonicalHost'
 
 const PUBLIC_PATHS = ['/login', '/signup', '/setup', '/api/setup', '/admin-login', '/staff-login', '/trials', '/api/recruitment/apply', '/privacy', '/welcome']
 // Crash telemetry from error boundaries. A crash can happen before login (or
@@ -101,6 +102,15 @@ async function getUserRole(
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
+
+  // Legacy host → canonical host, before any auth work. Phase 1 covers the
+  // /attendance sticker links only; see lib/middleware/canonicalHost.ts for
+  // the env knobs (CANONICAL_REDIRECT_PATHS=all widens it, DISABLE_… stops it).
+  const canonicalTarget = canonicalRedirectTarget(
+    { host: request.headers.get('host'), pathname: path, search: request.nextUrl.search },
+    readCanonicalConfig(process.env),
+  )
+  if (canonicalTarget) return NextResponse.redirect(canonicalTarget, 308)
 
   if (SERVER_TO_SERVER_PREFIXES.some(p => path.startsWith(p)) || NO_SESSION_PATHS.includes(path)) {
     return NextResponse.next()
