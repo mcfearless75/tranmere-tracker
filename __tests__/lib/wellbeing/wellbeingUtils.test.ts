@@ -4,6 +4,8 @@ import {
   buildWellbeingTrend,
   normalizedScore,
   getScoreLabel,
+  isValidContextTags,
+  CONTEXT_TAGS,
   SURVEY_QUESTIONS,
 } from '@/lib/wellbeing/wellbeingUtils'
 
@@ -74,6 +76,10 @@ describe('getRedFlags', () => {
     ]
     expect(getRedFlags(responses)).toHaveLength(2)
   })
+
+  it('does NOT flag a low connection score — observation-only, not a red-flag key', () => {
+    expect(getRedFlags([{ question_key: 'connection', score: 1 }])).toHaveLength(0)
+  })
 })
 
 describe('normalizedScore', () => {
@@ -98,6 +104,11 @@ describe('getScoreLabel', () => {
   it('uses an intensity scale for stress instead of Very Low..Great', () => {
     expect(getScoreLabel('stress', 1)).toBe('Not at all')
     expect(getScoreLabel('stress', 5)).toBe('Extremely')
+  })
+
+  it('uses its own scale for connection, distinct from both the generic and stress scales', () => {
+    expect(getScoreLabel('connection', 1)).toBe('Not at all')
+    expect(getScoreLabel('connection', 5)).toBe('Completely')
   })
 })
 
@@ -204,5 +215,39 @@ describe('buildWellbeingTrend', () => {
       wellbeing_responses: [{ score: 5 }, { score: 1 }],
     }])
     expect(result[0].avg).toBe(3)
+  })
+})
+
+describe('CONTEXT_TAGS', () => {
+  it('has exactly the 8 keys the DB check constraint allows', () => {
+    const keys = CONTEXT_TAGS.map(t => t.key)
+    expect(keys).toEqual([
+      'football', 'college', 'home', 'friends', 'money', 'health', 'something_else', 'nothing_much',
+    ])
+  })
+})
+
+describe('isValidContextTags', () => {
+  it('accepts an empty array', () => {
+    expect(isValidContextTags([])).toBe(true)
+  })
+
+  it('accepts one or two valid tags', () => {
+    expect(isValidContextTags(['home'])).toBe(true)
+    expect(isValidContextTags(['home', 'money'])).toBe(true)
+  })
+
+  it('rejects more than two tags', () => {
+    expect(isValidContextTags(['home', 'money', 'friends'])).toBe(false)
+  })
+
+  it('rejects an unrecognized tag', () => {
+    expect(isValidContextTags(['not-a-real-tag'])).toBe(false)
+  })
+
+  it('rejects a non-array value', () => {
+    expect(isValidContextTags('home')).toBe(false)
+    expect(isValidContextTags(undefined)).toBe(false)
+    expect(isValidContextTags(null)).toBe(false)
   })
 })
