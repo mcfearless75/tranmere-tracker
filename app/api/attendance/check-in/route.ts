@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     geo_lng,
     geo_accuracy_m,
     selfie_path,
+    geo_permission_denied,
   } = await request.json() as {
     phase: AttendancePhase
     nfc_token: string
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
     geo_lng?: number | null
     geo_accuracy_m?: number | null
     selfie_path?: string | null
+    geo_permission_denied?: boolean
   }
 
   if (!PHASES.includes(phase)) {
@@ -94,6 +96,26 @@ export async function POST(request: Request) {
   if (won) {
     // Awaited so serverless doesn't kill the push mid-flight; never throws.
     await notifyParentsOfCheckIn(admin, user.id, phase, 'checked_in')
+
+    // The RPC only ever sees "no coordinates" and flags it generically as
+    // "No GPS provided" — which reads like a truancy signal. If the client
+    // told us the browser flatly refused location (common in a third-party
+    // QR-scanner app's in-app browser — confirmed 2026-09-10 as the cause of
+    // nearly every remaining flag on this path), relabel it so staff see the
+    // real reason. Same convention as tap-checkin/route.ts's
+    // bypassForPermissionDenied.
+    if (geo_permission_denied) {
+      try {
+        await admin
+          .from('daily_attendance')
+          .update({ [`${phase}_flag_reason`]: 'Location permission denied on device — check-in allowed without GPS proof' })
+          .eq('student_id', user.id)
+          .eq('attendance_date', today)
+          .eq(`${phase}_is_flagged`, true)
+      } catch (err) {
+        console.error('Failed to relabel permission-denied flag reason:', err)
+      }
+    }
 
     // If the RPC flagged this tap (off-site GPS / no GPS), alert staff so an
     // off-track check-in surfaces immediately instead of waiting to be spotted

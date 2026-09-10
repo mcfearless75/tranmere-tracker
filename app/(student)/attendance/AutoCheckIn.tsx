@@ -48,11 +48,22 @@ export function AutoCheckIn({ phase, nfcToken }: Props) {
       // permission-denied and still-timed-out look identical as a bare null
       // in daily_attendance, and need opposite fixes. Report which actually
       // happened so the next batch of real check-ins answers that.
+      //
+      // 2026-09-10: that data came in — every remaining flag on this path is
+      // permission-denied (both attempts), not a timeout, and every one traces
+      // to the tap being opened through a third-party QR-scanner app's
+      // embedded in-app browser (utm_source=QRCodeGeneratorHub), which blocks
+      // geolocation entirely and can't be fixed from device Settings. Same
+      // failure mode InAppCheckIn.tsx already detects — this path never told
+      // the server, so it just stored the misleading generic "No GPS
+      // provided" instead of the real reason. Forward it so staff see what's
+      // actually going on.
       let diagnostic: GeoDiagnostic | null = null
       const geo = await getGeoFix({ onDiagnostic: d => { diagnostic = d } })
       if (!geo && diagnostic) {
         reportClientError(new Error(`getGeoFix failed: ${JSON.stringify(diagnostic)}`), 'checkin-geo-diagnostic')
       }
+      const geoPermissionDenied = (diagnostic as GeoDiagnostic | null)?.highAccuracy === 'permission-denied'
 
       try {
         const res = await fetch('/api/attendance/check-in', {
@@ -65,6 +76,7 @@ export function AutoCheckIn({ phase, nfcToken }: Props) {
             geo_lng:        geo?.lng ?? null,
             geo_accuracy_m: geo?.accuracy ? Math.round(geo.accuracy) : null,
             selfie_path:    null,
+            geo_permission_denied: geoPermissionDenied,
           }),
         })
         const json = await res.json()
