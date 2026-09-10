@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getRedFlags, buildWellbeingTrend, normalizedScore, CONTEXT_TAGS, SURVEY_QUESTIONS } from '@/lib/wellbeing/wellbeingUtils'
 import { WellbeingSparkline } from '@/components/wellbeing/WellbeingSparkline'
+import { WellbeingAnswerDetail } from '@/components/wellbeing/WellbeingAnswerDetail'
 import { AlertTriangle } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -66,7 +67,12 @@ export default async function AdminWellbeingPage() {
     if (group.length < 3) group.push(r)
   }
 
-  const studentGroups = Array.from(byStudent.values())
+  // Completed surveys (real scores to actually review) sort above still-open
+  // ones, not just newest-sent-first — a student who hasn't filled theirs in
+  // yet isn't more useful to see first than one who has.
+  const studentGroups = Array.from(byStudent.values()).sort(
+    (a, b) => (a[0].status === 'completed' ? 0 : 1) - (b[0].status === 'completed' ? 0 : 1),
+  )
 
   return (
     <div className="space-y-5 p-4">
@@ -166,6 +172,11 @@ export default async function AdminWellbeingPage() {
                       )
                     })}
                   </div>
+                )}
+
+                {/* Click-to-expand: the actual answer text per question, not just the number */}
+                {survey.wellbeing_responses.length > 0 && (
+                  <WellbeingAnswerDetail responses={survey.wellbeing_responses} />
                 )}
 
                 {/* Context tags — "what's been on your mind" picker, not scored */}
