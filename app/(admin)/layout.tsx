@@ -1,6 +1,7 @@
 import { AdminSidebar } from '@/components/layout/AdminSidebar'
 import { InstallGuide } from '@/components/pwa/InstallGuide'
 import { MobileAdminBar } from '@/components/layout/MobileAdminBar'
+import { ChangePinPromptCard } from '@/components/account/ChangePinPromptCard'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
@@ -16,7 +17,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const adminClient = createAdminClient()
   const { data: profile } = await adminClient
     .from('users')
-    .select('role, name, avatar_url')
+    .select('role, name, avatar_url, must_change_pin')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -26,6 +27,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const userName = profile.name ?? 'Admin'
   const avatarUrl = profile.avatar_url ?? null
+  // Shown here (once, for every admin/coach/teacher page) instead of on any
+  // single page — a staff account created with an admin-chosen PIN should
+  // get this nudge no matter which /admin/* page they land on first.
+  const mustChangePin = profile.must_change_pin === true
 
   return (
     <div className="min-h-[100dvh] bg-gray-50 relative overflow-hidden">
@@ -48,7 +53,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="hidden md:block">
           <AdminSidebar userName={userName} avatarUrl={avatarUrl} role={profile.role} />
         </div>
-        <main className="flex-1 p-4 md:p-6 max-w-full overflow-x-hidden pb-20 md:pb-6">
+        <main className="flex-1 p-4 md:p-6 max-w-full overflow-x-hidden pb-20 md:pb-6 space-y-4">
+          {mustChangePin && <ChangePinPromptCard />}
           {children}
         </main>
       </div>
