@@ -14,6 +14,19 @@ export default async function AdminWellbeingPage() {
 
   const admin = createAdminClient()
 
+  // Admin (DSL) only — coaches/teachers currently see the same raw scores and
+  // free-text notes as the DSL, which the research ties directly to students
+  // under-reporting when they know a coach can see it. Mirrors the exact guard
+  // /admin/safeguarding/page.tsx already uses. Deliberately no replacement
+  // signal for coaches/teachers here — a separate, later feature, not this fix.
+  const { data: profile } = await admin
+    .from('users')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (!profile || profile.role !== 'admin') redirect('/admin/dashboard')
+
   // Fetch recent surveys — enough to build a 3-survey trend per student
   const { data: surveys } = await admin
     .from('wellbeing_surveys')
