@@ -3,6 +3,7 @@
  */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import WellbeingPage from '@/app/(student)/wellbeing/page'
+import { SURVEY_QUESTIONS } from '@/lib/wellbeing/wellbeingUtils'
 
 const STUDENT_ID = 'student-1'
 
@@ -96,5 +97,49 @@ describe('WellbeingPage — trend tab', () => {
     // The previously-selected score for the first question is still selected —
     // proven by the score label rendering, not just the button's own state.
     expect(await screen.findByText('Great')).toBeInTheDocument()
+  })
+})
+
+async function advanceToChipStep() {
+  openSurveyMaybeSingleMock.mockResolvedValueOnce({ data: { id: 'survey-1' } })
+  render(<WellbeingPage />)
+  for (let i = 0; i < SURVEY_QUESTIONS.length; i++) {
+    const scoreButtons = await screen.findAllByRole('button', { name: '4' })
+    fireEvent.click(scoreButtons[0])
+    fireEvent.click(screen.getByText('Next'))
+  }
+}
+
+describe('WellbeingPage — context chip picker', () => {
+  beforeEach(() => {
+    global.fetch = jest.fn(() => Promise.resolve({ ok: true } as Response)) as unknown as typeof fetch
+  })
+
+  it('shows the chip-picker screen after the last scored question', async () => {
+    await advanceToChipStep()
+    expect(await screen.findByText("What's been on your mind most this week?")).toBeInTheDocument()
+  })
+
+  it('does not allow selecting more than 2 tags', async () => {
+    await advanceToChipStep()
+    fireEvent.click(await screen.findByText(/Football/))
+    fireEvent.click(screen.getByText(/College work/))
+    const thirdTag = screen.getByText(/^Home$/).closest('button')
+    expect(thirdTag).toBeDisabled()
+  })
+
+  it('submits successfully with zero tags selected (skip)', async () => {
+    await advanceToChipStep()
+    fireEvent.click(await screen.findByText('Submit ✓'))
+    expect(await screen.findByText('Thanks for checking in 💙')).toBeInTheDocument()
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/wellbeing/submit',
+      expect.objectContaining({ body: expect.stringContaining('"context_tags":[]') }),
+    )
+  })
+
+  it('shows the updated time estimate', async () => {
+    render(<WellbeingPage />)
+    expect(await screen.findByText(/90 seconds/)).toBeInTheDocument()
   })
 })
