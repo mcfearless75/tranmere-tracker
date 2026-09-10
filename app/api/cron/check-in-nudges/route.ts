@@ -4,7 +4,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { londonDateISO, londonHour } from '@/lib/dates'
-import { sendPushNotification } from '@/lib/webpush'
+import { notifyUsers } from '@/lib/notifications/notifyStaff'
 import { verifyCronSecret } from '@/lib/security'
 import { NextResponse } from 'next/server'
 
@@ -45,23 +45,17 @@ export async function GET(request: Request) {
   const uncheckedIds = students.filter(s => !checkedIds.has(s.id)).map(s => s.id)
   if (!uncheckedIds.length) return NextResponse.json({ sent: 0, phase })
 
-  const { data: subs } = await admin
-    .from('push_subscriptions')
-    .select('endpoint, p256dh, auth')
-    .in('user_id', uncheckedIds)
-
-  if (!subs?.length) return NextResponse.json({ sent: 0, phase })
-
   const payload = phase === 'am'
     ? { title: 'Morning check-in',    body: 'Tap the NFC sticker at reception when you arrive.',   url: '/attendance' }
     : phase === 'lunch'
     ? { title: 'Lunch check-in',      body: 'Tap the NFC sticker at reception during lunch.',      url: '/attendance' }
     : { title: 'End-of-day check-in', body: 'Don\'t forget to tap out before you leave.',          url: '/attendance' }
 
-  const results = await Promise.allSettled(
-    subs.map(s => sendPushNotification({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, payload))
-  )
-  const sent = results.filter(r => r.status === 'fulfilled').length
+  // Dual-channel (web push + native/FCM) — a native app user got zero
+  // check-in reminders under the old web-push-only sendPushNotification
+  // loop, regardless of their notification permission. Confirmed live
+  // 2026-09-10, same gap already fixed for wellbeing/chat that night.
+  await notifyUsers(admin, uncheckedIds, payload)
 
-  return NextResponse.json({ sent, phase, unchecked: uncheckedIds.length })
+  return NextResponse.json({ sent: uncheckedIds.length, phase })
 }
