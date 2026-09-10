@@ -24,6 +24,19 @@ export async function signOut() {
   // sign-out on one was killing the others, which then failed with "Refresh
   // Token Not Found" up to an hour later (88 such errors in the week to
   // 2026-09-10) — experienced as a random logout on a different device.
-  await supabase.auth.signOut({ scope: 'local' })
+  try {
+    await supabase.auth.signOut({ scope: 'local' })
+  } catch (err) {
+    // Confirmed live 2026-09-10: a student's session was already broken
+    // (e.g. a refresh token invalidated elsewhere by the exact churn the
+    // comment above describes) — auth.signOut() threw here, this function
+    // never reached redirect(), and the rejected Server Action was silently
+    // swallowed client-side. Tapping "sign out" looked like it did nothing
+    // at all, even after a full refresh (the broken session state persists
+    // across reloads). A session that's already invalid is, from the
+    // user's perspective, nothing to distinguish from a successful sign-out
+    // — always land them on /login regardless of what failed here.
+    console.error('signOut: auth.signOut failed, redirecting to /login anyway', err)
+  }
   redirect('/login')
 }
