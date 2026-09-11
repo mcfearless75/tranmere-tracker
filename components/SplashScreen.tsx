@@ -1,12 +1,25 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { isNative } from '@/lib/native'
 
 export function SplashScreen() {
   const [visible, setVisible] = useState(true)
   const [fading, setFading] = useState(false)
 
   useEffect(() => {
+    // Native only: dismiss the OS-level launch splash the instant this
+    // component mounts — that's the earliest point the WebView has real
+    // content ready to paint, handing off to this component's own animated
+    // splash with no gap. launchAutoHide is set to false in
+    // capacitor.config.ts specifically so this is the only thing that
+    // hides it; without this call it would stay up forever.
+    if (isNative()) {
+      import('@capacitor/splash-screen')
+        .then(({ SplashScreen: NativeSplashScreen }) => NativeSplashScreen.hide())
+        .catch(() => {})
+    }
+
     // Only show once per session
     if (sessionStorage.getItem('splash_shown')) {
       setVisible(false)

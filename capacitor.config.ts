@@ -19,6 +19,21 @@ const config: CapacitorConfig = {
     cleartext: false,
   },
   plugins: {
+    // 2026-09-11: a cold install has to download the full remote-URL bundle
+    // before the WebView renders anything (the web-side SplashScreen.tsx
+    // component can't help — it's part of that same bundle, so it can't
+    // paint until after the gap it would need to cover). Without this,
+    // that gap is a blank white screen indistinguishable from a crash.
+    // launchAutoHide: false keeps Android's native launch-theme splash
+    // (the existing branded drawable/splash.png assets) up until
+    // SplashScreen.hide() is called from components/SplashScreen.tsx once
+    // it actually mounts.
+    SplashScreen: {
+      launchShowDuration: 0,
+      launchAutoHide: false,
+      androidScaleType: 'CENTER_CROP',
+      showSpinner: false,
+    },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
