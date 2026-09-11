@@ -10,6 +10,7 @@ export default async function NotificationsPage() {
     supabase
       .from('users')
       .select('id, name, role, course_id, avatar_url')
+      .eq('is_active', true)
       .order('name')
       .limit(500), // safety cap — academy roster is far smaller
     supabase.from('courses').select('id, name').order('name').limit(100),

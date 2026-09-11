@@ -9,7 +9,7 @@ export default async function ReportBuilderPage() {
   const supabase = createAdminClient()
 
   const [{ data: students }, { data: courses }] = await Promise.all([
-    supabase.from('users').select('id, name, role, course_id, courses(name)').order('name'),
+    supabase.from('users').select('id, name, role, course_id, courses(name)').eq('is_active', true).order('name'),
     supabase.from('courses').select('id, name').order('name'),
   ])
 

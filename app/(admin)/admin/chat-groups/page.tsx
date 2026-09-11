@@ -40,10 +40,13 @@ export default async function ChatGroupsPage() {
 
   // Everyone who could conceivably be added to a group chat. Parents never
   // join group chats (matches createGroupChat/addGroupMembers server-side).
+  // Deactivated/departed accounts are excluded — same reasoning as every
+  // other current-roster picker in the app.
   const { data: everyone } = await admin
     .from('users')
     .select('id, name, role')
     .neq('role', 'parent')
+    .eq('is_active', true)
     .order('name')
 
   const membersByRoom = new Map<string, { id: string; name: string | null; role: string }[]>()

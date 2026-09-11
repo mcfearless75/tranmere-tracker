@@ -26,8 +26,9 @@ export async function POST(request: Request) {
     .single()
   if (error || !room) return NextResponse.json({ error: error?.message ?? 'Failed to create room' }, { status: 500 })
 
-  // Add all users as members
-  const { data: allUsers } = await admin.from('users').select('id, role')
+  // Add all active users as members — a deactivated/departed account shouldn't
+  // be auto-enrolled into a brand-new broadcast channel.
+  const { data: allUsers } = await admin.from('users').select('id, role').eq('is_active', true)
   const members = (allUsers ?? []).map(u => ({
     room_id: room.id,
     user_id: u.id,

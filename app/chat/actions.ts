@@ -43,8 +43,9 @@ export async function createGroupChat(name: string, memberIds: string[]): Promis
   const uniqueMemberIds = Array.from(new Set(memberIds.filter(id => id !== user.id)))
   if (uniqueMemberIds.length === 0) return { error: 'Pick at least one member' }
 
-  // Parents never join a group chat, regardless of what the client sent.
-  const { data: candidates } = await admin.from('users').select('id').in('id', uniqueMemberIds).neq('role', 'parent')
+  // Parents never join a group chat, and a deactivated account can't be
+  // added, regardless of what the client sent.
+  const { data: candidates } = await admin.from('users').select('id').in('id', uniqueMemberIds).neq('role', 'parent').eq('is_active', true)
   const allowedIds = (candidates ?? []).map(c => c.id)
   if (allowedIds.length === 0) return { error: 'Pick at least one member' }
 
@@ -89,7 +90,7 @@ export async function addGroupMembers(roomId: string, memberIds: string[]): Prom
   const uniqueMemberIds = Array.from(new Set(memberIds))
   if (uniqueMemberIds.length === 0) return { ok: false, error: 'Pick at least one member' }
 
-  const { data: candidates } = await admin.from('users').select('id, role').in('id', uniqueMemberIds)
+  const { data: candidates } = await admin.from('users').select('id, role').in('id', uniqueMemberIds).eq('is_active', true)
   const allowedIds = (candidates ?? [])
     .filter(c => c.role !== 'parent' && !(syncYearGroup && c.role === 'student'))
     .map(c => c.id)
