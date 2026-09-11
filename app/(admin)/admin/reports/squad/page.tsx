@@ -9,7 +9,7 @@ export default async function SquadReportPage() {
   const supabase = createAdminClient()
 
   const [{ data: students }, { data: gps }, { data: matches }] = await Promise.all([
-    supabase.from('users').select('id, name, avatar_url').eq('role', 'student').order('name'),
+    supabase.from('users').select('id, name, avatar_url').eq('role', 'student').eq('is_active', true).order('name'),
     supabase.from('gps_sessions').select('player_id, session_date, session_label, total_distance_m, max_speed_kmh, sprint_count, player_load').order('session_date', { ascending: false }).limit(500),
     supabase.from('match_logs').select('student_id, match_date, opponent, goals, assists, self_rating, minutes_played').order('match_date', { ascending: false }).limit(500),
   ])

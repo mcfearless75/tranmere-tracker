@@ -40,10 +40,11 @@ function setupAdmin(options: { eligibleIds?: string[] } = {}) {
   const unitEqMock = jest.fn(() => ({ maybeSingle: unitMaybeSingleMock }))
   const unitSelectMock = jest.fn(() => ({ eq: unitEqMock }))
 
-  const usersSecondEqMock = jest.fn(async () => ({
+  const usersThirdEqMock = jest.fn(async () => ({
     data: eligibleIds.map(id => ({ id })),
     error: null,
   }))
+  const usersSecondEqMock = jest.fn(() => ({ eq: usersThirdEqMock }))
   const usersFirstEqMock = jest.fn(() => ({ eq: usersSecondEqMock }))
   const usersSelectMock = jest.fn(() => ({ eq: usersFirstEqMock }))
 

@@ -89,7 +89,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No player rows found. Check the CSV has a "Name" or "Player Name" column.' }, { status: 400 })
   }
 
-  // Load all students to match by name
+  // Deliberately NOT filtered to is_active — GPS files can be uploaded well
+  // after the session they record, and a player who has since left should
+  // still match against their historical data rather than being silently
+  // dropped as "unmatched".
   const { data: students } = await adminClient.from('users').select('id, name').eq('role', 'student')
   const studentMap: Record<string, string> = {}
   students?.forEach(s => { studentMap[s.name.toLowerCase().trim()] = s.id })

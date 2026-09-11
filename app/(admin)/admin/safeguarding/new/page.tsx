@@ -26,6 +26,10 @@ export default async function NewConcernPage({
 
   if (!profile || profile.role !== 'admin') redirect('/admin/dashboard')
 
+  // Deliberately NOT filtered to is_active — a concern may need to be
+  // raised about a student shortly after they've left, and hiding them
+  // here would block that entirely. Unlike the other rosters in this pass,
+  // showing a few extra inactive names is far safer than the alternative.
   const { data: studentRows } = await admin
     .from('users')
     .select('id, name')

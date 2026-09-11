@@ -33,7 +33,7 @@ export default async function PrintWeeklyAttendancePage({
   const weekLabel = `${fmtDayLabel(monday)} – ${new Date(friday + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}`
 
   const [{ data: students }, { data: records }, { data: excusals }] = await Promise.all([
-    admin.from('users').select('id, name').eq('role', 'student').order('name'),
+    admin.from('users').select('id, name').eq('role', 'student').eq('is_active', true).order('name'),
     admin
       .from('daily_attendance')
       .select('student_id, attendance_date, am_checked_at, lunch_checked_at, pm_checked_at, am_is_flagged, lunch_is_flagged, pm_is_flagged, am_flag_reason, lunch_flag_reason, pm_flag_reason')

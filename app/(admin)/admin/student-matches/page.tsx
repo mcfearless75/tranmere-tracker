@@ -9,6 +9,7 @@ export default async function StudentMatchesPage() {
     .from('users')
     .select('id, name, courses(name)')
     .eq('role', 'student')
+    .eq('is_active', true)
     .order('name')
 
   const { data: recentMatches } = await supabase

@@ -56,6 +56,7 @@ export default async function AdminCourseworkPage({
         .from('users')
         .select('id, name')
         .eq('role', 'student')
+        .eq('is_active', true)
         .eq('course_id', selectedCourseId)
         .order('name')
 

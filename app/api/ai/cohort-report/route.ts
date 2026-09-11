@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
       .from('users')
       .select('id, name, year_group')
       .eq('role', 'student')
+      .eq('is_active', true)
     if (yearGroup !== null) studentQuery = studentQuery.eq('year_group', yearGroup)
     const { data: studentRows } = await studentQuery
     const students: CohortStudent[] = studentRows ?? []

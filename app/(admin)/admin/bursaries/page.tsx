@@ -68,6 +68,7 @@ export default async function AdminBursariesPage() {
     .from('users')
     .select('id, name')
     .eq('role', 'student')
+    .eq('is_active', true)
     .order('name', { ascending: true })
 
   const students = (studentRows ?? []).map(s => ({

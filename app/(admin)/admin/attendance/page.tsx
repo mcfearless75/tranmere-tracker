@@ -50,7 +50,7 @@ export default async function AttendancePage({
 
   // Roster + records + excusals in parallel
   const [{ data: students }, { data: records }, { data: excusals }] = await Promise.all([
-    admin.from('users').select('id, name, avatar_url').eq('role', 'student').order('name'),
+    admin.from('users').select('id, name, avatar_url').eq('role', 'student').eq('is_active', true).order('name'),
     admin
       .from('daily_attendance')
       .select('student_id, am_checked_at, lunch_checked_at, pm_checked_at, am_is_flagged, lunch_is_flagged, pm_is_flagged, am_flag_reason, lunch_flag_reason, pm_flag_reason, am_selfie_path, pm_selfie_path')

@@ -49,13 +49,13 @@ const firstName = profile.name?.split(' ')[0] ?? 'Coach'
       else squadSummary.pending++
     }
 
-    const { data: studentCount } = await admin.from('users').select('id', { count: 'exact' }).eq('role', 'student')
+    const { data: studentCount } = await admin.from('users').select('id', { count: 'exact' }).eq('role', 'student').eq('is_active', true)
     totalStudents = (studentCount as any)?.length ?? 0
   }
 
   // ── TEACHER: Student count for headline tile ──────────────────────────
   if (isTeacher) {
-    const { data: studentCount } = await admin.from('users').select('id', { count: 'exact' }).eq('role', 'student')
+    const { data: studentCount } = await admin.from('users').select('id', { count: 'exact' }).eq('role', 'student').eq('is_active', true)
     totalStudents = (studentCount as any)?.length ?? 0
   }
 

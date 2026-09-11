@@ -10,6 +10,7 @@ async function notifyStudentsOfScheduleChange(adminClient: SupabaseClient): Prom
       .from('users')
       .select('id')
       .eq('role', 'student')
+      .eq('is_active', true)
     if (!students?.length) return
 
     const { data: subs } = await adminClient

@@ -18,7 +18,7 @@ export default async function EngagementReportPage() {
     { data: submissions },
     { data: subs },
   ] = await Promise.all([
-    supabase.from('users').select('id, name, course_id, avatar_url, courses(name)').eq('role', 'student').order('name'),
+    supabase.from('users').select('id, name, course_id, avatar_url, courses(name)').eq('role', 'student').eq('is_active', true).order('name'),
     supabase.from('nutrition_logs').select('student_id, logged_date').gte('logged_date', since),
     supabase.from('training_logs').select('student_id, session_date').gte('session_date', since),
     supabase.from('match_logs').select('student_id, match_date').gte('match_date', since),

@@ -60,6 +60,7 @@ export async function POST(
     .from('users')
     .select('id')
     .eq('role', 'student')
+    .eq('is_active', true)
     .eq('course_id', unit.course_id)
 
   if (eligibleStudentsError) {

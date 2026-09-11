@@ -17,6 +17,7 @@ export default async function MatchEventsPage() {
       .from('users')
       .select('id, name, year_group')
       .eq('role', 'student')
+      .eq('is_active', true)
       .order('name'),
     supabase
       .from('match_events')
