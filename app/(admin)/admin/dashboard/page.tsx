@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Calendar, Clock, MessageSquare, Activity, LayoutGrid, Users, GraduationCap } from 'lucide-react'
+import { Calendar, Clock, MessageSquare, ClipboardList, LayoutGrid, Users, GraduationCap } from 'lucide-react'
 import { PushOptIn } from '@/components/PushOptIn'
 import { InstallAppButton } from '@/components/pwa/InstallGuide'
 import { MOODLE_TEACHER_URL } from '@/lib/config/moodle'
@@ -142,13 +142,13 @@ const firstName = profile.name?.split(' ')[0] ?? 'Coach'
               <InstallAppButton />
             </div>
             <div className="grid grid-cols-3 gap-2">
+              <Link href="/admin/attendance" className="flex flex-col items-center gap-2 rounded-xl border bg-gray-50 hover:bg-tranmere-blue/5 p-3 transition-colors text-center">
+                <ClipboardList size={20} className="text-tranmere-blue" />
+                <span className="text-[11px] font-medium leading-tight">Attendance</span>
+              </Link>
               <Link href="/admin/formation" className="flex flex-col items-center gap-2 rounded-xl border bg-gray-50 hover:bg-tranmere-blue/5 p-3 transition-colors text-center">
                 <LayoutGrid size={20} className="text-tranmere-blue" />
                 <span className="text-[11px] font-medium leading-tight">Formation Builder</span>
-              </Link>
-              <Link href="/admin/gps-dashboard" className="flex flex-col items-center gap-2 rounded-xl border bg-gray-50 hover:bg-tranmere-blue/5 p-3 transition-colors text-center">
-                <Activity size={20} className="text-tranmere-blue" />
-                <span className="text-[11px] font-medium leading-tight">Squad GPS</span>
               </Link>
               <a href={MOODLE_TEACHER_URL} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-2 rounded-xl border bg-gray-50 hover:bg-tranmere-blue/5 p-3 transition-colors text-center">
                 <GraduationCap size={20} className="text-tranmere-blue" />

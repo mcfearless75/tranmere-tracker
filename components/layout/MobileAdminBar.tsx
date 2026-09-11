@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import Image from 'next/image'
-import { X, Users, Bell, BarChart2, GraduationCap, LogOut, Calendar, CalendarDays, CalendarClock, Wifi, Activity, LayoutGrid, Plug, MessageSquare, Megaphone, Home, MoreHorizontal, ClipboardList, ClipboardCheck, ShieldAlert, Network, UserPlus, Users2, Banknote, FolderOpen, Heart } from 'lucide-react'
+import { X, Users, Bell, BarChart2, GraduationCap, LogOut, Calendar, CalendarDays, CalendarClock, LayoutGrid, Plug, MessageSquare, Megaphone, Home, MoreHorizontal, ClipboardList, ClipboardCheck, ShieldAlert, Network, UserPlus, Users2, Banknote, FolderOpen, Heart } from 'lucide-react'
 import { signOut } from '@/app/(auth)/login/actions'
 import { MOODLE_TEACHER_URL } from '@/lib/config/moodle'
 
 const nav = [
+  { href: '/admin/attendance', label: 'Attendance', icon: ClipboardList },
   { href: '/admin/dashboard', label: 'Dashboard', icon: Home },
   { href: '/documents', label: 'Documents', icon: FolderOpen },
   { href: '/admin/calendar', label: 'Calendar', icon: CalendarDays },
@@ -18,9 +19,6 @@ const nav = [
   { href: MOODLE_TEACHER_URL, label: 'Moodle', icon: GraduationCap, external: true },
   { href: '/admin/match-events', label: 'Match Squads', icon: Calendar, teacherHidden: true },
   { href: '/admin/formation', label: 'Formation', icon: LayoutGrid, teacherHidden: true },
-  { href: '/admin/gps-dashboard', label: 'Squad GPS', icon: Activity, teacherHidden: true, coachHidden: true },
-  { href: '/admin/gps-import', label: 'GPS Import', icon: Wifi, teacherHidden: true, coachHidden: true },
-  { href: '/admin/attendance', label: 'Attendance', icon: ClipboardList },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
   { href: '/admin/broadcast', label: 'Broadcast', icon: Megaphone },
   { href: '/admin/notifications', label: 'Notifications', icon: Bell },
@@ -41,8 +39,7 @@ export function MobileAdminBar({ userName, avatarUrl, role }: Props) {
   const [open, setOpen] = useState(false)
   const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   const isTeacher = role === 'teacher'
-  const isCoach = role === 'coach'
-  const visibleNav = nav.filter(item => !(isTeacher && item.teacherHidden) && !(isCoach && item.coachHidden))
+  const visibleNav = nav.filter(item => !(isTeacher && item.teacherHidden))
 
   useEffect(() => { setOpen(false) }, [pathname])
 
