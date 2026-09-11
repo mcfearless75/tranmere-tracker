@@ -49,6 +49,21 @@ export function PushOptIn() {
 
   useEffect(() => {
     if (isNative()) {
+      if (isAndroid()) {
+        // 2026-09-11: PushNotifications.register() crashes the app on
+        // Android 100% of the time — confirmed on a fresh install, past the
+        // crash-loop guard, past adding the missing Firebase SHA
+        // fingerprints, and Crashlytics (added specifically to diagnose
+        // this) never received a single session ping, so there's still no
+        // stack trace to work from. Home is the page every student hits
+        // first, and it renders this component, so leaving native
+        // registration enabled means the app is unusable for every Android
+        // user. Disabling it here — not deleting the code — so this is a
+        // one-line revert once the underlying native crash is actually
+        // diagnosed and fixed. iOS is unaffected and unchanged.
+        setState('unsupported')
+        return
+      }
       if (isNativeRegisterPending()) {
         // Previous attempt on this device never cleanly resolved — most
         // likely it crashed the app. Don't auto-retry; let the rest of the
@@ -265,6 +280,14 @@ export function PushOptIn() {
   // ─── Click handler ───────────────────────────────────────────────────────────
 
   async function handleClick() {
+    // Defense in depth — the useEffect above already prevents this button
+    // from ever being shown on Android, but never call the crashing native
+    // path from here either, in case that changes.
+    if (isNative() && isAndroid()) {
+      setState('unsupported')
+      return
+    }
+
     setState('loading')
     setErrorMsg('')
 

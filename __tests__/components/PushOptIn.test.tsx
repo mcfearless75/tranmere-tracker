@@ -32,10 +32,10 @@ jest.mock('@capacitor/push-notifications', () => ({
   },
 }))
 
-describe('PushOptIn — native crash-loop guard', () => {
+describe('PushOptIn — native crash-loop guard (iOS — Android registration is disabled, see below)', () => {
   beforeEach(() => {
     isNativeMock = true
-    isAndroidMock = true
+    isAndroidMock = false
     localStorage.clear()
     createChannel.mockClear()
     checkPermissions.mockReset()
@@ -120,5 +120,58 @@ describe('PushOptIn — native crash-loop guard', () => {
     await new Promise(r => setTimeout(r, 0))
 
     expect(screen.queryByText(/didn't enable properly last time/i)).not.toBeInTheDocument()
+  })
+})
+
+describe('PushOptIn — native registration disabled on Android', () => {
+  // 2026-09-11: PushNotifications.register() crashes the app on Android
+  // 100% of the time, with no diagnosis available yet (Crashlytics, added
+  // specifically to get a stack trace, never received a single session
+  // ping). Home renders this component, so leaving it enabled bricks the
+  // app for every Android user. Disabled at the isAndroid() check —
+  // these tests are the regression guard for that: the crashing native
+  // calls must never be reached on Android, not even via an explicit tap.
+  beforeEach(() => {
+    isNativeMock = true
+    isAndroidMock = true
+    localStorage.clear()
+    createChannel.mockClear()
+    checkPermissions.mockReset()
+    requestPermissions.mockReset()
+    register.mockClear()
+    addListener.mockClear()
+    registrationListener = undefined
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) }) as unknown as typeof fetch
+  })
+
+  it('never calls any native push API on mount, permission already granted', async () => {
+    checkPermissions.mockResolvedValue({ receive: 'granted' })
+
+    render(<PushOptIn />)
+    await new Promise(r => setTimeout(r, 0))
+
+    expect(createChannel).not.toHaveBeenCalled()
+    expect(checkPermissions).not.toHaveBeenCalled()
+    expect(register).not.toHaveBeenCalled()
+  })
+
+  it('never calls any native push API on mount, even with a stuck crash-loop flag from before this fix shipped', async () => {
+    localStorage.setItem(PENDING_KEY, String(Date.now()))
+    checkPermissions.mockResolvedValue({ receive: 'granted' })
+
+    render(<PushOptIn />)
+    await new Promise(r => setTimeout(r, 0))
+
+    expect(register).not.toHaveBeenCalled()
+  })
+
+  it('renders nothing — no button for a student to tap', async () => {
+    checkPermissions.mockResolvedValue({ receive: 'granted' })
+
+    const { container } = render(<PushOptIn />)
+    await new Promise(r => setTimeout(r, 0))
+
+    expect(container).toBeEmptyDOMElement()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 })
