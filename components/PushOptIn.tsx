@@ -4,7 +4,44 @@ import { useEffect, useState } from 'react'
 import { isNative, isAndroid, getPlatform } from '@/lib/native'
 import { reportClientError } from '@/lib/reportClientError'
 
-type State = 'idle' | 'loading' | 'subscribed' | 'denied' | 'unsupported' | 'error'
+type State = 'idle' | 'loading' | 'subscribed' | 'denied' | 'unsupported' | 'error' | 'crashed'
+
+// 2026-09-11: native PushNotifications.register() has been crashing the whole
+// app on at least one Android device (100% repro, survives uninstall/reinstall
+// and adding the missing Firebase SHA fingerprints — root cause still under
+// investigation). Because permission stays 'granted' after the crash, the
+// silent auto-register below was retrying — and re-crashing — on every single
+// app launch, permanently bricking the app for anyone who hit it. This flag
+// breaks that loop: set immediately before the risky native call, cleared by
+// every JS-reachable outcome (success or a clean rejection). If it's still
+// set on the next launch, the only way that happened is the process died
+// before either of those could run — so skip the silent retry and leave it
+// to an explicit tap instead.
+const NATIVE_REGISTER_PENDING_KEY = 'tt-native-push-register-pending'
+
+function isNativeRegisterPending(): boolean {
+  try {
+    return localStorage.getItem(NATIVE_REGISTER_PENDING_KEY) !== null
+  } catch {
+    return false
+  }
+}
+
+function setNativeRegisterPending(): void {
+  try {
+    localStorage.setItem(NATIVE_REGISTER_PENDING_KEY, String(Date.now()))
+  } catch {
+    // best effort — worst case we lose crash-loop protection, not correctness
+  }
+}
+
+function clearNativeRegisterPending(): void {
+  try {
+    localStorage.removeItem(NATIVE_REGISTER_PENDING_KEY)
+  } catch {
+    // ignore
+  }
+}
 
 export function PushOptIn() {
   const [state, setState] = useState<State>('idle')
@@ -12,6 +49,13 @@ export function PushOptIn() {
 
   useEffect(() => {
     if (isNative()) {
+      if (isNativeRegisterPending()) {
+        // Previous attempt on this device never cleanly resolved — most
+        // likely it crashed the app. Don't auto-retry; let the rest of the
+        // app load and require an explicit tap before risking it again.
+        setState('crashed')
+        return
+      }
       // On native, check current permission state and auto-register silently
       checkAndRegisterNative(true).catch(() => {})
       return
@@ -101,11 +145,18 @@ export function PushOptIn() {
         setTimeout(() => reject(new Error('Token registration timed out')), 20000)
       })
 
+      // Set immediately before the call that's been observed to crash the
+      // app natively — see NATIVE_REGISTER_PENDING_KEY above. Every path out
+      // of this function from here on (success below, or the catch block)
+      // clears it; only a process death skips both.
+      setNativeRegisterPending()
       await PushNotifications.register()
       await tokenRegistered
+      clearNativeRegisterPending()
 
       return true
     } catch (err: unknown) {
+      clearNativeRegisterPending()
       const msg = err instanceof Error ? err.message : 'Unknown error'
       if (!silent) {
         // Caught here, never thrown to a React error boundary — without this
@@ -249,20 +300,27 @@ export function PushOptIn() {
   }
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={state === 'loading'}
-      className="w-full text-sm bg-tranmere-gold text-tranmere-blue font-semibold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.98] transition-transform"
-    >
-      {state === 'loading' ? (
-        <>
-          <span className="animate-spin inline-block w-4 h-4 border-2 border-tranmere-blue border-t-transparent rounded-full" />
-          Enabling…
-        </>
-      ) : (
-        '🔔 Enable notifications'
+    <div className="w-full flex flex-col gap-2">
+      {state === 'crashed' && (
+        <div className="w-full text-sm bg-amber-50 border border-amber-200 text-amber-700 py-2 rounded-xl px-3 text-center">
+          ⚠️ Notifications didn&apos;t enable properly last time on this device. You can try again below.
+        </div>
       )}
-    </button>
+      <button
+        onClick={handleClick}
+        disabled={state === 'loading'}
+        className="w-full text-sm bg-tranmere-gold text-tranmere-blue font-semibold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.98] transition-transform"
+      >
+        {state === 'loading' ? (
+          <>
+            <span className="animate-spin inline-block w-4 h-4 border-2 border-tranmere-blue border-t-transparent rounded-full" />
+            Enabling…
+          </>
+        ) : (
+          '🔔 Enable notifications'
+        )}
+      </button>
+    </div>
   )
 }
 
