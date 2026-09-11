@@ -18,8 +18,8 @@ const nav = [
   { href: MOODLE_TEACHER_URL, label: 'Moodle', icon: GraduationCap, external: true },
   { href: '/admin/match-events', label: 'Match Squads', icon: Calendar, teacherHidden: true },
   { href: '/admin/formation', label: 'Formation', icon: LayoutGrid, teacherHidden: true },
-  { href: '/admin/gps-dashboard', label: 'Squad GPS', icon: Activity, teacherHidden: true },
-  { href: '/admin/gps-import', label: 'GPS Import', icon: Wifi, teacherHidden: true },
+  { href: '/admin/gps-dashboard', label: 'Squad GPS', icon: Activity, teacherHidden: true, coachHidden: true },
+  { href: '/admin/gps-import', label: 'GPS Import', icon: Wifi, teacherHidden: true, coachHidden: true },
   { href: '/admin/attendance', label: 'Attendance', icon: ClipboardList },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
   { href: '/admin/broadcast', label: 'Broadcast', icon: Megaphone },
@@ -41,7 +41,8 @@ export function MobileAdminBar({ userName, avatarUrl, role }: Props) {
   const [open, setOpen] = useState(false)
   const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   const isTeacher = role === 'teacher'
-  const visibleNav = nav.filter(item => !(isTeacher && item.teacherHidden))
+  const isCoach = role === 'coach'
+  const visibleNav = nav.filter(item => !(isTeacher && item.teacherHidden) && !(isCoach && item.coachHidden))
 
   useEffect(() => { setOpen(false) }, [pathname])
 
