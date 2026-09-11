@@ -7,8 +7,8 @@ android {
         applicationId "com.tranmererovers.tracker"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 4
-        versionName "1.3"
+        versionCode 5
+        versionName "1.4"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -55,6 +55,11 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    // Crashlytics — see root build.gradle for why. BoM keeps this and any
+    // future Firebase deps (already have firebase-messaging via the
+    // push-notifications plugin) on mutually compatible versions.
+    implementation platform('com.google.firebase:firebase-bom:34.5.0')
+    implementation 'com.google.firebase:firebase-crashlytics'
 }
 
 apply from: 'capacitor.build.gradle'
@@ -63,6 +68,10 @@ try {
     def servicesJSON = file('google-services.json')
     if (servicesJSON.text) {
         apply plugin: 'com.google.gms.google-services'
+        // Crashlytics plugin needs the same google-services.json; gated the
+        // same way so a build without it still succeeds (just without
+        // crash reporting), matching the pattern above.
+        apply plugin: 'com.google.firebase.crashlytics'
     }
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
