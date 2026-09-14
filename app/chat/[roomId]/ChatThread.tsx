@@ -388,7 +388,17 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
             ref={textareaRef}
             value={draft}
             onChange={e => handleDraftChange(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+            onKeyDown={e => {
+              if (e.key !== 'Enter' || e.shiftKey) return
+              // Touch devices have no comfortable way to hold Shift for a
+              // newline, so Enter behaves as a normal line break there —
+              // sending stays button-only, same as every mobile chat app.
+              // Desktop keeps the Enter-to-send / Shift+Enter-for-newline
+              // convention, since a physical keyboard makes that easy.
+              if (typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches) return
+              e.preventDefault()
+              send()
+            }}
             placeholder="Message…"
             rows={1}
             className="flex-1 text-sm border rounded-2xl px-3 py-2 resize-none focus:ring-2 focus:ring-tranmere-blue outline-none max-h-32 overflow-y-auto"

@@ -148,3 +148,33 @@ describe('ChatThread — AI reply Realtime fallback', () => {
     expect(await screen.findByText(/Taking longer than usual/)).toBeInTheDocument()
   })
 })
+
+describe('ChatThread — Enter-to-send is desktop-only', () => {
+  it('sends on Enter when the pointer is fine (desktop, jsdom default)', async () => {
+    renderThread()
+    await sendMessage('desktop message')
+    expect(insertSingleMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not send on Enter when the pointer is coarse (touch/mobile) — no comfortable way to hold Shift there, so Enter should insert a newline instead', async () => {
+    const originalMatchMedia = window.matchMedia
+    window.matchMedia = ((query: string) => ({
+      matches: true, // simulates `(pointer: coarse)` matching
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia
+
+    try {
+      renderThread()
+      await sendMessage('mobile message')
+      expect(insertSingleMock).not.toHaveBeenCalled()
+    } finally {
+      window.matchMedia = originalMatchMedia
+    }
+  })
+})
