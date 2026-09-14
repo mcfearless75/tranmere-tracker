@@ -39,6 +39,11 @@ export async function createGroupChat(name: string, memberIds: string[]): Promis
 
   const trimmedName = name.trim()
   if (!trimmedName) return { error: 'Group needs a name' }
+  // Matches NewGroupPicker's maxLength — this is a group title, not a
+  // message. Same "whole announcement typed into the name field" confusion
+  // already fixed for broadcast channels (2026-09-14, commit 11ed0ca);
+  // server-side floor so a direct call can't recreate it here too.
+  if (trimmedName.length > 60) return { error: 'Group name must be 60 characters or fewer' }
 
   const uniqueMemberIds = Array.from(new Set(memberIds.filter(id => id !== user.id)))
   if (uniqueMemberIds.length === 0) return { error: 'Pick at least one member' }

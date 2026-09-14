@@ -79,7 +79,7 @@ export function ChatGroupCard({
           <Users size={18} className="text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold truncate">{roomName}</p>
+          <p className="font-semibold line-clamp-2 break-words">{roomName}</p>
           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
             {members.length} members
             {syncYearGroup && (

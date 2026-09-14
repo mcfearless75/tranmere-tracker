@@ -59,12 +59,19 @@ export function NewGroupPicker({ directory }: { directory: Person[] }) {
           value={name}
           onChange={e => setName(e.target.value)}
           placeholder="Group name (e.g. Match Day Chat)"
+          maxLength={60}
           className="flex-1 px-3 py-2 border rounded-lg text-sm"
         />
         <button onClick={() => setOpen(false)} className="p-2 rounded-lg hover:bg-gray-100" aria-label="Close">
           <X size={14} />
         </button>
       </div>
+      {/* This is just a short title for the group, not a message — a short
+          label here was getting mistaken for the chat's first message
+          (same confusion fixed for broadcast channels, 2026-09-14). */}
+      <p className="text-[11px] text-muted-foreground">
+        Just a short title ({name.length}/60) — you&apos;ll send the first message once the group opens.
+      </p>
 
       <div className="relative">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
