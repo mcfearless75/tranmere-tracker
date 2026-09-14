@@ -47,6 +47,9 @@ export async function POST(request: NextRequest) {
   if (!title || typeof title !== 'string' || title.trim() === '') {
     return NextResponse.json({ error: 'title is required' }, { status: 400 })
   }
+  if (title.trim().length > 60) {
+    return NextResponse.json({ error: 'title must be 60 characters or fewer' }, { status: 400 })
+  }
 
   const validCategories: GoalCategory[] = ['personal', 'academic', 'football', 'fitness']
   if (!category || !validCategories.includes(category)) {

@@ -215,9 +215,9 @@ export function ScheduleBuilder({ templateId: initId, initialSlots }: Props) {
                 <span className="text-xs font-mono font-bold tabular-nums shrink-0 text-gray-600 w-24">
                   {slot.startTime}–{slot.endTime}
                 </span>
-                <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                  <info.Icon size={13} />
-                  <span className="text-sm font-semibold truncate">{slot.label}</span>
+                <div className="flex items-start gap-1.5 flex-1 min-w-0">
+                  <info.Icon size={13} className="shrink-0 mt-0.5" />
+                  <span className="text-sm font-semibold line-clamp-2 break-words">{slot.label}</span>
                 </div>
                 <button onClick={() => removeSlot(idx)} className="shrink-0 text-gray-400 hover:text-red-500 transition-colors">
                   <Trash2 size={14} />
@@ -267,6 +267,7 @@ export function ScheduleBuilder({ templateId: initId, initialSlots }: Props) {
                 <input type="text" value={form.label}
                   onChange={e => setForm(p => ({ ...p, label: e.target.value }))}
                   placeholder={tInfo(form.type).label}
+                  maxLength={60}
                   className="text-sm border rounded-lg px-3 py-2 bg-white" />
               </div>
 

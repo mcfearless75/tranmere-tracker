@@ -100,6 +100,16 @@ describe('POST /api/admin/assignments', () => {
     expect(res.status).toBe(400)
   })
 
+  it('returns 400 when title is over 60 characters', async () => {
+    authorizeAsStaff()
+    const { insertMock } = setupAdmin()
+
+    const res = await POST(makeRequest({ ...validBody(), title: 'A'.repeat(61) }))
+
+    expect(res.status).toBe(400)
+    expect(insertMock).not.toHaveBeenCalled()
+  })
+
   it('returns 400 when unit_id is missing', async () => {
     authorizeAsStaff()
     setupAdmin()

@@ -112,6 +112,16 @@ describe('POST /api/admin/timetable-slots', () => {
     expect(res.status).toBe(400)
   })
 
+  it('returns 400 when title is over 60 characters', async () => {
+    authorizeAsStaff()
+    const { insertMock } = setupAdmin()
+
+    const res = await POST(makeRequest({ ...validBody(), title: 'A'.repeat(61) }))
+
+    expect(res.status).toBe(400)
+    expect(insertMock).not.toHaveBeenCalled()
+  })
+
   it('accepts Wednesday — match day can still carry a real session', async () => {
     authorizeAsStaff()
     const { insertMock } = setupAdmin()

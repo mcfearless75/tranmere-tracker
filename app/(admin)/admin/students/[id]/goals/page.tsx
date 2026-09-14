@@ -113,7 +113,7 @@ export default async function AdminStudentGoalsPage({ params }: { params: { id: 
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className={`w-2 h-2 rounded-full shrink-0 mt-0.5 ${PRIORITY_DOTS[goal.priority]}`} />
-                    <p className="text-sm font-semibold text-gray-900 truncate">{goal.title}</p>
+                    <p className="text-sm font-semibold text-gray-900 line-clamp-2 break-words">{goal.title}</p>
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${CATEGORY_COLOURS[goal.category]}`}>
                     {goal.category}

@@ -55,7 +55,7 @@ export default async function DocumentsPage() {
                 <Folder size={18} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold truncate">{f.name}</p>
+                <p className="font-semibold line-clamp-2 break-words">{f.name}</p>
                 <p className="text-xs text-muted-foreground">
                   {countByFolder[f.id] ?? 0} file{countByFolder[f.id] === 1 ? '' : 's'}
                 </p>

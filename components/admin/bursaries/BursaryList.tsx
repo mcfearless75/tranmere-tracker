@@ -37,7 +37,7 @@ export function BursaryList({ bursaries, studentNames, nextDueDates }: BursaryLi
                   <p className="truncate font-semibold text-gray-900">
                     {studentNames[b.student_id] ?? 'Unknown student'}
                   </p>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{b.award_label}</p>
+                  <p className="mt-0.5 line-clamp-2 break-words text-xs text-muted-foreground">{b.award_label}</p>
                 </div>
                 <BursaryStatusBadge status={b.status} />
               </div>

@@ -292,7 +292,7 @@ export default async function DashboardPage() {
                     : isLive
                     ? <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse shrink-0" />
                     : <Clock size={15} className="text-blue-200 shrink-0" />}
-                  <span className="font-semibold truncate">{s.session_label}</span>
+                  <span className="font-semibold line-clamp-2 break-words">{s.session_label}</span>
                   <span className={`ml-auto text-xs font-mono shrink-0 ${isLive ? 'text-white' : 'text-blue-200'}`}>
                     {opens.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
                     {closes && `–${closes.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}`}
@@ -376,7 +376,7 @@ export default async function DashboardPage() {
               return (
                 <div key={s.id} className="flex items-center gap-3 py-1.5 text-sm">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-                  <span className="font-medium flex-1 truncate">{s.session_label}</span>
+                  <span className="font-medium flex-1 line-clamp-2 break-words">{s.session_label}</span>
                   <span className="text-xs font-mono text-muted-foreground shrink-0">
                     {opens.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
                     {closes && `–${closes.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}`}

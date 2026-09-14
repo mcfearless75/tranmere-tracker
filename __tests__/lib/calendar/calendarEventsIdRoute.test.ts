@@ -100,4 +100,17 @@ describe('PATCH /api/admin/calendar-events/[eventId]', () => {
 
     expect(res.status).toBe(400)
   })
+
+  it('returns 400 when title is over 60 characters', async () => {
+    authorizeAsStaff()
+    const { updateMock } = setupAdmin()
+
+    const res = await PATCH(
+      makeRequest({ ...validBody(), title: 'A'.repeat(61) }),
+      { params: { eventId: 'e1' } }
+    )
+
+    expect(res.status).toBe(400)
+    expect(updateMock).not.toHaveBeenCalled()
+  })
 })

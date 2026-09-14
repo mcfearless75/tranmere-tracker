@@ -62,6 +62,13 @@ export async function POST(request: Request) {
   const form = await request.formData()
   const file = form.get('file') as File | null
   const sessionLabel = (form.get('session_label') as string) || 'Training'
+  // Only the human-typed form fallback is capped — a CSV row's own
+  // session_label column is third-party export data, not someone typing a
+  // message into a name box, so it's left as-is (matches this route's
+  // existing tolerant parsing of imperfect export data).
+  if (sessionLabel.length > 60) {
+    return NextResponse.json({ error: 'Session label must be 60 characters or fewer' }, { status: 400 })
+  }
 
   if (!file) return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
 

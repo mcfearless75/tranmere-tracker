@@ -80,6 +80,7 @@ export function CalendarEventsManager({ events }: Props) {
           value={form.title}
           onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
           placeholder="Title, e.g. Kit collection day"
+          maxLength={60}
           className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-tranmere-blue outline-none"
           required
         />
@@ -139,7 +140,7 @@ export function CalendarEventsManager({ events }: Props) {
                   })}
                   {event.event_time && ` · ${formatEventTime(event.event_time)}`}
                 </p>
-                <p className="text-sm font-medium truncate">{event.title}</p>
+                <p className="text-sm font-medium line-clamp-2 break-words">{event.title}</p>
                 {event.description && (
                   <p className="text-xs text-muted-foreground mt-0.5">{event.description}</p>
                 )}

@@ -26,6 +26,9 @@ export async function PATCH(
   if (!title?.trim()) {
     return NextResponse.json({ error: 'title is required' }, { status: 400 })
   }
+  if (title.trim().length > 60) {
+    return NextResponse.json({ error: 'title must be 60 characters or fewer' }, { status: 400 })
+  }
   if (!VALID_DAYS.includes(Number(day_of_week))) {
     return NextResponse.json({ error: 'day_of_week must be Monday–Friday' }, { status: 400 })
   }

@@ -94,6 +94,7 @@ export function TimetableManager({ slots, yearGroup }: Props) {
           value={form.title}
           onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
           placeholder="Title, e.g. Coaching & Leadership Prep"
+          maxLength={60}
           className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-tranmere-blue outline-none"
           required
         />
@@ -167,7 +168,7 @@ export function TimetableManager({ slots, yearGroup }: Props) {
                 <p className="text-sm font-semibold text-tranmere-blue">
                   {DAY_LABELS[slot.day_of_week]} · {slot.start_time.slice(0, 5)}–{slot.end_time.slice(0, 5)}
                 </p>
-                <p className="text-sm font-medium truncate">{slot.title}</p>
+                <p className="text-sm font-medium line-clamp-2 break-words">{slot.title}</p>
                 {(slot.location || slot.tutor) && (
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {[slot.location, slot.tutor].filter(Boolean).join(' · ')}

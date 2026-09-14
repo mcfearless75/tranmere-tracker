@@ -89,7 +89,7 @@ export default function GoalForm({ activeGoals }: GoalFormProps) {
               key={goal.id}
               className="flex items-center justify-between rounded-xl bg-white border border-gray-200 px-4 py-3 shadow-sm"
             >
-              <span className="text-sm font-medium text-gray-800 truncate">{goal.title}</span>
+              <span className="text-sm font-medium text-gray-800 line-clamp-2 break-words flex-1 min-w-0">{goal.title}</span>
               <button
                 onClick={() => handleMarkComplete(goal.id)}
                 disabled={completing === goal.id}
@@ -129,6 +129,7 @@ export default function GoalForm({ activeGoals }: GoalFormProps) {
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder="e.g. Improve first touch"
+              maxLength={60}
               className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-tranmere-blue/30"
             />
           </div>

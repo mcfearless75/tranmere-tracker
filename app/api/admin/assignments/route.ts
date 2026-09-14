@@ -20,6 +20,9 @@ export async function POST(request: NextRequest) {
   if (!title?.trim()) {
     return NextResponse.json({ error: 'title is required' }, { status: 400 })
   }
+  if (title.trim().length > 60) {
+    return NextResponse.json({ error: 'title must be 60 characters or fewer' }, { status: 400 })
+  }
   if (!due_date) {
     return NextResponse.json({ error: 'due_date is required' }, { status: 400 })
   }

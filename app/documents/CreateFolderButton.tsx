@@ -46,6 +46,7 @@ export function CreateFolderButton() {
           value={name}
           onChange={e => setName(e.target.value)}
           placeholder="Folder name (e.g. Bursary Information)"
+          maxLength={60}
           className="flex-1 px-3 py-2 border rounded-lg text-sm"
           onKeyDown={e => { if (e.key === 'Enter') submit() }}
         />
@@ -53,6 +54,7 @@ export function CreateFolderButton() {
           <X size={14} />
         </button>
       </div>
+      <p className="text-[11px] text-muted-foreground">Just a short name ({name.length}/60).</p>
       {error && <p className="text-xs text-red-600">{error}</p>}
       <button
         onClick={submit}

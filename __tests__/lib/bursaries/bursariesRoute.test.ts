@@ -118,6 +118,14 @@ describe('POST /api/bursaries', () => {
     expect(res.status).toBe(401)
   })
 
+  it('returns 400 when award_label is over 60 characters', async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    const { paymentsInsertMock } = setupAdmin({})
+    const res = await POST(makeRequest({ ...validBody, award_label: 'A'.repeat(61) }))
+    expect(res.status).toBe(400)
+    expect(paymentsInsertMock).not.toHaveBeenCalled()
+  })
+
   it('returns 400 for a non-positive amount', async () => {
     getUserMock.mockResolvedValue({ data: { user: { id: 'u1' } } })
     setupAdmin({})

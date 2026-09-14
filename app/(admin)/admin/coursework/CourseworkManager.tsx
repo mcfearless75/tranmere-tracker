@@ -104,7 +104,7 @@ export function CourseworkManager({ units, assignments }: Props) {
                     <p className="text-sm font-semibold text-tranmere-blue">
                       Due {new Date(assignment.due_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </p>
-                    <p className="text-sm font-medium truncate">{assignment.title}</p>
+                    <p className="text-sm font-medium line-clamp-2 break-words">{assignment.title}</p>
                     {assignment.grade_target && (
                       <p className="text-xs text-muted-foreground mt-0.5">Target: {assignment.grade_target}</p>
                     )}
@@ -145,6 +145,7 @@ export function CourseworkManager({ units, assignments }: Props) {
                   value={form.title}
                   onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                   placeholder="Title, e.g. Coaching Portfolio"
+                  maxLength={60}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-tranmere-blue outline-none"
                   required
                 />

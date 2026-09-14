@@ -131,6 +131,7 @@ export function BursaryForm({ students }: BursaryFormProps) {
           value={awardLabel}
           onChange={e => setAwardLabel(e.target.value)}
           placeholder="e.g. Travel bursary 2026/27"
+          maxLength={60}
           className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
           required
         />

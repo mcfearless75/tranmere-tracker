@@ -21,6 +21,7 @@ export async function createFolder(name: string): Promise<string | { error: stri
 
   const trimmedName = name.trim()
   if (!trimmedName) return { error: 'Folder needs a name' }
+  if (trimmedName.length > 60) return { error: 'Folder name must be 60 characters or fewer' }
 
   const { data: folder, error } = await admin
     .from('document_folders')

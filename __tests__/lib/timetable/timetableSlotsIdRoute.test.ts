@@ -85,6 +85,16 @@ describe('PATCH /api/admin/timetable-slots/[slotId]', () => {
 
     expect(res.status).toBe(400)
   })
+
+  it('returns 400 when title is over 60 characters', async () => {
+    authorizeAsStaff()
+    const { updateMock } = setupAdmin()
+
+    const res = await PATCH(makeRequest({ ...validBody(), title: 'A'.repeat(61) }), { params: { slotId: 's1' } })
+
+    expect(res.status).toBe(400)
+    expect(updateMock).not.toHaveBeenCalled()
+  })
 })
 
 describe('DELETE /api/admin/timetable-slots/[slotId]', () => {

@@ -60,6 +60,9 @@ export async function POST(request: NextRequest) {
   if (typeof awardLabel !== 'string' || awardLabel.trim() === '') {
     return NextResponse.json({ error: 'award_label is required' }, { status: 400 })
   }
+  if (awardLabel.trim().length > 60) {
+    return NextResponse.json({ error: 'award_label must be 60 characters or fewer' }, { status: 400 })
+  }
   if (
     typeof amountPerPeriod !== 'number' ||
     !Number.isFinite(amountPerPeriod) ||

@@ -40,6 +40,13 @@ export async function POST(request: Request) {
     slots: Record<string, { type: string; label: string; startTime: string; endTime: string }[]>
   }
 
+  // Matches ScheduleBuilder's maxLength — a slot label is a short tag, not
+  // a note. Reject the whole save rather than silently truncating one slot.
+  const overLongLabel = Object.values(slots).flat().find(s => (s.label ?? '').length > 60)
+  if (overLongLabel) {
+    return NextResponse.json({ error: 'Session labels must be 60 characters or fewer' }, { status: 400 })
+  }
+
   let actualTemplateId = templateId
 
   if (!actualTemplateId) {

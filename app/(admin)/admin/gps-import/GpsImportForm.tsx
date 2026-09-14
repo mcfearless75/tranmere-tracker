@@ -48,6 +48,7 @@ export function GpsImportForm() {
           placeholder="e.g. Tuesday Training, vs Everton"
           value={label}
           onChange={e => setLabel(e.target.value)}
+          maxLength={60}
           className="mt-1"
         />
       </div>
