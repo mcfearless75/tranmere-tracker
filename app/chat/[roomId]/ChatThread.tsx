@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { Send, Paperclip, X, Bot } from 'lucide-react'
+import { Send, Paperclip, X, Bot, Trash2 } from 'lucide-react'
 import { markRead, notifyRoomMembers } from '../actions'
 
 type Message = {
@@ -68,6 +68,7 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
   const [aiTimedOut, setAiTimedOut] = useState(false)
   const [typingUsers, setTypingUsers] = useState<string[]>([])
   const [attachment, setAttachment] = useState<{ file: File; preview: string | null } | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -104,6 +105,19 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
                 aiReplyTimeoutRef.current = null
               }
             }
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}` },
+        payload => {
+          // Only change this listener reacts to right now is a soft-delete
+          // (deleted_at getting set) — drop the message live for every
+          // other viewer instead of leaving it until their next reload.
+          const updated = payload.new as Message & { deleted_at: string | null }
+          if (updated.deleted_at) {
+            setMessages(prev => prev.filter(m => m.id !== updated.id))
           }
         },
       )
@@ -161,6 +175,24 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
 
   function attachmentSrc(url: string): string | null {
     return url.startsWith('http') ? url : signedUrls[url] ?? null
+  }
+
+  // Soft-delete — matches the "sender or staff delete" RLS policy on
+  // chat_messages (sender_id = auth.uid() OR is_staff()), scoped here to
+  // your own messages only, per the actual ask. Sets deleted_at rather than
+  // issuing a real DELETE: the server-side initial load and the AI chat
+  // history query both already filter `.is('deleted_at', null)`, so this
+  // was wired up everywhere except the UI.
+  async function deleteMessage(id: string) {
+    if (!window.confirm('Delete this message? This cannot be undone.')) return
+    setDeletingId(id)
+    const { error } = await supabase
+      .from('chat_messages')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+    setDeletingId(null)
+    if (error) { alert(`Delete failed: ${error.message}`); return }
+    setMessages(prev => prev.filter(m => m.id !== id))
   }
 
   function handleDraftChange(value: string) {
@@ -325,9 +357,22 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
                   </a>
                 )}
                 {m.body && <p className="whitespace-pre-wrap">{m.body}</p>}
-                <p className={`text-[10px] mt-0.5 ${mine ? 'text-blue-200' : 'text-gray-400'}`}>
-                  {new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
-                </p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <p className={`text-[10px] ${mine ? 'text-blue-200' : 'text-gray-400'}`}>
+                    {new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
+                  </p>
+                  {mine && (
+                    <button
+                      onClick={() => deleteMessage(m.id)}
+                      disabled={deletingId === m.id}
+                      className="text-blue-200 hover:text-white disabled:opacity-50 transition-colors"
+                      aria-label="Delete message"
+                      type="button"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )

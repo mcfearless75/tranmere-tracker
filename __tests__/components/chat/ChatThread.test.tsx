@@ -19,6 +19,7 @@ const insertSingleMock = jest.fn(() =>
   Promise.resolve({ data: { id: 'sent-1', sender_id: CURRENT_USER_ID, body: 'Hi', attachment_url: null, attachment_kind: null, created_at: new Date().toISOString() }, error: null })
 )
 const fallbackMaybeSingleMock = jest.fn(() => Promise.resolve({ data: null }))
+const updateEqMock = jest.fn(() => Promise.resolve({ error: null }))
 
 const channelMock = {
   on: jest.fn(() => channelMock),
@@ -39,6 +40,7 @@ const channelMock = {
 function makeChatMessagesFrom() {
   return {
     insert: jest.fn(() => ({ select: jest.fn(() => ({ single: insertSingleMock })) })),
+    update: jest.fn(() => ({ eq: updateEqMock })),
     select: jest.fn(() => ({
       eq: jest.fn(() => ({
         eq: jest.fn(() => ({
@@ -69,6 +71,7 @@ beforeEach(() => {
   jest.useFakeTimers()
   insertSingleMock.mockClear()
   fallbackMaybeSingleMock.mockClear()
+  updateEqMock.mockClear()
   channelMock.on.mockClear()
   global.fetch = jest.fn(() => Promise.resolve({ ok: true } as Response)) as any
 })
@@ -176,5 +179,63 @@ describe('ChatThread — Enter-to-send is desktop-only', () => {
     } finally {
       window.matchMedia = originalMatchMedia
     }
+  })
+})
+
+function renderThreadWithMessage(senderId: string, body: string, id: string) {
+  return render(
+    <ChatThread
+      roomId={ROOM_ID}
+      roomKind="custom"
+      currentUserId={CURRENT_USER_ID}
+      initialMessages={[{
+        id,
+        sender_id: senderId,
+        body,
+        attachment_url: null,
+        attachment_kind: null,
+        created_at: new Date().toISOString(),
+      }]}
+      members={[
+        { user_id: CURRENT_USER_ID, users: { id: CURRENT_USER_ID, name: 'Caleb', avatar_url: null } },
+        { user_id: 'someone-else', users: { id: 'someone-else', name: 'Other', avatar_url: null } },
+      ]}
+    />
+  )
+}
+
+describe('ChatThread — delete own message', () => {
+  it('lets you delete your own message, confirms first, and removes it from the thread', async () => {
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true)
+    renderThreadWithMessage(CURRENT_USER_ID, 'delete me', 'msg-1')
+    expect(screen.getByText('delete me')).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Delete message' }))
+    })
+
+    expect(confirmSpy).toHaveBeenCalled()
+    expect(updateEqMock).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('delete me')).not.toBeInTheDocument()
+    confirmSpy.mockRestore()
+  })
+
+  it('does not delete when the confirm dialog is cancelled', async () => {
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false)
+    renderThreadWithMessage(CURRENT_USER_ID, 'keep me', 'msg-2')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Delete message' }))
+    })
+
+    expect(updateEqMock).not.toHaveBeenCalled()
+    expect(screen.getByText('keep me')).toBeInTheDocument()
+    confirmSpy.mockRestore()
+  })
+
+  it('does not show a delete button on someone else\'s message', () => {
+    renderThreadWithMessage('someone-else', 'not yours', 'msg-3')
+    expect(screen.getByText('not yours')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete message' })).not.toBeInTheDocument()
   })
 })
