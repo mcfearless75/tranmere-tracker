@@ -1,12 +1,24 @@
 // Vercel Cron: alerts staff when students still haven't checked in a fixed
-// grace period after the AM or lunch window closes — closing the gap where a
-// student who leaves site (or never arrives) and never attempts a check-in
-// was invisible until the once-daily 17:30 PM digest.
+// grace period after the AM window closes — closing the gap where a student
+// who leaves site (or never arrives) and never attempts a check-in was
+// invisible until the once-daily 17:30 PM digest.
 //
-// Scoped to AM and LUNCH only: the PM/end-of-day window is deliberately wide
-// (till 23:59, so late finishers can still tap out), so "window just closed"
-// isn't meaningful for it — that case is already covered by
-// attendance-report-pm's 17:30 digest.
+// Scoped to AM only now (2026-09-14 — was AM + LUNCH). Lunch turned out to be
+// structurally different from AM/PM: a student who simply never leaves the
+// building for lunch is completely normal and not itself a safety signal,
+// but this sweep couldn't distinguish that from someone genuinely missing —
+// it fired the same "not checked in" alert either way, every single day, for
+// every student who just stays indoors. attendance-safeguarding-check
+// already covers the real risk here (it only raises a case when a student is
+// missing BOTH lunch and PM after checking in AM), so dropping the lunch
+// phase from this nudge removes the false-alarm noise without losing actual
+// safety coverage. Pairs with a second NFC sticker placed indoors so
+// students who stay in for lunch have somewhere to actually tap in too.
+//
+// The PM/end-of-day window is deliberately wide (till 23:59, so late
+// finishers can still tap out), so "window just closed" isn't meaningful for
+// it either — that case is already covered by attendance-report-pm's 17:30
+// digest.
 //
 // Window end times are configurable in the admin settings UI, so a fixed UTC
 // cron schedule can't target the exact grace deadline. Instead this runs
@@ -24,7 +36,7 @@ import { NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 
 const GRACE_MINUTES = 20
-const PHASES = ['am', 'lunch'] as const
+const PHASES = ['am'] as const
 type SweepPhase = typeof PHASES[number]
 
 export async function GET(request: Request) {
@@ -39,14 +51,13 @@ export async function GET(request: Request) {
 
   const { data: settings } = await admin
     .from('academy_settings')
-    .select('am_window_end, lunch_window_end')
+    .select('am_window_end')
     .eq('id', 1)
     .maybeSingle()
   if (!settings) return NextResponse.json({ error: 'Academy not configured' }, { status: 500 })
 
   const deadlines: Record<SweepPhase, number> = {
     am: toMinutes(settings.am_window_end) + GRACE_MINUTES,
-    lunch: toMinutes(settings.lunch_window_end) + GRACE_MINUTES,
   }
 
   const results: Record<string, unknown> = {}
