@@ -4,6 +4,7 @@ import { YearBadge } from '@/components/YearBadge'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 
@@ -92,10 +93,10 @@ export function CreateMatchForm({ students, coachId }: Props) {
           <label className="text-xs font-medium text-muted-foreground">Location (optional)</label>
           <Input placeholder="e.g. Prenton Park" value={location} onChange={e => setLocation(e.target.value)} />
         </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Notes (optional)</label>
-          <Input placeholder="Team talk, kit etc." value={notes} onChange={e => setNotes(e.target.value)} />
-        </div>
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-muted-foreground">Notes (optional)</label>
+        <Textarea placeholder="Team talk, kit etc." value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="resize-none" />
       </div>
 
       <div>

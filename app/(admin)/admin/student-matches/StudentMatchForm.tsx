@@ -3,6 +3,7 @@ import { useState, useTransition } from 'react'
 import { logStudentMatch } from './actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 
 interface Student { id: string; name: string; courses: { name: string } | null }
 
@@ -88,7 +89,7 @@ export function StudentMatchForm({ students }: { students: Student[] }) {
         </div>
         <div className="col-span-2 space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Notes</label>
-          <Input placeholder="Optional coach notes" value={form.notes} onChange={e => set('notes', e.target.value)} className="text-sm" />
+          <Textarea placeholder="Optional coach notes" value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} className="text-sm resize-none" />
         </div>
       </div>
       <Button type="submit" disabled={saving} className="w-full bg-tranmere-blue hover:bg-blue-900">
