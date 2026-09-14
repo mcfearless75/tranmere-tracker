@@ -5,6 +5,7 @@ import { GraduationCap } from 'lucide-react'
 import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
 import { londonDateISO } from '@/lib/dates'
 import { PushOptIn } from '@/components/PushOptIn'
+import { formatEventTime } from '@/lib/calendar/calendarUtils'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +13,7 @@ interface SessionRow { id: string; session_label: string; session_type: string; 
 interface MatchSquadRow {
   status: string
   coach_rating: number | null
-  match_events: { opponent: string; match_date: string; location: string } | null
+  match_events: { opponent: string; match_date: string; location: string; kick_off_time: string | null } | null
 }
 interface ProfileRow {
   name: string | null
@@ -120,7 +121,7 @@ function StudentOverviewCard({ student }: { student: StudentData }) {
           <div className="flex items-center justify-between text-sm">
             <div>
               <p className="text-gray-700 font-medium">vs {nextMatch.match_events.opponent}</p>
-              <p className="text-xs text-gray-400">{nextMatch.match_events.location} &mdash; {new Date(nextMatch.match_events.match_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
+              <p className="text-xs text-gray-400">{nextMatch.match_events.location} &mdash; {new Date(nextMatch.match_events.match_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}{nextMatch.match_events.kick_off_time && ` · ${formatEventTime(nextMatch.match_events.kick_off_time)}`}</p>
             </div>
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${
               nextMatch.status === 'playing' ? 'bg-green-100 text-green-700' :
@@ -176,7 +177,7 @@ export default async function ParentDashboardPage() {
       admin.from('attendance_sessions').select('id, session_label, session_type, opens_at, closes_at').eq('scheduled_date', today).order('opens_at'),
       admin.from('daily_attendance').select('attendance_date').eq('student_id', sid).gte('attendance_date', ago30).lte('attendance_date', today),
       admin.from('attendance_sessions').select('scheduled_date').gte('scheduled_date', ago30).lte('scheduled_date', today),
-      admin.from('match_squads').select('status, coach_rating, match_events(opponent, match_date, location)').eq('player_id', sid).gte('match_events.match_date', today).not('match_events', 'is', null).limit(10),
+      admin.from('match_squads').select('status, coach_rating, match_events(opponent, match_date, location, kick_off_time)').eq('player_id', sid).gte('match_events.match_date', today).not('match_events', 'is', null).limit(10),
     ])
 
     // Next match — soonest upcoming fixture (match_date >= today), same pattern

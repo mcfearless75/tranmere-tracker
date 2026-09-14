@@ -6,10 +6,11 @@ import { useRouter } from 'next/navigation'
 import { FootballPitch } from '@/components/pitch/FootballPitch'
 import { FORMATIONS, FORMATION_NAMES, Slot } from '@/components/pitch/formations'
 import { createClient } from '@/lib/supabase/client'
+import { formatEventTime } from '@/lib/calendar/calendarUtils'
 import { RotateCcw, Save, Check, Users } from 'lucide-react'
 
 type Student = { id: string; name: string; avatar_url: string | null; year_group: number }
-type Match = { id: string; match_date: string; opponent: string; status: string }
+type Match = { id: string; match_date: string; kick_off_time?: string | null; opponent: string; status: string }
 type Placement = { slotId: string; playerId: string; playerName: string; avatarUrl?: string | null }
 
 export function FormationBuilder({ students, matches, selectedMatchId, initialSquad }: {
@@ -204,7 +205,7 @@ export function FormationBuilder({ students, matches, selectedMatchId, initialSq
               <option value="">Not linked · scratch pad</option>
               {matches.map(m => (
                 <option key={m.id} value={m.id}>
-                  {new Date(m.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} vs {m.opponent}
+                  {new Date(m.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{m.kick_off_time && ` ${formatEventTime(m.kick_off_time)}`} vs {m.opponent}
                 </option>
               ))}
             </select>

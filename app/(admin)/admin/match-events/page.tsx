@@ -22,7 +22,7 @@ export default async function MatchEventsPage() {
     supabase
       .from('match_events')
       .select(`
-        id, match_date, opponent, location, status, notes,
+        id, match_date, kick_off_time, opponent, location, status, notes,
         match_squads (
           id, player_id, status, coach_rating, position,
           users:player_id (name)

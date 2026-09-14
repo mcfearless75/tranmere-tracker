@@ -7,6 +7,7 @@ import { Calendar, Clock, MessageSquare, ClipboardList, LayoutGrid, Users, Gradu
 import { PushOptIn } from '@/components/PushOptIn'
 import { InstallAppButton } from '@/components/pwa/InstallGuide'
 import { MOODLE_TEACHER_URL } from '@/lib/config/moodle'
+import { formatEventTime } from '@/lib/calendar/calendarUtils'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +27,7 @@ const firstName = profile.name?.split(' ')[0] ?? 'Coach'
   // ── SHARED: Upcoming matches ──────────────────────────────────────────
   const { data: upcomingMatches } = await admin
     .from('match_events')
-    .select('id, opponent, match_date, location, home_score, away_score, status')
+    .select('id, opponent, match_date, kick_off_time, location, home_score, away_score, status')
     .gte('match_date', today)
     .order('match_date')
     .limit(5)
@@ -114,7 +115,7 @@ const firstName = profile.name?.split(' ')[0] ?? 'Coach'
                 <Calendar size={16} className="text-tranmere-blue" />
                 <p className="font-semibold text-sm">Next Match — vs {upcomingMatches[0].opponent}</p>
               </div>
-              <p className="text-xs text-muted-foreground">{new Date(upcomingMatches[0].match_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · {upcomingMatches[0].location ?? 'TBC'}</p>
+              <p className="text-xs text-muted-foreground">{new Date(upcomingMatches[0].match_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}{upcomingMatches[0].kick_off_time && ` · ${formatEventTime(upcomingMatches[0].kick_off_time)}`} · {upcomingMatches[0].location ?? 'TBC'}</p>
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-xl bg-green-50 border border-green-200 p-3">
                   <p className="text-xl font-bold text-green-700">{squadSummary.accepted}</p>

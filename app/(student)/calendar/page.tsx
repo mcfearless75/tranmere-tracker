@@ -45,7 +45,7 @@ export default async function CalendarPage() {
 
     supabase
       .from('match_events')
-      .select('match_date, opponent, location')
+      .select('match_date, kick_off_time, opponent, location')
       .gte('match_date', windowStart)
       .lte('match_date', windowEnd)
       .order('match_date'),

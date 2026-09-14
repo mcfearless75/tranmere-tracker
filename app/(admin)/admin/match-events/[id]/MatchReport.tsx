@@ -6,10 +6,12 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Crown, CheckCircle2, XCircle, Clock, Save, Bell, Check, Target, Shield, Sparkles } from 'lucide-react'
 import { YearBadge } from '@/components/YearBadge'
+import { formatEventTime } from '@/lib/calendar/calendarUtils'
 
 type Match = {
   id: string
   match_date: string
+  kick_off_time?: string | null
   opponent: string
   location: string | null
   notes: string | null
@@ -175,6 +177,7 @@ export function MatchReport({ match, squad }: { match: Match; squad: SquadRow[] 
             <div>
               <p className="text-xs uppercase tracking-widest text-blue-200">
                 {new Date(match.match_date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                {match.kick_off_time && ` · ${formatEventTime(match.kick_off_time)}`}
               </p>
               {match.location && <p className="text-sm text-blue-200">{match.location}</p>}
             </div>

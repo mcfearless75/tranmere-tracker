@@ -21,6 +21,7 @@ export type MatchEventRow = {
   match_date: string
   opponent: string
   location: string | null
+  kick_off_time?: string | null
 }
 
 export type AssignmentRow = {
@@ -79,6 +80,7 @@ export function getCalendarEvents(
     date: m.match_date,
     label: `vs ${m.opponent}`,
     type: 'match',
+    ...(m.kick_off_time ? { time: formatEventTime(m.kick_off_time) } : {}),
   }))
 
   const deadlineEvents: CalendarEvent[] = assignments.map(a => ({

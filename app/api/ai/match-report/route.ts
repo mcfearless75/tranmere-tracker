@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAnthropic, MODELS, extractText } from '@/lib/ai'
+import { formatEventTime } from '@/lib/calendar/calendarUtils'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
   // Gather full match context
   const { data: match } = await admin
     .from('match_events')
-    .select('match_date, opponent, location, home_score, away_score, status, notes')
+    .select('match_date, kick_off_time, opponent, location, home_score, away_score, status, notes')
     .eq('id', matchId)
     .single()
 
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
         content: `You are writing a post-match report for Tranmere Rovers academy. Write in British English, in the voice of the academy coach. Friendly but professional — suitable for parents, players and the head of academy. About 200-300 words. Do NOT invent facts; only use the data below.
 
 MATCH DATA
-- Date: ${match.match_date}
+- Date: ${match.match_date}${match.kick_off_time ? ` (kick-off ${formatEventTime(match.kick_off_time)})` : ''}
 - Opponent: ${match.opponent}
 - Venue: ${match.location ?? 'not specified'}
 - Result: Tranmere ${match.home_score ?? '?'} – ${match.away_score ?? '?'} ${match.opponent}

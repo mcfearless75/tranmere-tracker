@@ -3,10 +3,12 @@
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
+import { formatEventTime } from '@/lib/calendar/calendarUtils'
 
 type MatchEvent = {
   id: string
   match_date: string
+  kick_off_time?: string | null
   opponent: string
   location: string | null
   status: string
@@ -50,6 +52,7 @@ export function MatchInvitations({ invitations: initial }: { invitations: Invita
                   {inv.match_events?.match_date
                     ? new Date(inv.match_events.match_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
                     : ''}
+                  {inv.match_events?.kick_off_time && ` · ${formatEventTime(inv.match_events.kick_off_time)}`}
                   {inv.match_events?.location && ` · ${inv.match_events.location}`}
                 </p>
               </div>
@@ -85,6 +88,7 @@ export function MatchInvitations({ invitations: initial }: { invitations: Invita
                   {inv.match_events?.match_date
                     ? new Date(inv.match_events.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
                     : ''}
+                  {inv.match_events?.kick_off_time && ` · ${formatEventTime(inv.match_events.kick_off_time)}`}
                   {inv.position && ` · ${inv.position}`}
                 </p>
               </div>

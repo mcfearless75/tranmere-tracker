@@ -7,7 +7,7 @@ import { getCalendarEvents, type MatchEventRow } from '@/lib/calendar/calendarUt
 export const dynamic = 'force-dynamic'
 
 interface MatchSquadRow {
-  match_events: { match_date: string; opponent: string; location: string | null } | null
+  match_events: { match_date: string; opponent: string; location: string | null; kick_off_time: string | null } | null
 }
 
 export default async function ParentCalendarPage() {
@@ -33,7 +33,7 @@ export default async function ParentCalendarPage() {
     studentIds.length
       ? admin
           .from('match_squads')
-          .select('match_events(match_date, opponent, location)')
+          .select('match_events(match_date, opponent, location, kick_off_time)')
           .in('player_id', studentIds)
           .not('match_events', 'is', null)
       : Promise.resolve({ data: [] as MatchSquadRow[] }),
@@ -46,7 +46,7 @@ export default async function ParentCalendarPage() {
 
   const matches: MatchEventRow[] = ((squads ?? []) as unknown as MatchSquadRow[])
     .map(s => s.match_events)
-    .filter((m): m is { match_date: string; opponent: string; location: string | null } => !!m)
+    .filter((m): m is { match_date: string; opponent: string; location: string | null; kick_off_time: string | null } => !!m)
     .filter(m => m.match_date >= windowStart && m.match_date <= windowEnd)
 
   const events = getCalendarEvents([], matches, [], calendarEvents ?? [])

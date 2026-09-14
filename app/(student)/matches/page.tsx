@@ -18,7 +18,7 @@ export default async function MatchesPage() {
       .from('match_squads')
       .select(`
         id, status, coach_rating, position,
-        match_events (id, match_date, opponent, location, status)
+        match_events (id, match_date, kick_off_time, opponent, location, status)
       `)
       .eq('player_id', user!.id)
       .order('created_at', { ascending: false }),
