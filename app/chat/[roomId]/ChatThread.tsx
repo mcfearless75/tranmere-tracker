@@ -71,6 +71,7 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const aiReplyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -171,6 +172,16 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
       channelRef.current?.track({ userId: currentUserId, name: myName, typing: false })
     }, 2000)
   }
+
+  // Grow the composer with its content (up to the max-h-32 CSS cap, after
+  // which it scrolls internally) — also fires when send() clears the draft,
+  // so it snaps back to one line instead of staying stretched.
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [draft])
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -374,12 +385,13 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
             <Paperclip size={18} />
           </button>
           <textarea
+            ref={textareaRef}
             value={draft}
             onChange={e => handleDraftChange(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
             placeholder="Message…"
             rows={1}
-            className="flex-1 text-sm border rounded-2xl px-3 py-2 resize-none focus:ring-2 focus:ring-tranmere-blue outline-none max-h-32"
+            className="flex-1 text-sm border rounded-2xl px-3 py-2 resize-none focus:ring-2 focus:ring-tranmere-blue outline-none max-h-32 overflow-y-auto"
           />
           <button onClick={send} disabled={(!draft.trim() && !attachment) || sending}
             className="rounded-full bg-tranmere-blue text-white w-10 h-10 flex items-center justify-center shrink-0 disabled:opacity-50 active:scale-95 transition-transform">
