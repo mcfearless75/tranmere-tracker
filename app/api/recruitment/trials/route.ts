@@ -39,6 +39,9 @@ export async function POST(request: NextRequest) {
   if (typeof title !== 'string' || title.trim() === '') {
     return NextResponse.json({ error: 'title is required' }, { status: 400 })
   }
+  if (title.trim().length > 60) {
+    return NextResponse.json({ error: 'title must be 60 characters or fewer' }, { status: 400 })
+  }
   if (typeof eventDate !== 'string' || !ISO_DATE_PATTERN.test(eventDate)) {
     return NextResponse.json({ error: 'event_date must be a YYYY-MM-DD date' }, { status: 400 })
   }

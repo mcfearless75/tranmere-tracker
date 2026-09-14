@@ -64,6 +64,7 @@ export function TrialEventForm() {
           value={title}
           onChange={e => setTitle(e.target.value)}
           placeholder="e.g. U15 open trial"
+          maxLength={60}
           className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
         />
       </div>

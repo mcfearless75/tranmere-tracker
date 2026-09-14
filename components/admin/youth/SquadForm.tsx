@@ -62,6 +62,7 @@ export function SquadForm({ coaches }: { coaches: CoachOption[] }) {
           value={name}
           onChange={e => setName(e.target.value)}
           placeholder="e.g. Under 12s"
+          maxLength={80}
           className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
         />
       </div>
