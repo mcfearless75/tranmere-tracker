@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
+import { formatEventTime } from '@/lib/calendar/calendarUtils'
 
 type Student = { id: string; name: string; year_group: number }
 type Props = { students: Student[]; coachId: string }
@@ -14,6 +15,7 @@ type Props = { students: Student[]; coachId: string }
 export function CreateMatchForm({ students, coachId }: Props) {
   const router = useRouter()
   const [date, setDate] = useState('')
+  const [kickOffTime, setKickOffTime] = useState('')
   const [opponent, setOpponent] = useState('')
   const [location, setLocation] = useState('')
   const [notes, setNotes] = useState('')
@@ -38,7 +40,7 @@ export function CreateMatchForm({ students, coachId }: Props) {
 
     const { data: match, error } = await supabase
       .from('match_events')
-      .insert({ coach_id: coachId, match_date: date, opponent, location: location || null, notes: notes || null })
+      .insert({ coach_id: coachId, match_date: date, kick_off_time: kickOffTime || null, opponent, location: location || null, notes: notes || null })
       .select('id')
       .single()
 
@@ -64,13 +66,13 @@ export function CreateMatchForm({ students, coachId }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: 'New match published',
-          body: `You've been invited to the squad vs ${opponent} on ${date}`,
+          body: `You've been invited to the squad vs ${opponent} on ${date}${kickOffTime ? ` — kick-off ${formatEventTime(kickOffTime)}` : ''}`,
           targetUserIds: Array.from(selected),
           url: '/matches',
         }),
       }).catch(() => { /* notification failure must not break match creation */ })
       setMessage({ text: `Match vs ${opponent} created — ${selected.size} player(s) notified`, ok: true })
-      setDate(''); setOpponent(''); setLocation(''); setNotes('')
+      setDate(''); setKickOffTime(''); setOpponent(''); setLocation(''); setNotes('')
       setSelected(new Set())
       router.refresh()
     }
@@ -84,6 +86,10 @@ export function CreateMatchForm({ students, coachId }: Props) {
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Match Date</label>
           <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Kick-off time (optional)</label>
+          <Input type="time" value={kickOffTime} onChange={e => setKickOffTime(e.target.value)} />
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Opponent</label>

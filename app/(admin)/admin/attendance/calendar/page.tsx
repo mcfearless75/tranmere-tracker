@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { CalendarDays, ChevronLeft, ChevronRight, ListChecks, ExternalLink } from 'lucide-react'
+import { formatEventTime } from '@/lib/calendar/calendarUtils'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,16 +71,16 @@ export default async function AttendanceCalendarPage({
       .order('opens_at'),
     admin
       .from('match_events')
-      .select('id, match_date, opponent, location')
+      .select('id, match_date, kick_off_time, opponent, location')
       .gte('match_date', weekStartIso)
       .lte('match_date', weekEndIso),
   ])
 
   // Build date → match detail lookup so match session blocks reflect live match data
-  const matchByDate: Record<string, { id: string; opponent: string | null; location: string | null }> = {}
+  const matchByDate: Record<string, { id: string; opponent: string | null; location: string | null; kickOffTime: string | null }> = {}
   for (const m of matchEvents ?? []) {
     const d = (m.match_date as string).split('T')[0]
-    matchByDate[d] = { id: m.id as string, opponent: m.opponent as string | null, location: m.location as string | null }
+    matchByDate[d] = { id: m.id as string, opponent: m.opponent as string | null, location: m.location as string | null, kickOffTime: (m.kick_off_time as string | null) ?? null }
   }
 
   // Group sessions by day
@@ -207,12 +208,15 @@ export default async function AttendanceCalendarPage({
                   // For match blocks: show live opponent + location from match_events if available
                   const label = matchDetail?.opponent ? `vs ${matchDetail.opponent}` : s.session_label
                   const sublabel = matchDetail?.location ?? time
+                  // The official kick-off time (when staff have set one) takes priority over
+                  // the attendance session's own opens_at — that's a check-in window, not the KO
+                  const koLabel = matchDetail?.kickOffTime ? formatEventTime(matchDetail.kickOffTime) : time.split('–')[0]
 
                   const inner = (
                     <>
                       <p className="font-bold truncate">{label}</p>
                       <p className="text-[10px] opacity-90 truncate">{sublabel}</p>
-                      <p className="text-[10px] opacity-75 truncate">KO {time.split('–')[0]}</p>
+                      <p className="text-[10px] opacity-75 truncate">KO {koLabel}</p>
                       {matchDetail && <ExternalLink size={9} className="absolute top-1 right-1 opacity-70" />}
                     </>
                   )
@@ -225,7 +229,7 @@ export default async function AttendanceCalendarPage({
                       href={blockHref}
                       className={`${baseClass} hover:brightness-110 transition-[filter]`}
                       style={blockStyle(s.opens_at, s.closes_at)}
-                      title={`${label}${matchDetail?.location ? ` @ ${matchDetail.location}` : ''} — KO ${time.split('–')[0]} · Click to view match`}
+                      title={`${label}${matchDetail?.location ? ` @ ${matchDetail.location}` : ''} — KO ${koLabel} · Click to view match`}
                     >
                       {inner}
                     </Link>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { CheckCircle, XCircle, Clock, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
+import { formatEventTime } from '@/lib/calendar/calendarUtils'
 
 type Squad = {
   id: string
@@ -17,6 +18,7 @@ type Squad = {
 type Match = {
   id: string
   match_date: string
+  kick_off_time?: string | null
   opponent: string
   location: string | null
   status: string
@@ -69,6 +71,7 @@ export function MatchEventList({ matches }: { matches: Match[] }) {
             </Link>
             <p className="text-sm text-muted-foreground">
               {new Date(m.match_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+              {m.kick_off_time && ` · ${formatEventTime(m.kick_off_time)}`}
               {m.location && ` · ${m.location}`}
             </p>
           </div>

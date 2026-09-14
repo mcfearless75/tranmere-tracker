@@ -84,3 +84,7 @@ public/worker-*.js
 # — machine-local cache, not project source.
 .claude-flow/
 .swarm/
+
+# Supabase CLI local link cache (project ref, pooler connection string) —
+# machine-local, created by `supabase link`, not project source.
+supabase/.temp/

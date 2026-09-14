@@ -8,7 +8,7 @@ export default async function FormationPage({ searchParams }: { searchParams: { 
 
   const [{ data: students }, { data: matches }] = await Promise.all([
     supabase.from('users').select('id, name, avatar_url, year_group').eq('role', 'student').eq('is_active', true).order('name'),
-    supabase.from('match_events').select('id, match_date, opponent, status').order('match_date', { ascending: false }).limit(20),
+    supabase.from('match_events').select('id, match_date, kick_off_time, opponent, status').order('match_date', { ascending: false }).limit(20),
   ])
 
   let matchSquad: { player_id: string; position: string | null }[] = []

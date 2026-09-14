@@ -14,6 +14,7 @@ import { WellbeingPromptCard } from '@/components/wellbeing/WellbeingPromptCard'
 import { ChangePinPromptCard } from '@/components/account/ChangePinPromptCard'
 import { CompleteProfilePromptCard } from '@/components/account/CompleteProfilePromptCard'
 import { isProfileIncomplete } from '@/lib/profile/profileCompleteness'
+import { formatEventTime } from '@/lib/calendar/calendarUtils'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,7 +91,7 @@ export default async function DashboardPage() {
       .eq('logged_date', today),
     supabase
       .from('match_squads')
-      .select('match_id, status, match_events(id, opponent, match_date, location)')
+      .select('match_id, status, match_events(id, opponent, match_date, kick_off_time, location)')
       .eq('player_id', user!.id)
       .gte('match_events.match_date', today)
       .limit(5),
@@ -473,6 +474,7 @@ export default async function DashboardPage() {
                 <Link key={entry.match_id} href="/matches" className="flex justify-between items-center text-sm py-1">
                   <div>
                     <span className="font-medium">vs {match.opponent}</span>
+                    {match.kick_off_time && <span className="text-xs text-muted-foreground ml-1.5">· {formatEventTime(match.kick_off_time)}</span>}
                     {match.location && <span className="text-xs text-muted-foreground ml-1.5">· {match.location}</span>}
                   </div>
                   <div className="text-right shrink-0">

@@ -75,6 +75,30 @@ describe('getCalendarEvents', () => {
     })
   })
 
+  it('includes a formatted kick-off time when set', () => {
+    const matches = [
+      { match_date: '2024-06-15', opponent: 'Chester FC', location: 'Prenton Park', kick_off_time: '18:30:00' },
+    ]
+    const result = getCalendarEvents([], matches, [])
+    expect(result[0].time).toBe('6:30pm')
+  })
+
+  it('omits time from a match event when kick_off_time is null', () => {
+    const matches = [
+      { match_date: '2024-06-15', opponent: 'Chester FC', location: 'Prenton Park', kick_off_time: null },
+    ]
+    const result = getCalendarEvents([], matches, [])
+    expect(result[0].time).toBeUndefined()
+  })
+
+  it('omits time from a match event when kick_off_time is absent (pre-existing matches)', () => {
+    const matches = [
+      { match_date: '2024-06-15', opponent: 'Chester FC', location: 'Prenton Park' },
+    ]
+    const result = getCalendarEvents([], matches, [])
+    expect(result[0].time).toBeUndefined()
+  })
+
   it('combines all three event types', () => {
     const sessions = [{ scheduled_date: '2024-06-10', session_label: 'AM Session', session_type: 'training', opens_at: '2024-06-10T09:00:00Z', closes_at: null }]
     const matches = [{ match_date: '2024-06-15', opponent: 'Wrexham', location: 'Away' }]

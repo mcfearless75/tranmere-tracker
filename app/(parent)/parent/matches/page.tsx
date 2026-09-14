@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
+import { formatEventTime } from '@/lib/calendar/calendarUtils'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,7 @@ interface MatchSquadRow {
   match_events: {
     id: string
     match_date: string
+    kick_off_time: string | null
     opponent: string
     location: string
     status: string | null
@@ -73,7 +75,7 @@ export default async function ParentMatchesPage() {
     const [{ data: profile }, { data: squads }] = await Promise.all([
       admin.from('users').select('name').eq('id', sid).single(),
       admin.from('match_squads')
-        .select('id, status, coach_rating, position, match_events(id, match_date, opponent, location, status)')
+        .select('id, status, coach_rating, position, match_events(id, match_date, kick_off_time, opponent, location, status)')
         .eq('player_id', sid)
         .not('match_events', 'is', null)
         .order('created_at', { ascending: false })
@@ -110,6 +112,7 @@ export default async function ParentMatchesPage() {
                       <p className="text-sm font-medium text-gray-800">vs {row.match_events!.opponent}</p>
                       <p className="text-xs text-gray-400">
                         {new Date(row.match_events!.match_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                        {row.match_events!.kick_off_time ? ` · ${formatEventTime(row.match_events!.kick_off_time)}` : ''}
                         {row.match_events!.location ? ` · ${row.match_events!.location}` : ''}
                       </p>
                     </div>
@@ -135,6 +138,7 @@ export default async function ParentMatchesPage() {
                       <p className="text-sm font-medium text-gray-800">vs {row.match_events!.opponent}</p>
                       <p className="text-xs text-gray-400">
                         {new Date(row.match_events!.match_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                        {row.match_events!.kick_off_time ? ` · ${formatEventTime(row.match_events!.kick_off_time)}` : ''}
                         {row.match_events!.location ? ` · ${row.match_events!.location}` : ''}
                       </p>
                       {row.coach_rating !== null && <StarRating rating={row.coach_rating} />}
