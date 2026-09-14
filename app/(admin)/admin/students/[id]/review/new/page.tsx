@@ -117,6 +117,7 @@ export default function NewLearnerReviewPage({ params, searchParams }: Props) {
           onChange={e => setTerm(e.target.value)}
           className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-tranmere-blue/30"
           placeholder="e.g. Autumn 2025"
+          maxLength={40}
         />
       </div>
 
