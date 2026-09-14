@@ -85,8 +85,10 @@ export function GymLogForm({ onLogged }: GymLogFormProps) {
             value={customExercise}
             onChange={e => setCustomExercise(e.target.value)}
             placeholder="e.g. Bulgarian Split Squat"
+            maxLength={60}
             className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-tranmere-blue/30"
           />
+          <p className="mt-1 text-[11px] text-muted-foreground">Just the exercise name ({customExercise.length}/60) — add any detail in Notes below.</p>
         </div>
       )}
 

@@ -23,6 +23,9 @@ export async function POST(request: NextRequest) {
   if (!exercise || typeof exercise !== 'string' || exercise.trim() === '') {
     return NextResponse.json({ error: 'exercise is required' }, { status: 400 })
   }
+  if (exercise.trim().length > 60) {
+    return NextResponse.json({ error: 'exercise must be 60 characters or fewer' }, { status: 400 })
+  }
 
   const today = new Date().toISOString().split('T')[0]
 

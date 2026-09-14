@@ -32,7 +32,7 @@ export default async function GymPage() {
           <div className="grid grid-cols-2 gap-2">
             {pbEntries.map(([exercise, maxKg]) => (
               <div key={exercise} className="rounded-xl bg-tranmere-blue/5 border border-tranmere-blue/20 px-3 py-2.5">
-                <p className="text-xs text-gray-500 truncate">{exercise}</p>
+                <p className="text-xs text-gray-500 line-clamp-2 break-words">{exercise}</p>
                 <p className="text-lg font-bold text-tranmere-blue">{maxKg}kg</p>
               </div>
             ))}
@@ -56,7 +56,7 @@ export default async function GymPage() {
               return (
                 <li key={log.id} className="py-2.5 flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{log.exercise}</p>
+                    <p className="text-sm font-semibold text-gray-900 line-clamp-2 break-words">{log.exercise}</p>
                     {summary && <p className="text-xs text-gray-500">{summary}</p>}
                     {log.notes && <p className="text-xs text-gray-400 italic mt-0.5">{log.notes}</p>}
                   </div>
