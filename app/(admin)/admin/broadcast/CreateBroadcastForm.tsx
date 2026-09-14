@@ -30,22 +30,31 @@ export function CreateBroadcastForm() {
   }
 
   return (
-    <form onSubmit={create} className="flex gap-2">
-      <input
-        value={name}
-        onChange={e => setName(e.target.value)}
-        placeholder="e.g. Season Update, Pre-Match Info…"
-        className="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-tranmere-blue outline-none"
-        required
-      />
-      <button
-        type="submit"
-        disabled={!name.trim() || loading}
-        className="flex items-center gap-1.5 bg-tranmere-blue text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-blue-900 transition-colors"
-      >
-        <Megaphone size={15} />
-        {loading ? 'Creating…' : 'Create'}
-      </button>
+    <form onSubmit={create} className="space-y-1.5">
+      <div className="flex gap-2">
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="e.g. Season Update, Pre-Match Info…"
+          maxLength={60}
+          className="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-tranmere-blue outline-none"
+          required
+        />
+        <button
+          type="submit"
+          disabled={!name.trim() || loading}
+          className="flex items-center gap-1.5 bg-tranmere-blue text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-blue-900 transition-colors"
+        >
+          <Megaphone size={15} />
+          {loading ? 'Creating…' : 'Create'}
+        </button>
+      </div>
+      {/* This is just a short title for the channel, not the announcement
+          itself — a short label here was getting mistaken for the message
+          box, leaving channels created with no actual message posted. */}
+      <p className="text-[11px] text-muted-foreground">
+        Just a short title ({name.length}/60) — you&apos;ll write the actual message once the channel opens.
+      </p>
     </form>
   )
 }

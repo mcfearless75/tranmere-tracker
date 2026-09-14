@@ -80,7 +80,12 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
           <ArrowLeft size={18} />
         </Link>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold truncate">{title}</p>
+          {/* Wraps rather than truncating — a broadcast channel's name has
+              no length cap at the DB layer, and older rooms exist whose
+              "name" is a full paragraph (created before CreateBroadcastForm
+              gained a maxLength). Truncating here left no way to ever read
+              the rest of it. */}
+          <p className="font-semibold break-words">{title}</p>
           <p className="text-[11px] text-muted-foreground capitalize">
             {room.kind === 'dm' ? 'Direct message' : `${members?.length ?? 0} members`}
           </p>

@@ -17,6 +17,13 @@ export async function POST(request: Request) {
 
   const { name } = await request.json()
   if (!name?.trim()) return NextResponse.json({ error: 'name required' }, { status: 400 })
+  // Matches CreateBroadcastForm's maxLength — this is a channel title, not
+  // the announcement itself. Server-side floor so a direct API call can't
+  // recreate the "whole message typed into the name field" confusion the
+  // client UI now guards against.
+  if (name.trim().length > 60) {
+    return NextResponse.json({ error: 'name must be 60 characters or fewer' }, { status: 400 })
+  }
 
   // Create broadcast room
   const { data: room, error } = await admin

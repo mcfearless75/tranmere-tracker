@@ -62,7 +62,7 @@ export default async function BroadcastPage() {
               <Megaphone size={18} className="text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold truncate">{r.name}</p>
+              <p className="font-semibold line-clamp-2 break-words">{r.name}</p>
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Users size={11} /> {countByRoom[r.id] ?? 0} members
               </p>
