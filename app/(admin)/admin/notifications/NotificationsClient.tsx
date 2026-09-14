@@ -281,7 +281,7 @@ export function NotificationsClient({ users, courses }: { users: User[]; courses
                     }`}>
                       {selected ? <Check size={12} /> : initials}
                     </div>
-                    <span className="flex-1 text-left truncate">{u.name ?? '(no name)'}</span>
+                    <span className="flex-1 text-left line-clamp-2 break-words">{u.name ?? '(no name)'}</span>
                     {u.subscribed ? (
                       <span className="w-1.5 h-1.5 rounded-full bg-green-500" title="Push enabled" />
                     ) : (
