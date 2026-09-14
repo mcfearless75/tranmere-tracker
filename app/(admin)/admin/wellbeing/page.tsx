@@ -196,6 +196,12 @@ export default async function AdminWellbeingPage() {
                   </div>
                 )}
 
+                {/* Nothing to expand for a still-open survey — say so explicitly,
+                    otherwise the card just looks broken when clicked/inspected */}
+                {survey.wellbeing_responses.length === 0 && (
+                  <p className="text-xs text-gray-400 italic">Survey not completed yet — no answers to show.</p>
+                )}
+
                 {/* Notes — free-text follow-up per question, the highest-signal field in the survey */}
                 {survey.wellbeing_responses.some(r => r.note?.trim()) && (
                   <div className="rounded-xl bg-gray-50 border border-gray-200 px-3 py-2 space-y-1">
