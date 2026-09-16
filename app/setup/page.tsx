@@ -3,6 +3,13 @@ import { SetupForm } from './SetupForm'
 import { redirect } from 'next/navigation'
 import Image from 'next/image'
 
+// This page decides whether to redirect based on live DB state (whether an
+// admin already exists), so static generation was never correct for it —
+// force-dynamic keeps it out of `next build`'s prerender pass, which was
+// failing on Preview deployments (no Supabase env vars at build time) even
+// though the page itself only ever needs them at request time.
+export const dynamic = 'force-dynamic'
+
 export default async function SetupPage() {
   const adminClient = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
