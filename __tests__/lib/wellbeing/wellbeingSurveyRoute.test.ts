@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 const adminFromMock = jest.fn()
-const notifyUsersMock = jest.fn(() => Promise.resolve())
+const notifyUsersMock = jest.fn((..._args: unknown[]) => Promise.resolve())
 
 jest.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => ({ from: adminFromMock }),
@@ -16,6 +16,7 @@ jest.mock('@/lib/notifications/notifyStaff', () => ({
 
 import { NextRequest } from 'next/server'
 import { GET } from '@/app/api/cron/wellbeing-survey/route'
+import type { StaffNotification } from '@/lib/notifications/notifyStaff'
 
 function makeRequest(): NextRequest {
   return new NextRequest('http://localhost/api/cron/wellbeing-survey')
@@ -110,7 +111,7 @@ describe('GET /api/cron/wellbeing-survey', () => {
     setupAdmin()
     await GET(makeRequest())
     expect(notifyUsersMock).toHaveBeenCalledTimes(1)
-    const [, userIds, notification] = notifyUsersMock.mock.calls[0]
+    const [, userIds, notification] = notifyUsersMock.mock.calls[0] as [unknown, string[], StaffNotification]
     expect(userIds.sort()).toEqual(['student-1', 'student-2'])
     expect(notification).toEqual(
       expect.objectContaining({

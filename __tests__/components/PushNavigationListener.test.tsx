@@ -18,7 +18,7 @@ const addListener = jest.fn((_event: string, listener: typeof capturedListener) 
   return Promise.resolve({ remove })
 })
 jest.mock('@capacitor/push-notifications', () => ({
-  PushNotifications: { addListener: (...args: [string, unknown]) => addListener(...args) },
+  PushNotifications: { addListener: (...args: Parameters<typeof addListener>) => addListener(...args) },
 }))
 
 describe('PushNavigationListener', () => {

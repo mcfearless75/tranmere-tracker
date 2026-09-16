@@ -33,7 +33,7 @@ function validBody(): Record<string, unknown> {
 
 function setupAdmin() {
   const eqMock = jest.fn(async () => ({ error: null }))
-  const updateMock = jest.fn(() => ({ eq: eqMock }))
+  const updateMock = jest.fn((..._args: unknown[]) => ({ eq: eqMock }))
   const deleteMock = jest.fn(() => ({ eq: eqMock }))
   adminFromMock.mockImplementation((table: string) => {
     if (table === 'timetable_slots') return { update: updateMock, delete: deleteMock }

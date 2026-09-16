@@ -8,7 +8,7 @@ const updateUser = jest.fn().mockResolvedValue({ error: null })
 const getUser = jest.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } })
 const eq = jest.fn().mockResolvedValue({ error: null })
 const update = jest.fn(() => ({ eq }))
-const from = jest.fn(() => ({ update }))
+const from = jest.fn((..._args: unknown[]) => ({ update }))
 
 jest.mock('@/lib/supabase/client', () => ({
   createClient: () => ({

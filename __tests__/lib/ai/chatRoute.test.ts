@@ -3,10 +3,10 @@
  */
 const getUserMock = jest.fn()
 const adminFromMock = jest.fn()
-const anthropicCreateMock = jest.fn(() =>
+const anthropicCreateMock = jest.fn((..._args: unknown[]) =>
   Promise.resolve({ content: [{ type: 'text', text: 'AI reply text' }] })
 )
-const autoRaiseConcernMock = jest.fn(() => Promise.resolve({ raised: true }))
+const autoRaiseConcernMock = jest.fn((..._args: unknown[]) => Promise.resolve({ raised: true }))
 
 jest.mock('@/lib/supabase/server', () => ({
   createClient: () => ({ auth: { getUser: getUserMock } }),
@@ -14,7 +14,7 @@ jest.mock('@/lib/supabase/server', () => ({
 jest.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => ({ from: adminFromMock }),
 }))
-const getAnthropicMock = jest.fn(() => ({
+const getAnthropicMock = jest.fn((..._args: unknown[]) => ({
   messages: { create: (...args: unknown[]) => anthropicCreateMock(...args) },
 }))
 jest.mock('@/lib/ai', () => ({

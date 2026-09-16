@@ -16,8 +16,12 @@ jest.mock('@/components/wellbeing/WellbeingTrendChart', () => ({
 }))
 
 const getUserMock = jest.fn(() => Promise.resolve({ data: { user: { id: STUDENT_ID } } }))
-const openSurveyMaybeSingleMock = jest.fn(() => Promise.resolve({ data: null })) // no open survey by default
-const completedSurveysMock = jest.fn(() => Promise.resolve({ data: [] }))
+const openSurveyMaybeSingleMock = jest.fn(() =>
+  Promise.resolve<{ data: { id: string } | null }>({ data: null }) // no open survey by default
+)
+const completedSurveysMock = jest.fn(() =>
+  Promise.resolve<{ data: { sent_at: string; wellbeing_responses: { question_key: string; score: number }[] }[] }>({ data: [] })
+)
 
 jest.mock('@supabase/ssr', () => ({
   createBrowserClient: () => ({

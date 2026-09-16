@@ -10,7 +10,7 @@
  * check-in), so this sweep now only ever nudges for AM.
  */
 const adminFromMock = jest.fn()
-const sendPushNotificationMock = jest.fn(() => Promise.resolve())
+const sendPushNotificationMock = jest.fn((..._args: unknown[]) => Promise.resolve())
 
 jest.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => ({ from: adminFromMock }),
@@ -132,7 +132,7 @@ describe('GET /api/cron/missed-checkin-sweep', () => {
 
     expect(json.am).toEqual({ sent: 1, missing: 1 })
     expect(sendPushNotificationMock).toHaveBeenCalledTimes(1)
-    const [, payload] = sendPushNotificationMock.mock.calls[0]
+    const [, payload] = sendPushNotificationMock.mock.calls[0] as [unknown, { title: string; body: string; url: string }]
     expect(payload.title).toMatch(/not checked in for morning/)
   })
 

@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 const adminFromMock = jest.fn()
-const notifyUsersMock = jest.fn(() => Promise.resolve())
+const notifyUsersMock = jest.fn((..._args: unknown[]) => Promise.resolve())
 
 jest.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => ({ from: adminFromMock }),
@@ -16,6 +16,7 @@ jest.mock('@/lib/notifications/notifyStaff', () => ({
 
 import { NextRequest } from 'next/server'
 import { GET } from '@/app/api/cron/check-in-nudges/route'
+import type { StaffNotification } from '@/lib/notifications/notifyStaff'
 
 function makeRequest(): NextRequest {
   return new NextRequest('http://localhost/api/cron/check-in-nudges')
@@ -73,7 +74,7 @@ describe('GET /api/cron/check-in-nudges', () => {
     setupAdmin()
     await GET(makeRequest())
     expect(notifyUsersMock).toHaveBeenCalledTimes(1)
-    const [, userIds, notification] = notifyUsersMock.mock.calls[0]
+    const [, userIds, notification] = notifyUsersMock.mock.calls[0] as [unknown, string[], StaffNotification]
     expect(userIds.sort()).toEqual(['student-1', 'student-2'])
     expect(notification).toEqual(
       expect.objectContaining({ title: 'Morning check-in', url: '/attendance' }),
@@ -86,7 +87,7 @@ describe('GET /api/cron/check-in-nudges', () => {
       dailyRows: [{ student_id: 'student-1', am_checked_at: '2026-09-10T09:05:00Z', lunch_checked_at: null, pm_checked_at: null }],
     })
     await GET(makeRequest())
-    const [, userIds] = notifyUsersMock.mock.calls[0]
+    const [, userIds] = notifyUsersMock.mock.calls[0] as [unknown, string[], StaffNotification]
     expect(userIds).toEqual(['student-2'])
   })
 
@@ -94,7 +95,7 @@ describe('GET /api/cron/check-in-nudges', () => {
     jest.setSystemTime(new Date('2026-09-10T15:00:00Z')) // 16:00 London BST -> pm
     setupAdmin()
     await GET(makeRequest())
-    const [, , notification] = notifyUsersMock.mock.calls[0]
+    const [, , notification] = notifyUsersMock.mock.calls[0] as [unknown, string[], StaffNotification]
     expect(notification).toEqual(
       expect.objectContaining({ title: 'End-of-day check-in' }),
     )

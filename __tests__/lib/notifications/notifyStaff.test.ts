@@ -1,8 +1,8 @@
 /**
  * @jest-environment node
  */
-const sendPushNotificationMock = jest.fn(() => Promise.resolve())
-const sendFcmBatchMock = jest.fn(() => Promise.resolve({ sent: 0, failed: 0 }))
+const sendPushNotificationMock = jest.fn((..._args: unknown[]) => Promise.resolve())
+const sendFcmBatchMock = jest.fn((..._args: unknown[]) => Promise.resolve({ sent: 0, failed: 0 }))
 
 jest.mock('@/lib/webpush', () => ({
   sendPushNotification: (...args: unknown[]) => sendPushNotificationMock(...args),

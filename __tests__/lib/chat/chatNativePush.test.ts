@@ -1,3 +1,5 @@
+export {}
+
 /**
  * @jest-environment node
  *
@@ -17,8 +19,8 @@ const ROOM_ID = 'room-1'
 // jest.resetModules() re-invokes mock factories, so a jest.fn() created
 // inline inside the factory would be a *different* instance each time the
 // module is re-imported. Closing over an outer-scope mock keeps identity.
-const sendPushNotificationMock = jest.fn(() => Promise.resolve())
-const sendFcmBatchMock = jest.fn(() => Promise.resolve({ sent: 0, failed: 0 }))
+const sendPushNotificationMock = jest.fn((..._args: unknown[]) => Promise.resolve())
+const sendFcmBatchMock = jest.fn((..._args: unknown[]) => Promise.resolve({ sent: 0, failed: 0 }))
 
 jest.mock('@/lib/supabase/server', () => ({
   createClient: () => ({

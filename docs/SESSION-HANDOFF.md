@@ -1,5 +1,9 @@
 # Tranmere Tracker — Session Handoff
 
+> **Stale as of 2026-09-16.** Youth, bursary, and recruitment are shipped.
+> For current production issues see `docs/deep-dive-2026-09-10.md`. Do not
+> treat deferred items in this file as still deferred.
+
 _Last updated: 2026-06-08. Paste the "Kickoff prompt" below into a new chat._
 
 ## Current State

@@ -1,5 +1,9 @@
 # Tranmere Tracker / The Solar Campus — Feature Status
 
+> **Stale as of 2026-09-16.** Youth, bursary, and recruitment are shipped.
+> For current production issues see `docs/deep-dive-2026-09-10.md`. Do not
+> treat deferred items in this file as still deferred.
+
 _Last reviewed: 2026-06-10. Build green, 508 tests passing. Migrations applied live through 036 (033 security hardening, 034 recruitment, 035 bursaries, 036 youth). **Every line of the original spec is now built** — remaining work is credential-gated integrations only._
 
 **Legend:** ✅ Live · 🔗 Delegated to Moodle (intentional) · 🔑 Built, needs vendor credentials · ⚠️ Stale after Moodle move (needs a decision) · ❌ Not built · ⏳ Deferred

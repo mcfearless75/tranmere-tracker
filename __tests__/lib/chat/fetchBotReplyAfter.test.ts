@@ -6,7 +6,7 @@ const SENT_AT = '2026-09-09T18:00:00.000Z'
 
 /** Minimal admin-client double for the one table/chain this helper touches. */
 function makeSupabaseMock(opts: {
-  found?: { id: string; sender_id: string; body: string; attachment_url: null; attachment_kind: null; created_at: string }
+  found?: { id: string; sender_id: string; body: string; attachment_url: null; attachment_kind: null; created_at: string } | null
   throws?: boolean
 } = {}) {
   const { found = null, throws = false } = opts
