@@ -130,7 +130,13 @@ export function FootballPitch({ slots, placements, selectedSlot, onSlotClick, on
           }
 
           return (
-            <g key={slot.id} onClick={() => onSlotClick(slot.id)} style={{ cursor: 'pointer' }}>
+            <g
+              key={slot.id}
+              onClick={() => onSlotClick(slot.id)}
+              style={{ cursor: 'pointer' }}
+              role="button"
+              aria-label={`Place player at ${slot.role}`}
+            >
               {/* Invisible larger hit target for fingers */}
               <circle cx={cx} cy={cy} r="8" fill="transparent" />
               <circle

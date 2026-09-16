@@ -48,6 +48,67 @@ export function MatchReport({ match, squad }: { match: Match; squad: SquadRow[] 
   const [, startTransition] = useTransition()
   const supabase = createClient()
 
+  // Match details (date/kick-off/venue) — editable here so a change reaches
+  // the squad. Kept separate from the report state below: these fields
+  // matter to a player before kick-off, not just for the post-match report.
+  const [matchDate, setMatchDate] = useState(match.match_date)
+  const [kickOffTime, setKickOffTime] = useState(match.kick_off_time ?? '')
+  const [location, setLocation] = useState(match.location ?? '')
+  const [detailsSaving, setDetailsSaving] = useState(false)
+  const [detailsMsg, setDetailsMsg] = useState<string | null>(null)
+
+  const detailsDirty =
+    matchDate !== match.match_date ||
+    (kickOffTime || null) !== (match.kick_off_time ?? null) ||
+    (location || null) !== (match.location ?? null)
+
+  async function saveDetails() {
+    setDetailsSaving(true)
+    setDetailsMsg(null)
+
+    const changes: string[] = []
+    if (matchDate !== match.match_date) {
+      changes.push(`now ${new Date(matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`)
+    }
+    if ((kickOffTime || null) !== (match.kick_off_time ?? null)) {
+      changes.push(kickOffTime ? `kick-off now ${formatEventTime(kickOffTime)}` : 'kick-off time removed')
+    }
+    if ((location || null) !== (match.location ?? null)) {
+      changes.push(location ? `venue now ${location}` : 'venue removed')
+    }
+
+    await supabase.from('match_events').update({
+      match_date: matchDate,
+      kick_off_time: kickOffTime || null,
+      location: location || null,
+    }).eq('id', match.id)
+
+    // Notify everyone who hasn't opted out — a still-deciding "invited"
+    // player needs the change as much as one who already accepted.
+    let notifiedCount = 0
+    if (changes.length > 0) {
+      const notifiable = squad.filter(s => s.status !== 'declined').map(s => s.player_id)
+      notifiedCount = notifiable.length
+      if (notifiable.length > 0) {
+        void fetch('/api/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: `Match update — vs ${match.opponent}`,
+            body: `Details changed: ${changes.join(', ')}.`,
+            targetUserIds: notifiable,
+            url: '/matches',
+          }),
+        }).catch(() => { /* notification failure must not break the save */ })
+      }
+    }
+
+    setDetailsSaving(false)
+    setDetailsMsg(changes.length > 0 ? `Saved — ${notifiedCount} player(s) notified` : 'Saved')
+    setTimeout(() => setDetailsMsg(null), 3000)
+    startTransition(() => router.refresh())
+  }
+
   // Match report state
   const [homeScore, setHomeScore] = useState<number | ''>(match.home_score ?? '')
   const [awayScore, setAwayScore] = useState<number | ''>(match.away_score ?? '')
@@ -167,6 +228,52 @@ export function MatchReport({ match, squad }: { match: Match; squad: SquadRow[] 
 
   return (
     <div className="space-y-5">
+      {/* MATCH DETAILS — editable; saving a change notifies the squad */}
+      <div className="rounded-2xl border bg-white p-4 sm:p-5 space-y-3">
+        <h2 className="font-semibold text-sm">Match Details</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Date</label>
+            <input
+              type="date"
+              value={matchDate}
+              onChange={e => setMatchDate(e.target.value)}
+              className="w-full text-sm border rounded-lg px-3 py-2"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Kick-off time</label>
+            <input
+              type="time"
+              value={kickOffTime}
+              onChange={e => setKickOffTime(e.target.value)}
+              className="w-full text-sm border rounded-lg px-3 py-2"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Venue</label>
+            <input
+              type="text"
+              placeholder="e.g. Prenton Park"
+              value={location}
+              onChange={e => setLocation(e.target.value)}
+              className="w-full text-sm border rounded-lg px-3 py-2"
+            />
+          </div>
+        </div>
+        {detailsDirty && (
+          <button
+            onClick={saveDetails}
+            disabled={detailsSaving}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-tranmere-blue text-white px-4 py-2 text-sm font-semibold hover:bg-blue-900 disabled:opacity-50"
+          >
+            <Bell size={14} />
+            {detailsSaving ? 'Saving…' : 'Save & notify squad'}
+          </button>
+        )}
+        {detailsMsg && <p className="text-sm text-green-700">{detailsMsg}</p>}
+      </div>
+
       {/* SCOREBOARD HERO */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-tranmere-blue via-blue-800 to-indigo-900 p-5 sm:p-6 text-white shadow-xl">
         <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/10 blur-2xl" />

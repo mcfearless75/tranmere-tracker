@@ -12,13 +12,18 @@ export default async function FormationPage({ searchParams }: { searchParams: { 
   ])
 
   let matchSquad: { player_id: string; position: string | null }[] = []
+  let existingSquadPlayerIds: string[] = []
   if (searchParams.match) {
+    // Every status, not just accepted — this is how the builder tells an
+    // already-invited player (position update only) apart from a brand-new
+    // one being added here for the first time (needs a match_squads row
+    // created AND a squad-invite push, same as CreateMatchForm sends).
     const { data } = await supabase
       .from('match_squads')
-      .select('player_id, position')
+      .select('player_id, position, status')
       .eq('match_id', searchParams.match)
-      .eq('status', 'accepted')
-    matchSquad = data ?? []
+    matchSquad = (data ?? []).filter(r => r.status === 'accepted')
+    existingSquadPlayerIds = (data ?? []).map(r => r.player_id)
   }
 
   return (
@@ -34,6 +39,7 @@ export default async function FormationPage({ searchParams }: { searchParams: { 
         matches={matches ?? []}
         selectedMatchId={searchParams.match ?? null}
         initialSquad={matchSquad}
+        existingSquadPlayerIds={existingSquadPlayerIds}
       />
     </div>
   )
