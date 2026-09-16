@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, ChevronUp, X, UserPlus, Users } from 'lucide-react'
-import { addGroupMembers, removeGroupMember } from '@/app/chat/actions'
+import { ChevronDown, ChevronUp, X, UserPlus, Users, MessageSquare, Pencil, Check } from 'lucide-react'
+import { addGroupMembers, removeGroupMember, renameGroupChat, joinGroupChat } from '@/app/chat/actions'
 
 type Person = { id: string; name: string | null; role: string }
 
@@ -27,6 +27,9 @@ export function ChatGroupCard({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [renaming, setRenaming] = useState(false)
+  const [nameInput, setNameInput] = useState(roomName)
+  const [renameError, setRenameError] = useState<string | null>(null)
   const [pending, start] = useTransition()
 
   const filtered = query.trim()
@@ -69,31 +72,120 @@ export function ChatGroupCard({
     })
   }
 
+  function handleOpen() {
+    start(async () => {
+      // Idempotent: this page lists every group chat whether or not the
+      // viewing staff member is already in it, so "Open" joins first if
+      // needed — otherwise there'd be no way to actually read one you'd
+      // never been added to.
+      await joinGroupChat(roomId)
+      router.push(`/chat/${roomId}`)
+    })
+  }
+
+  function startRename() {
+    setRenameError(null)
+    setNameInput(roomName)
+    setRenaming(true)
+    setExpanded(true)
+  }
+
+  function submitRename() {
+    setRenameError(null)
+    const trimmed = nameInput.trim()
+    if (!trimmed) { setRenameError('Give the group a name'); return }
+    start(async () => {
+      const res = await renameGroupChat(roomId, trimmed)
+      if (res.ok) {
+        setRenaming(false)
+        router.refresh()
+      } else {
+        setRenameError(res.error ?? 'Failed to rename')
+      }
+    })
+  }
+
   return (
     <div className="rounded-2xl border bg-white overflow-hidden">
-      <button
-        onClick={() => setExpanded(e => !e)}
-        className="w-full flex items-center gap-3 p-4 text-left hover:bg-gray-50 transition-colors"
-      >
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 flex items-center justify-center shrink-0">
-          <Users size={18} className="text-white" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold line-clamp-2 break-words">{roomName}</p>
-          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-            {members.length} members
-            {syncYearGroup && (
-              <span className="text-[10px] font-medium text-tranmere-blue bg-tranmere-blue/10 px-2 py-0.5 rounded-full">
-                Auto-synced student roster
-              </span>
-            )}
-          </p>
-        </div>
-        {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-      </button>
+      <div className="flex items-center gap-1 p-4 hover:bg-gray-50 transition-colors">
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="flex flex-1 min-w-0 items-center gap-3 text-left"
+        >
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 flex items-center justify-center shrink-0">
+            <Users size={18} className="text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold line-clamp-2 break-words">{roomName}</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              {members.length} members
+              {syncYearGroup && (
+                <span className="text-[10px] font-medium text-tranmere-blue bg-tranmere-blue/10 px-2 py-0.5 rounded-full">
+                  Auto-synced student roster
+                </span>
+              )}
+            </p>
+          </div>
+        </button>
+        <button
+          onClick={handleOpen}
+          disabled={pending}
+          aria-label="Open chat"
+          title="Open chat"
+          className="p-2 rounded-lg text-tranmere-blue hover:bg-tranmere-blue/10 disabled:opacity-50 shrink-0"
+        >
+          <MessageSquare size={16} />
+        </button>
+        <button
+          onClick={startRename}
+          aria-label="Rename group"
+          title="Rename group"
+          className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 shrink-0"
+        >
+          <Pencil size={14} />
+        </button>
+        <button
+          onClick={() => setExpanded(e => !e)}
+          aria-label={expanded ? 'Collapse' : 'Expand'}
+          className="p-1.5 shrink-0"
+        >
+          {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+        </button>
+      </div>
 
       {expanded && (
         <div className="border-t bg-gray-50 p-4 space-y-3">
+          {renaming && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <input
+                  autoFocus
+                  value={nameInput}
+                  onChange={e => setNameInput(e.target.value)}
+                  maxLength={60}
+                  placeholder="Group name"
+                  className="flex-1 px-2 py-1.5 border rounded-lg text-sm"
+                />
+                <button
+                  onClick={submitRename}
+                  disabled={pending}
+                  aria-label="Save name"
+                  className="p-2 rounded-lg bg-tranmere-blue text-white disabled:opacity-50"
+                >
+                  <Check size={14} />
+                </button>
+                <button
+                  onClick={() => { setRenaming(false); setRenameError(null) }}
+                  aria-label="Cancel rename"
+                  className="p-2 rounded-lg hover:bg-gray-200"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              {renameError && <p className="text-xs text-red-600">{renameError}</p>}
+            </div>
+          )}
+
           {error && <p className="text-xs text-red-600">{error}</p>}
 
           <div className="space-y-1 max-h-48 overflow-y-auto">
