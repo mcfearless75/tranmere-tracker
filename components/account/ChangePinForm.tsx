@@ -22,6 +22,14 @@ export function ChangePinForm({ onDone }: { onDone?: () => void }) {
     if (pin !== confirm) { setError("PINs don't match — try again"); return }
     if (DEFAULT_PINS.has(pin)) { setError('Pick something other than the shared default PIN'); return }
 
+    // GoTrue behaviour (docs/deep-dive-2026-09-10.md) — a password/PIN
+    // change signs the account out everywhere: native app, Safari, every
+    // other browser tab. Confirm it up front so it doesn't read as a
+    // broken login when it fires. window.confirm, not confirm — this
+    // component already has a `confirm` state variable (the Confirm PIN
+    // field) that shadows the global function of the same name.
+    if (!window.confirm('Change your PIN? This signs you out on every phone and browser — you\'ll need to log back in with the new PIN.')) return
+
     setSaving(true)
     const { error: authErr } = await supabase.auth.updateUser({ password: pin })
     if (authErr) {
@@ -50,7 +58,7 @@ export function ChangePinForm({ onDone }: { onDone?: () => void }) {
   if (success) {
     return (
       <div className="flex items-center gap-2 text-green-700 text-sm font-medium py-1.5">
-        <CheckCircle2 size={16} /> PIN updated — use it next time you sign in.
+        <CheckCircle2 size={16} /> PIN updated — you&apos;ve been signed out on every phone and browser. Log back in with your new PIN.
       </div>
     )
   }

@@ -4,7 +4,24 @@ import { useEffect, useState } from 'react'
 import { isNative, isAndroid, getPlatform } from '@/lib/native'
 import { reportClientError } from '@/lib/reportClientError'
 
-type State = 'idle' | 'loading' | 'subscribed' | 'denied' | 'unsupported' | 'error' | 'crashed'
+type State = 'idle' | 'loading' | 'installing' | 'subscribed' | 'denied' | 'unsupported' | 'error' | 'crashed' | 'ios-not-installed'
+
+// iOS Safari only supports web push from a Home Screen install (standalone
+// display mode) — calling subscribe() from a normal browser tab fails, and
+// the failure surfaces as an opaque "Load failed" with no indication of why.
+// Detected via UA + standalone display-mode, not feature sniffing: iOS
+// Safari DOES expose Notification/serviceWorker/PushManager even when it
+// can't actually use them outside standalone, so the generic unsupported
+// check below never catches this case.
+function isIosSafariNotStandalone(): boolean {
+  if (typeof navigator === 'undefined' || typeof window === 'undefined') return false
+  const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !('MSStream' in window)
+  if (!isIos) return false
+  const standalone =
+    (navigator as Navigator & { standalone?: boolean }).standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches
+  return !standalone
+}
 
 // 2026-09-11: native PushNotifications.register() has been crashing the whole
 // app on at least one Android device (100% repro, survives uninstall/reinstall
@@ -77,6 +94,10 @@ export function PushOptIn() {
     }
 
     // Web path
+    if (isIosSafariNotStandalone()) {
+      setState('ios-not-installed')
+      return
+    }
     if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
       setState('unsupported')
       return
@@ -232,10 +253,16 @@ export function PushOptIn() {
       // morning WiFi/cellular connection. That's not a failure, just slow —
       // 20s was too impatient and was reporting real-but-slow installs as
       // broken. A second attempt minutes later (warm cache) resolved in ~1ms.
+      // Bumped again to 90s (from 45s) — cold installs on slow school Wi-Fi
+      // were still occasionally outlasting 45s. A distinct 'installing'
+      // state (rather than the generic 'loading' spinner) tells the user
+      // what's actually happening during this specific wait, since it can
+      // now take a while.
+      if (!silent) setState('installing')
       const reg = await Promise.race([
         navigator.serviceWorker.ready,
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Service worker install timed out — try reloading the page and tapping this again')), 45000)
+          setTimeout(() => reject(new Error('Service worker install timed out — try reloading the page and tapping this again')), 90000)
         ),
       ])
 
@@ -296,6 +323,14 @@ export function PushOptIn() {
       return
     }
 
+    // Defense in depth — the useEffect above already keeps this branch from
+    // ever rendering a live button on iOS Safari outside standalone, but
+    // never attempt the doomed-to-fail subscribe path from here either.
+    if (isIosSafariNotStandalone()) {
+      setState('ios-not-installed')
+      return
+    }
+
     const perm = await Notification.requestPermission()
     if (perm === 'denied') { setState('denied'); return }
     if (perm !== 'granted') { setState('idle'); return }
@@ -305,6 +340,14 @@ export function PushOptIn() {
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   if (state === 'unsupported' || state === 'denied') return null
+
+  if (state === 'ios-not-installed') {
+    return (
+      <div className="w-full text-sm bg-blue-50 border border-blue-200 text-blue-700 py-3 rounded-xl px-3 text-center">
+        📲 On iPhone, add this app to your Home Screen first, then tap Enable notifications.
+      </div>
+    )
+  }
 
   if (state === 'subscribed') {
     return (
@@ -331,13 +374,13 @@ export function PushOptIn() {
       )}
       <button
         onClick={handleClick}
-        disabled={state === 'loading'}
+        disabled={state === 'loading' || state === 'installing'}
         className="w-full text-sm bg-tranmere-gold text-tranmere-blue font-semibold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.98] transition-transform"
       >
-        {state === 'loading' ? (
+        {state === 'loading' || state === 'installing' ? (
           <>
             <span className="animate-spin inline-block w-4 h-4 border-2 border-tranmere-blue border-t-transparent rounded-full" />
-            Enabling…
+            {state === 'installing' ? 'Setting up notifications…' : 'Enabling…'}
           </>
         ) : (
           '🔔 Enable notifications'
