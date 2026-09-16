@@ -38,7 +38,7 @@ export function AdminPinForm() {
       if (!info.retryable) setPin('')
       setLoading(false)
     } else {
-      router.push('/admin/gps-dashboard')
+      router.push('/admin/home')
       router.refresh()
     }
   }

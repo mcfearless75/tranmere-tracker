@@ -1,5 +1,10 @@
 import {
   buildNotificationMessage,
+  buildMissedCheckinMessage,
+  buildNotStartedMessage,
+  buildExcusedMessage,
+  buildParentTimelineRow,
+  buildParentTimeline,
   notifyParentsOfCheckIn,
 } from '@/lib/attendance/parentNotifyUtils'
 
@@ -47,6 +52,84 @@ describe('buildNotificationMessage', () => {
     const { title, body } = buildNotificationMessage('Eve Clark', 'pm', 'late', '14:55')
     expect(title).toContain('Eve Clark')
     expect(body).toContain('Eve Clark')
+  })
+})
+
+describe('buildMissedCheckinMessage', () => {
+  it('phrases AM as "the morning"', () => {
+    expect(buildMissedCheckinMessage('Jordan', 'am')).toBe('Jordan has not checked in for the morning yet')
+  })
+  it('phrases lunch as "lunch"', () => {
+    expect(buildMissedCheckinMessage('Jordan', 'lunch')).toBe('Jordan has not checked in for lunch yet')
+  })
+  it('phrases PM as "the afternoon"', () => {
+    expect(buildMissedCheckinMessage('Jordan', 'pm')).toBe('Jordan has not checked in for the afternoon yet')
+  })
+})
+
+describe('buildNotStartedMessage', () => {
+  it('uses the short phase label', () => {
+    expect(buildNotStartedMessage('am')).toBe('Morning not started')
+    expect(buildNotStartedMessage('lunch')).toBe('Lunch not started')
+    expect(buildNotStartedMessage('pm')).toBe('End of day not started')
+  })
+})
+
+describe('buildExcusedMessage', () => {
+  it('uses the short phase label', () => {
+    expect(buildExcusedMessage('lunch')).toBe('Lunch — excused')
+  })
+})
+
+describe('buildParentTimelineRow', () => {
+  it('reuses buildNotificationMessage for a checked tap', () => {
+    const row = buildParentTimelineRow('Jordan', 'am', 'checked', '2026-09-16T08:14:00Z')
+    expect(row.text).toBe(buildNotificationMessage('Jordan', 'am', 'checked_in', row.time!).body)
+    expect(row.flagged).toBe(false)
+    expect(row.time).not.toBeNull()
+  })
+
+  it('reuses the late title path for a late tap', () => {
+    const row = buildParentTimelineRow('Jordan', 'pm', 'late', '2026-09-16T17:10:00Z')
+    expect(row.text).toBe(buildNotificationMessage('Jordan', 'pm', 'late', row.time!).body)
+  })
+
+  it('shows the check-in time and marks flagged for a flagged tap — never the raw reason', () => {
+    const row = buildParentTimelineRow('Jordan', 'lunch', 'flagged', '2026-09-16T12:05:00Z')
+    expect(row.flagged).toBe(true)
+    expect(row.time).not.toBeNull()
+    expect(row.text.toLowerCase()).not.toContain('gps')
+    expect(row.text.toLowerCase()).not.toContain('flagged')
+  })
+
+  it('is the missed-checkin message for "missing", with no time', () => {
+    const row = buildParentTimelineRow('Jordan', 'lunch', 'missing', null)
+    expect(row.text).toBe('Jordan has not checked in for lunch yet')
+    expect(row.time).toBeNull()
+  })
+
+  it('is the not-started message for "not_yet"', () => {
+    const row = buildParentTimelineRow('Jordan', 'pm', 'not_yet', null)
+    expect(row.text).toBe('End of day not started')
+  })
+
+  it('is the excused message for "excused"', () => {
+    const row = buildParentTimelineRow('Jordan', 'am', 'excused', null)
+    expect(row.text).toBe('Morning — excused')
+  })
+})
+
+describe('buildParentTimeline', () => {
+  it('maps three phases to three rows, always in AM → lunch → PM order', () => {
+    const rows = buildParentTimeline('Jordan', {
+      pm: { state: 'not_yet', at: null },
+      am: { state: 'checked', at: '2026-09-16T08:14:00Z' },
+      lunch: { state: 'missing', at: null },
+    })
+    expect(rows.map(r => r.phase)).toEqual(['am', 'lunch', 'pm'])
+    expect(rows[0].text).toContain('checked in for AM session')
+    expect(rows[1].text).toBe('Jordan has not checked in for lunch yet')
+    expect(rows[2].text).toBe('End of day not started')
   })
 })
 

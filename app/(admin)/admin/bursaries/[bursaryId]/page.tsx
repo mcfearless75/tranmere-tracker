@@ -26,7 +26,7 @@ export default async function BursaryDetailPage({
     .eq('id', user.id)
     .maybeSingle()
 
-  if (!profile || profile.role !== 'admin') redirect('/admin/dashboard')
+  if (!profile || profile.role !== 'admin') redirect('/admin/home')
 
   const { data: bursaryRow } = await admin
     .from('bursaries')

@@ -25,7 +25,7 @@ export default async function ConcernDetailPage({
     .eq('id', user.id)
     .maybeSingle()
 
-  if (!profile || profile.role !== 'admin') redirect('/admin/dashboard')
+  if (!profile || profile.role !== 'admin') redirect('/admin/home')
 
   const { data: concernRow } = await admin
     .from('safeguarding_concerns')

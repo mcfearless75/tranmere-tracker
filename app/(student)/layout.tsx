@@ -31,7 +31,7 @@ export default async function StudentLayout({ children }: { children: React.Reac
 
   // Admin/coach/teacher should never see student pages — send them to admin
   if (profile && ['admin', 'coach', 'teacher'].includes(profile.role)) {
-    redirect('/admin/dashboard')
+    redirect('/admin/home')
   }
 
   const showTimetable =

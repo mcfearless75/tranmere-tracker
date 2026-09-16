@@ -5,6 +5,7 @@ import {
   normalizedScore,
   getScoreLabel,
   isValidContextTags,
+  buildWellbeingFlags,
   CONTEXT_TAGS,
   SURVEY_QUESTIONS,
 } from '@/lib/wellbeing/wellbeingUtils'
@@ -249,5 +250,44 @@ describe('isValidContextTags', () => {
     expect(isValidContextTags('home')).toBe(false)
     expect(isValidContextTags(undefined)).toBe(false)
     expect(isValidContextTags(null)).toBe(false)
+  })
+})
+
+describe('buildWellbeingFlags', () => {
+  it('flags a student with an open (incomplete) survey', () => {
+    const flags = buildWellbeingFlags([
+      { studentId: 's1', name: 'Alex', status: 'open', responses: [] },
+    ])
+    expect(flags).toEqual([{ studentId: 's1', name: 'Alex', reason: 'incomplete' }])
+  })
+
+  it('flags a completed survey with a red-flag score', () => {
+    const flags = buildWellbeingFlags([
+      { studentId: 's2', name: 'Sam', status: 'completed', responses: [{ question_key: 'mood', score: 1 }] },
+    ])
+    expect(flags).toEqual([{ studentId: 's2', name: 'Sam', reason: 'red_flag' }])
+  })
+
+  it('does not flag a completed survey with good scores', () => {
+    const flags = buildWellbeingFlags([
+      { studentId: 's3', name: 'Jo', status: 'completed', responses: [{ question_key: 'mood', score: 5 }] },
+    ])
+    expect(flags).toHaveLength(0)
+  })
+
+  it('does not flag an expired survey', () => {
+    const flags = buildWellbeingFlags([
+      { studentId: 's4', name: 'Kim', status: 'expired', responses: [] },
+    ])
+    expect(flags).toHaveLength(0)
+  })
+
+  it('returns one flag per affected student across a mixed batch', () => {
+    const flags = buildWellbeingFlags([
+      { studentId: 's1', name: 'Alex', status: 'open', responses: [] },
+      { studentId: 's2', name: 'Sam', status: 'completed', responses: [{ question_key: 'stress', score: 5 }] }, // inverted — bad
+      { studentId: 's3', name: 'Jo', status: 'completed', responses: [{ question_key: 'mood', score: 4 }] },
+    ])
+    expect(flags.map(f => f.studentId)).toEqual(['s1', 's2'])
   })
 })

@@ -27,7 +27,7 @@ export default async function AdminYouthSquadPage({
     .eq('id', user.id)
     .maybeSingle()
 
-  if (!profile || !STAFF_ROLES.includes(profile.role)) redirect('/admin/dashboard')
+  if (!profile || !STAFF_ROLES.includes(profile.role)) redirect('/admin/home')
 
   const { data: squadRow } = await admin
     .from('youth_squads')

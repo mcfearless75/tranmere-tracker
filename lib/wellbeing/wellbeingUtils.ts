@@ -41,6 +41,28 @@ export function getRedFlags(responses: SurveyResponse[]): SurveyResponse[] {
   )
 }
 
+export type WellbeingFlag = { studentId: string; name: string; reason: 'incomplete' | 'red_flag' }
+
+/**
+ * The staff exceptions home's "wellbeing flags" block — pass only this
+ * week's surveys (sent_at >= this week's Monday). A survey the student
+ * hasn't opened yet ('open') has no responses to check for a red flag, so
+ * it's its own reason rather than silently falling through getRedFlags.
+ */
+export function buildWellbeingFlags(
+  surveys: Array<{ studentId: string; name: string; status: string; responses: SurveyResponse[] }>
+): WellbeingFlag[] {
+  const flags: WellbeingFlag[] = []
+  for (const s of surveys) {
+    if (s.status === 'open') {
+      flags.push({ studentId: s.studentId, name: s.name, reason: 'incomplete' })
+    } else if (s.status === 'completed' && getRedFlags(s.responses).length > 0) {
+      flags.push({ studentId: s.studentId, name: s.name, reason: 'red_flag' })
+    }
+  }
+  return flags
+}
+
 export type SurveyTrendPoint = {
   sentAt: string
   avg: number

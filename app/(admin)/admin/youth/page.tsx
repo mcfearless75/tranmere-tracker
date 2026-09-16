@@ -29,7 +29,7 @@ export default async function AdminYouthPage() {
     .eq('id', user.id)
     .maybeSingle()
 
-  if (!profile || !STAFF_ROLES.includes(profile.role)) redirect('/admin/dashboard')
+  if (!profile || !STAFF_ROLES.includes(profile.role)) redirect('/admin/home')
 
   const today = new Date().toISOString().slice(0, 10)
 
