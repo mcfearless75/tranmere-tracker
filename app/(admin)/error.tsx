@@ -30,8 +30,8 @@ export default function AdminError({
           >
             Try again
           </button>
-          <a href="/admin/gps-dashboard" className="text-sm text-tranmere-blue underline">
-            Back to dashboard
+          <a href="/admin/home" className="text-sm text-tranmere-blue underline">
+            Back to home
           </a>
         </div>
       </div>

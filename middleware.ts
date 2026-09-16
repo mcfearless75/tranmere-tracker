@@ -5,6 +5,7 @@ import {
   isAuthRetryable,
   safeNextPath,
   unauthenticatedAction,
+  roleHome,
 } from '@/lib/middleware/authGate'
 import { canonicalRedirectTarget, readCanonicalConfig } from '@/lib/middleware/canonicalHost'
 
@@ -218,13 +219,12 @@ export async function middleware(request: NextRequest) {
   // to their home and the check-in silently never happened.
   if (isPublic && !OPEN_TO_ALL.some(p => path.startsWith(p))) {
     const next = safeNextPath(request.nextUrl.searchParams.get('next'))
-    const home = isStaff ? '/admin/gps-dashboard' : isParent ? '/parent/dashboard' : '/dashboard'
-    return redirectTo(next ?? home)
+    return redirectTo(next ?? roleHome(role as string))
   }
 
   // Staff hitting student pages → admin area
   if (isStaff && STUDENT_PREFIXES.some(p => path === p || path.startsWith(p + '/'))) {
-    return redirectTo('/admin/gps-dashboard')
+    return redirectTo('/admin/home')
   }
 
   // Students hitting admin pages → dashboard
@@ -239,7 +239,7 @@ export async function middleware(request: NextRequest) {
 
   // Non-parents hitting parent pages → appropriate home
   if (!isParent && PARENT_PREFIXES.some(p => path === p || path.startsWith(p + '/'))) {
-    return redirectTo(isStaff ? '/admin/gps-dashboard' : '/dashboard')
+    return redirectTo(roleHome(role as string))
   }
 
   return finalise(supabaseResponse)

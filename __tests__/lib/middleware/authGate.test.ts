@@ -4,6 +4,7 @@ import {
   isAuthRetryable,
   safeNextPath,
   unauthenticatedAction,
+  roleHome,
 } from '@/lib/middleware/authGate'
 
 describe('copyCookies', () => {
@@ -95,6 +96,20 @@ describe('safeNextPath', () => {
 
   it('returns the normalised path + query, never a fragment', () => {
     expect(safeNextPath('/attendance?tag=abc#frag')).toBe('/attendance?tag=abc')
+  })
+})
+
+describe('roleHome', () => {
+  it.each(['admin', 'coach', 'teacher'])('sends staff role %s to the exceptions home, not the GPS tool page', role => {
+    expect(roleHome(role)).toBe('/admin/home')
+  })
+
+  it('sends a parent to the parent portal', () => {
+    expect(roleHome('parent')).toBe('/parent/dashboard')
+  })
+
+  it.each(['student', null, undefined, ''])('sends everyone else to the student dashboard', role => {
+    expect(roleHome(role)).toBe('/dashboard')
   })
 })
 

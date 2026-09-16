@@ -33,7 +33,7 @@ export default async function TrialEventDetailPage({
     .eq('id', user.id)
     .maybeSingle()
 
-  if (!profile || !STAFF_ROLES.includes(profile.role)) redirect('/admin/dashboard')
+  if (!profile || !STAFF_ROLES.includes(profile.role)) redirect('/admin/home')
 
   const { data: eventRow } = await admin
     .from('trial_events')

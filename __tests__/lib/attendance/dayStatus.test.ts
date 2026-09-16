@@ -7,6 +7,7 @@ import {
   describeCardState,
   defaultStaffFilter,
   applyStaffFilter,
+  exceptionsWindowPhase,
   type StudentDayStatus,
   type PhaseRecord,
 } from '@/lib/attendance/dayStatus'
@@ -195,6 +196,26 @@ describe('describeCardState', () => {
     const afterPm = new Date('2026-09-16T17:00:00Z') // 18:00 London, past pm.end (17:30)
     const status = buildStudentDayStatus('s', {}, WINDOWS, afterPm, [])
     expect(describeCardState(status, WINDOWS, afterPm)).toEqual({ kind: 'closed' })
+  })
+})
+
+describe('exceptionsWindowPhase', () => {
+  it('is the currently open phase', () => {
+    expect(exceptionsWindowPhase(WINDOWS, DURING_LUNCH)).toBe('lunch')
+  })
+
+  it('is null before the AM window has opened — nobody could be missing anything yet', () => {
+    expect(exceptionsWindowPhase(WINDOWS, BEFORE_AM)).toBeNull()
+  })
+
+  it('is the most recently closed window in a gap between windows', () => {
+    const gapAfterAm = new Date('2026-09-16T09:45:00Z') // 10:45 London — after am.end (10:30), before lunch.start (11:00)
+    expect(exceptionsWindowPhase(WINDOWS, gapAfterAm)).toBe('am')
+  })
+
+  it('is "pm" once the whole day is over', () => {
+    const afterPm = new Date('2026-09-16T17:00:00Z') // 18:00 London, past pm.end
+    expect(exceptionsWindowPhase(WINDOWS, afterPm)).toBe('pm')
   })
 })
 

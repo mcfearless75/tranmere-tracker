@@ -24,7 +24,7 @@ export default async function NewConcernPage({
     .eq('id', user.id)
     .maybeSingle()
 
-  if (!profile || profile.role !== 'admin') redirect('/admin/dashboard')
+  if (!profile || profile.role !== 'admin') redirect('/admin/home')
 
   // Deliberately NOT filtered to is_active — a concern may need to be
   // raised about a student shortly after they've left, and hiding them

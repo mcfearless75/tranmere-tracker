@@ -85,6 +85,19 @@ export function safeNextPath(next: string | null | undefined): string | null {
   return path
 }
 
+/**
+ * Where a signed-in user with no safe `next` destination lands. Staff go to
+ * the exceptions home (`/admin/home`) — not `/admin/gps-dashboard`, a GPS
+ * tool page that used to double as the landing page and buried the
+ * missing-check-in / wellbeing-flag / reviews-due brief a coach actually
+ * needs first thing.
+ */
+export function roleHome(role: string | null | undefined): string {
+  if (role === 'admin' || role === 'coach' || role === 'teacher') return '/admin/home'
+  if (role === 'parent') return '/parent/dashboard'
+  return '/dashboard'
+}
+
 export type UnauthenticatedAction =
   | { kind: 'json401' }
   | { kind: 'redirect'; next: string }

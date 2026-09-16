@@ -2,14 +2,15 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Users, Bell, BarChart2, GraduationCap, LogOut, Calendar, CalendarDays, CalendarClock, LayoutGrid, Plug, MessageSquare, Megaphone, Home, ClipboardList, ClipboardCheck, ShieldAlert, Network, UserPlus, Users2, Banknote, FolderOpen, Heart, UsersRound } from 'lucide-react'
+import { Users, Bell, BarChart2, GraduationCap, LogOut, Calendar, CalendarDays, CalendarClock, LayoutGrid, Plug, MessageSquare, Megaphone, Home, Satellite, ClipboardList, ClipboardCheck, ShieldAlert, Network, UserPlus, Users2, Banknote, FolderOpen, Heart, UsersRound } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
 import { MOODLE_TEACHER_URL } from '@/lib/config/moodle'
 
 const nav = [
+  { href: '/admin/home', label: 'Home', icon: Home },
   { href: '/admin/attendance', label: 'Attendance', icon: ClipboardList },
-  { href: '/admin/dashboard', label: 'Dashboard', icon: Home },
+  { href: '/admin/gps-dashboard', label: 'GPS', icon: Satellite },
   { href: '/documents', label: 'Documents', icon: FolderOpen },
   { href: '/admin/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/admin/timetable', label: 'Timetable', icon: CalendarClock },

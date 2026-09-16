@@ -23,7 +23,7 @@ export default async function AdminRecruitmentPage() {
     .eq('id', user.id)
     .maybeSingle()
 
-  if (!profile || !STAFF_ROLES.includes(profile.role)) redirect('/admin/dashboard')
+  if (!profile || !STAFF_ROLES.includes(profile.role)) redirect('/admin/home')
 
   const { data: prospectRows } = await admin
     .from('recruitment_prospects')

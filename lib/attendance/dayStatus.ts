@@ -106,6 +106,22 @@ export type CardPrompt =
   | { kind: 'upcoming'; phase: Phase; startsAt: string }
   | { kind: 'closed' }
 
+/**
+ * Which phase the staff exceptions home's "missing this window" block should
+ * show: the currently open one, or — in a gap between windows, or after the
+ * day is over — the window that most recently closed (what staff still need
+ * to chase), never an upcoming one nobody's missed yet.
+ */
+export function exceptionsWindowPhase(windows: PhaseWindows, now: Date = new Date()): Phase | null {
+  const open = decidePhase(windows, now)
+  if (open) return open
+  const mins = londonMinutes(now)
+  if (mins < toMinutes(windows.am.start)) return null
+  if (mins < toMinutes(windows.lunch.start)) return 'am'
+  if (mins < toMinutes(windows.pm.start)) return 'lunch'
+  return 'pm'
+}
+
 /** Staff attendance-page roster filter. */
 export type StaffFilter = 'all' | 'missing_am' | 'missing_lunch' | 'missing_pm' | 'flagged'
 

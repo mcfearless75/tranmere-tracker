@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
   if (!userEmail) return bad('Could not resolve user email for session')
 
   // Where to land after auth — prefer dashboard over the raw launch URL
-  const dest = isStaffRole ? '/admin/dashboard' : '/dashboard'
+  const dest = isStaffRole ? '/admin/home' : '/dashboard'
 
   // Derive site URL from request so it works on any Vercel preview or custom domain
   const siteUrl = req.nextUrl.origin
