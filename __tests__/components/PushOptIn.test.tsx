@@ -175,3 +175,50 @@ describe('PushOptIn — native registration disabled on Android', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 })
+
+describe('PushOptIn — iOS Safari outside Home Screen install (web path)', () => {
+  // iOS Safari exposes Notification/serviceWorker/PushManager even outside
+  // standalone, so the generic feature-detection "unsupported" check never
+  // caught this — subscribing from a normal browser tab just failed with an
+  // opaque "Load failed" and no indication of why. Detected via UA +
+  // display-mode instead, ahead of any subscribe attempt.
+  const originalUA = navigator.userAgent
+
+  function setUserAgent(ua: string) {
+    Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true })
+  }
+
+  beforeEach(() => {
+    isNativeMock = false
+    localStorage.clear()
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) }) as unknown as typeof fetch
+  })
+
+  afterEach(() => {
+    setUserAgent(originalUA)
+    // @ts-expect-error — test-only cleanup of a property jsdom doesn't define by default
+    delete (navigator as { standalone?: boolean }).standalone
+  })
+
+  it('shows the Home Screen instruction instead of a button, and never requests permission', async () => {
+    setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1')
+    const requestPermissionSpy = jest.fn()
+    ;(window as unknown as { Notification: unknown }).Notification = { permission: 'default', requestPermission: requestPermissionSpy }
+
+    render(<PushOptIn />)
+
+    expect(await screen.findByText(/add this app to your Home Screen/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /enable notifications/i })).not.toBeInTheDocument()
+    expect(requestPermissionSpy).not.toHaveBeenCalled()
+  })
+
+  it('does not show the instruction for an iPhone that IS already installed to the Home Screen', async () => {
+    setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1')
+    ;(navigator as unknown as { standalone: boolean }).standalone = true
+
+    render(<PushOptIn />)
+    await new Promise(r => setTimeout(r, 0))
+
+    expect(screen.queryByText(/add this app to your Home Screen/i)).not.toBeInTheDocument()
+  })
+})

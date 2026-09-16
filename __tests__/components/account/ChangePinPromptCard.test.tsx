@@ -16,7 +16,14 @@ jest.mock('@/lib/supabase/client', () => ({
   }),
 }))
 
-beforeEach(() => jest.clearAllMocks())
+beforeEach(() => {
+  jest.clearAllMocks()
+  // Changing the PIN signs the account out everywhere (GoTrue) — save() now
+  // confirms that up front; default to "OK" so this suite exercises the
+  // actual save, matching ChangePinForm.test.tsx's own coverage of the
+  // confirm/decline behaviour itself.
+  jest.spyOn(window, 'confirm').mockReturnValue(true)
+})
 
 describe('ChangePinPromptCard', () => {
   it('shows the nudge collapsed by default, with the form hidden', () => {

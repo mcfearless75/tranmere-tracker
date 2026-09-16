@@ -17,7 +17,20 @@ jest.mock('@/lib/supabase/client', () => ({
   }),
 }))
 
-beforeEach(() => jest.clearAllMocks())
+let confirmSpy: jest.SpyInstance
+
+beforeEach(() => {
+  jest.clearAllMocks()
+  // Changing the PIN signs the account out everywhere (GoTrue) — save() now
+  // confirms that up front. Default to "OK" so the existing success-path
+  // tests still exercise the actual save; a dedicated test below covers
+  // declining the prompt.
+  confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true)
+})
+
+afterEach(() => {
+  confirmSpy.mockRestore()
+})
 
 function fillPins(pin: string, confirm: string) {
   fireEvent.change(screen.getByPlaceholderText('New PIN'), { target: { value: pin } })
@@ -77,5 +90,23 @@ describe('ChangePinForm', () => {
 
     expect(await screen.findByText('Password too weak')).toBeInTheDocument()
     expect(from).not.toHaveBeenCalled()
+  })
+
+  it('warns that changing the PIN signs the account out everywhere, and lets the user back out', async () => {
+    confirmSpy.mockReturnValue(false)
+    render(<ChangePinForm />)
+    fillPins('194756', '194756')
+    fireEvent.click(screen.getByRole('button', { name: /save my new pin/i }))
+
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringMatching(/signs you out on every phone and browser/i))
+    expect(updateUser).not.toHaveBeenCalled()
+  })
+
+  it('shows the signed-out-everywhere notice in the success state', async () => {
+    render(<ChangePinForm />)
+    fillPins('194756', '194756')
+    fireEvent.click(screen.getByRole('button', { name: /save my new pin/i }))
+
+    expect(await screen.findByText(/signed out on every phone and browser/i)).toBeInTheDocument()
   })
 })

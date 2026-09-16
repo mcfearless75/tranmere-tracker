@@ -30,6 +30,13 @@ export function AdminActions({ userId, userName, email }: Props) {
       setResetMsg('PIN must be 5 or 6 digits')
       return
     }
+    // GoTrue behaviour (docs/deep-dive-2026-09-10.md) — a password/PIN
+    // change signs the account out everywhere: native app, Safari, every
+    // other browser tab. Staff read this as "the PIN change broke login"
+    // when it fired silently, so confirm it up front and repeat it after —
+    // the fix is the warning, not fighting GoTrue's session model.
+    if (!confirm(`Reset ${userName.split(' ')[0]}'s PIN? This signs them out on every phone and browser — they must log in again with the new PIN.`)) return
+
     setResetting(true)
     setResetMsg(null)
     const res = await fetch('/api/admin/reset-pin', {
@@ -42,7 +49,7 @@ export function AdminActions({ userId, userName, email }: Props) {
     if (data.error) {
       setResetMsg(`Error: ${data.error}`)
     } else {
-      setResetMsg(data.message)
+      setResetMsg(`${data.message} This signed them out on every phone and browser — they must log in again with the new PIN.`)
       setNewPin('')
     }
   }
@@ -146,6 +153,7 @@ export function AdminActions({ userId, userName, email }: Props) {
         )}
         <p className="text-xs text-muted-foreground">
           Enter a new PIN. The student can immediately log in with it. Tell them in person — no email is sent.
+          This signs them out on every phone and browser they were logged into.
         </p>
       </div>
 
