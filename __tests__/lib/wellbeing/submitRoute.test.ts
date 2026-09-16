@@ -4,7 +4,7 @@
 const getUserMock = jest.fn()
 const supabaseFromMock = jest.fn()
 const adminFromMock = jest.fn()
-const notifyUsersMock = jest.fn(() => Promise.resolve())
+const notifyUsersMock = jest.fn((..._args: unknown[]) => Promise.resolve())
 
 jest.mock('@/lib/supabase/server', () => ({
   createClient: () => ({ auth: { getUser: getUserMock }, from: supabaseFromMock }),
@@ -18,6 +18,7 @@ jest.mock('@/lib/notifications/notifyStaff', () => ({
 
 import { NextRequest } from 'next/server'
 import { POST } from '@/app/api/wellbeing/submit/route'
+import type { StaffNotification } from '@/lib/notifications/notifyStaff'
 
 const STUDENT_ID = 'student-1'
 const SURVEY_ID = 'survey-1'
@@ -114,7 +115,7 @@ describe('POST /api/wellbeing/submit', () => {
     const res = await POST(makeRequest({ survey_id: SURVEY_ID, answers: flaggedAnswers, notes: {} }))
     expect(res.status).toBe(200)
     expect(notifyUsersMock).toHaveBeenCalledTimes(1)
-    const [, staffIds, notification] = notifyUsersMock.mock.calls[0]
+    const [, staffIds, notification] = notifyUsersMock.mock.calls[0] as [unknown, string[], StaffNotification]
     expect([...staffIds].sort()).toEqual(['staff-1', 'staff-2'])
     expect(notification).toEqual(expect.objectContaining({ title: 'Wellbeing alert', url: '/admin/wellbeing' }))
     expect(notification.body).toContain('Test Student')

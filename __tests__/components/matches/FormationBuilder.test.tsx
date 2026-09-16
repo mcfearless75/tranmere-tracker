@@ -21,7 +21,7 @@ const insert = jest.fn(() => Promise.resolve({ error: null }))
 const from = jest.fn(() => ({ update, insert }))
 jest.mock('@/lib/supabase/client', () => ({ createClient: () => ({ from }) }))
 
-const fetchMock = jest.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }))
+const fetchMock = jest.fn((..._args: unknown[]) => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }))
 ;(global as any).fetch = fetchMock
 
 const students = [
@@ -64,7 +64,7 @@ describe('FormationBuilder — save()', () => {
     expect(update).not.toHaveBeenCalled()
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/push/send', expect.objectContaining({ method: 'POST' })))
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body)
     expect(body.targetUserIds).toEqual(['p1'])
     expect(body.title).toBe('New match published')
     expect(body.body).toContain('Everton Academy')

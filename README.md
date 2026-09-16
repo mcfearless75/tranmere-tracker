@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tranmere Tracker
 
-## Getting Started
+Student performance PWA for Tranmere Rovers / The Solar Campus — attendance
+(NFC check-in + GPS geofencing), match/formation tracking, chat, wellbeing
+check-ins, coursework, and admin/safeguarding tooling for staff.
 
-First, run the development server:
+**Live:**
+- `https://app.thesolarcampus.com` — canonical
+- `https://tranmeretracker.vercel.app` — legacy host, still referenced by some printed QR stickers
+
+## Stack
+
+Next.js 14 (App Router) · TypeScript (strict) · Tailwind CSS + Base UI ·
+Supabase (Postgres, Auth via `@supabase/ssr`) · Anthropic Claude API ·
+Recharts · Capacitor (iOS/Android WebView shells) · Vercel (hosting + cron) ·
+Codemagic (native builds)
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev          # http://localhost:3000
+npm test              # Jest
+npm run test:watch
+npm run lint
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Environment variables (see `CLAUDE.md` for the full list — names only, no
+secrets committed anywhere):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY   # server-side only
+ANTHROPIC_API_KEY            # server-side only
+VAPID_PUBLIC_KEY             # web push
+VAPID_PRIVATE_KEY            # web push, server-side only
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Auth
 
-## Learn More
+Two separate login paths:
+- **Students and staff** — Supabase Auth (`@supabase/ssr`, cookie-based session, enforced in `middleware.ts`).
+- **Admin PIN login** (`/admin-login`) — a shared superuser account
+  (`superuser@tranmeretracker.internal`) authenticated with a 5–7 digit PIN
+  as the password. This account must never be deleted — see `CLAUDE.md` for
+  recovery steps if it ever is.
 
-To learn more about Next.js, take a look at the following resources:
+## Native apps (Capacitor)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The iOS/Android apps are thin WebView shells pointed at the live production
+URL (`capacitor.config.ts`) — they are **not** a bundled copy of this code.
+A normal `git push` to `master` reaches every native install on next app
+open, same as the web PWA. **Do not** trigger a Codemagic rebuild for
+regular feature/UI/bug-fix work — only when native permissions, a Capacitor
+plugin, app icons, or `android/`/`ios/`/`capacitor.config.ts` themselves
+change. Full detail in `CLAUDE.md`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Further reading
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `CLAUDE.md` — project rules and conventions (read this first for any
+  non-trivial change: Supabase patterns, cron rules, PIN/native-app gotchas)
+- `docs/FEATURE-STATUS.md` — feature-by-feature build status
+- `docs/SESSION-HANDOFF.md` — most recent working-session snapshot
+- `docs/CRON-SCHEDULES.md` — Vercel cron schedules, London time ↔ UTC
+- `docs/deep-dive-2026-09-10.md` — known issues and root-cause notes

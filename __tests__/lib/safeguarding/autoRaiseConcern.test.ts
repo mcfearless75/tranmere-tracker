@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-const notifyUsersMock = jest.fn(() => Promise.resolve())
+const notifyUsersMock = jest.fn((..._args: unknown[]) => Promise.resolve())
 jest.mock('@/lib/notifications/notifyStaff', () => ({
   notifyUsers: (...args: unknown[]) => notifyUsersMock(...args),
 }))

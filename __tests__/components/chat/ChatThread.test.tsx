@@ -18,11 +18,23 @@ jest.mock('@/app/chat/actions', () => ({
 const insertSingleMock = jest.fn(() =>
   Promise.resolve({ data: { id: 'sent-1', sender_id: CURRENT_USER_ID, body: 'Hi', attachment_url: null, attachment_kind: null, created_at: new Date().toISOString() }, error: null })
 )
-const fallbackMaybeSingleMock = jest.fn(() => Promise.resolve({ data: null }))
+type BotMessage = { id: string; sender_id: string; body: string; attachment_url: null; attachment_kind: null; created_at: string }
+const fallbackMaybeSingleMock = jest.fn(() => Promise.resolve<{ data: BotMessage | null }>({ data: null }))
 const updateEqMock = jest.fn(() => Promise.resolve({ error: null }))
 
-const channelMock = {
-  on: jest.fn(() => channelMock),
+// `on` and `subscribe` return the channel itself (real supabase-js builder
+// pattern), so the mock object's type has to be declared up front — a
+// bare object literal can't infer its own type while a property inside it
+// references the variable being defined.
+interface ChannelMock {
+  on: jest.Mock<ChannelMock, [string, unknown, unknown]>
+  subscribe: jest.Mock<ChannelMock, [(status: string) => void]>
+  track: jest.Mock<Promise<void>, []>
+  presenceState: jest.Mock<Record<string, unknown>, []>
+}
+
+const channelMock: ChannelMock = {
+  on: jest.fn((..._args: [string, unknown, unknown]) => channelMock),
   // Real supabase-js invokes the subscribe callback asynchronously (after a
   // socket round-trip), by which point the component's `channel` local is
   // already assigned. Firing synchronously here — before `.subscribe()` has
@@ -124,7 +136,7 @@ describe('ChatThread — AI reply Realtime fallback', () => {
     // Simulate Realtime delivering the bot's reply immediately.
     const onInsertHandler = channelMock.on.mock.calls.find(c => c[0] === 'postgres_changes')?.[1] === undefined
       ? undefined
-      : channelMock.on.mock.calls.find(c => c[0] === 'postgres_changes')![2]
+      : (channelMock.on.mock.calls.find(c => c[0] === 'postgres_changes')![2] as (payload: { new: Record<string, unknown> }) => void)
     await act(async () => {
       onInsertHandler?.({ new: { id: 'bot-1', sender_id: BOT_USER_ID, body: 'Reply', created_at: new Date().toISOString() } })
     })

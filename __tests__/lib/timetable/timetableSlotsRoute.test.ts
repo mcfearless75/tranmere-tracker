@@ -38,7 +38,7 @@ function setupAdmin() {
     error: null,
   }))
   const selectMock = jest.fn(() => ({ single: singleMock }))
-  const insertMock = jest.fn(() => ({ select: selectMock }))
+  const insertMock = jest.fn((..._args: unknown[]) => ({ select: selectMock }))
   adminFromMock.mockImplementation((table: string) => {
     if (table === 'timetable_slots') return { insert: insertMock }
     throw new Error(`Unexpected table ${table}`)

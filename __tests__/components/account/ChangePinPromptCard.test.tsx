@@ -7,7 +7,7 @@ jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh: refreshMock }
 const updateUser = jest.fn().mockResolvedValue({ error: null })
 const getUser = jest.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } })
 const eq = jest.fn().mockResolvedValue({ error: null })
-const from = jest.fn(() => ({ update: jest.fn(() => ({ eq })) }))
+const from = jest.fn((..._args: unknown[]) => ({ update: jest.fn(() => ({ eq })) }))
 
 jest.mock('@/lib/supabase/client', () => ({
   createClient: () => ({

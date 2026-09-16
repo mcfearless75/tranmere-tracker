@@ -48,7 +48,7 @@ function setupAdmin(options: { eligibleIds?: string[] } = {}) {
   const usersFirstEqMock = jest.fn(() => ({ eq: usersSecondEqMock }))
   const usersSelectMock = jest.fn(() => ({ eq: usersFirstEqMock }))
 
-  const upsertMock = jest.fn(async () => ({ error: null }))
+  const upsertMock = jest.fn(async (..._args: unknown[]) => ({ error: null }))
 
   adminFromMock.mockImplementation((table: string) => {
     if (table === 'assignments') return { select: assignmentSelectMock }

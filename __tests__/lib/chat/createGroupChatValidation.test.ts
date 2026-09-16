@@ -1,3 +1,5 @@
+export {}
+
 /**
  * @jest-environment node
  *

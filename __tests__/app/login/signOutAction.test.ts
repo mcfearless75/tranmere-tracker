@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-const signOutMock = jest.fn()
+const signOutMock = jest.fn((..._args: unknown[]) => Promise.resolve({ error: null as Error | null }))
 jest.mock('@/lib/supabase/server', () => ({
   createClient: () => ({ auth: { signOut: (...args: unknown[]) => signOutMock(...args) } }),
 }))
@@ -9,7 +9,7 @@ jest.mock('@/lib/supabase/server', () => ({
 // redirect() throws internally in real Next.js — mirrored here so a caller
 // that doesn't reach it (a bug this exact test guards against) is
 // distinguishable from one that does.
-const redirectMock = jest.fn(() => { throw new Error('NEXT_REDIRECT') })
+const redirectMock = jest.fn((..._args: unknown[]) => { throw new Error('NEXT_REDIRECT') })
 jest.mock('next/navigation', () => ({ redirect: (...args: unknown[]) => redirectMock(...args) }))
 
 import { signOut } from '@/app/(auth)/login/actions'

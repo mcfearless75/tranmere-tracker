@@ -44,7 +44,7 @@ function setupAdmin(options: { unitExists?: boolean } = {}) {
     error: null,
   }))
   const insertSelectMock = jest.fn(() => ({ single: insertSingleMock }))
-  const insertMock = jest.fn(() => ({ select: insertSelectMock }))
+  const insertMock = jest.fn((..._args: unknown[]) => ({ select: insertSelectMock }))
 
   adminFromMock.mockImplementation((table: string) => {
     if (table === 'btec_units') return { select: unitSelectMock }
