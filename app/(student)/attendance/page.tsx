@@ -34,7 +34,8 @@ export default async function StudentAttendancePage({
   // Server-side, Europe/London — the single source of truth for "which phase
   // is open right now". Clients receive this instead of re-deriving from the
   // device clock (which may be in another timezone).
-  const phase = decidePhase(windows)
+  const now = new Date()
+  const phase = decidePhase(windows, now)
 
   // ── NFC tap arrival ────────────────────────────────────────────────────────
   if (searchParams.tag) {
@@ -65,7 +66,7 @@ export default async function StudentAttendancePage({
   }
 
   // ── Default: planner view ─────────────────────────────────────────────────
-  const today = new Date().toISOString().split('T')[0]
+  const today = now.toISOString().split('T')[0]
 
   const [{ data: sessions }, { data: daily }, { data: excusal }] = await Promise.all([
     admin
@@ -93,7 +94,7 @@ export default async function StudentAttendancePage({
       daily={daily ?? null}
       today={today}
       windows={windows}
-      serverPhase={phase}
+      now={now}
       excusal={excusal ?? null}
     />
   )

@@ -5,7 +5,7 @@
  * of each re-deriving "missing" from raw daily_attendance columns.
  */
 
-import { londonMinutes, toMinutes, type AttendancePhase, type PhaseWindow, type PhaseWindows } from '@/lib/attendance/phase'
+import { decidePhase, londonMinutes, toMinutes, type AttendancePhase, type PhaseWindow, type PhaseWindows } from '@/lib/attendance/phase'
 import { londonWeekday } from '@/lib/dates'
 
 export type Phase = AttendancePhase
@@ -92,4 +92,63 @@ export function dayDots(status: StudentDayStatus): Phase[] {
 export function isExpectedToday(now: Date = new Date()): boolean {
   const weekday = londonWeekday(now)
   return weekday >= 1 && weekday <= 5
+}
+
+/**
+ * What the tri-phase attendance card should show right now: a check-in CTA
+ * for the currently-open-and-missing phase, a "such-and-such opens at HH:MM"
+ * for the next one, or a terminal "done" / "closed" / "weekend" state.
+ */
+export type CardPrompt =
+  | { kind: 'weekend' }
+  | { kind: 'done' }
+  | { kind: 'cta'; phase: Phase }
+  | { kind: 'upcoming'; phase: Phase; startsAt: string }
+  | { kind: 'closed' }
+
+/** Staff attendance-page roster filter. */
+export type StaffFilter = 'all' | 'missing_am' | 'missing_lunch' | 'missing_pm' | 'flagged'
+
+/**
+ * Which filter the staff attendance page should default to for "right now":
+ * once a window's opened, show who's still missing it — the thing staff
+ * actually need to act on. Morning defaults to missing_am rather than "all"
+ * for the same reason: most of the roster reads not_yet (excluded from
+ * missing) before the window closes, so it's never a wall of false alarms.
+ */
+export function defaultStaffFilter(windows: PhaseWindows, now: Date = new Date()): StaffFilter {
+  const mins = londonMinutes(now)
+  if (mins >= toMinutes(windows.pm.start)) return 'missing_pm'
+  if (mins >= toMinutes(windows.lunch.start)) return 'missing_lunch'
+  return 'missing_am'
+}
+
+export function applyStaffFilter(roster: StudentDayStatus[], filter: StaffFilter): StudentDayStatus[] {
+  switch (filter) {
+    case 'all': return roster
+    case 'missing_am': return missingStudents(roster, 'am')
+    case 'missing_lunch': return missingStudents(roster, 'lunch')
+    case 'missing_pm': return missingStudents(roster, 'pm')
+    case 'flagged': return roster.filter(s => (['am', 'lunch', 'pm'] as const).some(p => s.phases[p].state === 'flagged'))
+  }
+}
+
+export function describeCardState(
+  status: StudentDayStatus,
+  windows: PhaseWindows,
+  now: Date = new Date(),
+): CardPrompt {
+  if (!isExpectedToday(now)) return { kind: 'weekend' }
+
+  const PHASES = ['am', 'lunch', 'pm'] as const
+  if (PHASES.every(p => PRESENT_STATES.includes(status.phases[p].state))) return { kind: 'done' }
+
+  const openPhase = decidePhase(windows, now)
+  if (openPhase && status.phases[openPhase].state === 'missing') return { kind: 'cta', phase: openPhase }
+
+  const mins = londonMinutes(now)
+  const next = PHASES.find(p => mins < toMinutes(windows[p].start))
+  if (next) return { kind: 'upcoming', phase: next, startsAt: windows[next].start }
+
+  return { kind: 'closed' }
 }

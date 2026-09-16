@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Image from 'next/image'
 import Link from 'next/link'
 import { PushOptIn } from '@/components/PushOptIn'
-import { Trophy, Dumbbell, Apple, CheckCircle2, Clock, Sun, Moon, CalendarDays, Brain, ChevronRight, Target, ClipboardList, BookOpen, GraduationCap, ShieldCheck, CheckSquare, Video, Satellite } from 'lucide-react'
+import { Trophy, Dumbbell, Apple, CheckCircle2, Clock, CalendarDays, Brain, ChevronRight, Target, ClipboardList, BookOpen, GraduationCap, ShieldCheck, CheckSquare, Video, Satellite } from 'lucide-react'
 import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
 import { londonDateISO } from '@/lib/dates'
 import { VALID_TIMETABLE_YEAR_GROUPS, getSlotsForDate, timetableSlotToSession } from '@/lib/timetable/timetableUtils'
@@ -15,6 +15,8 @@ import { ChangePinPromptCard } from '@/components/account/ChangePinPromptCard'
 import { CompleteProfilePromptCard } from '@/components/account/CompleteProfilePromptCard'
 import { isProfileIncomplete } from '@/lib/profile/profileCompleteness'
 import { formatEventTime } from '@/lib/calendar/calendarUtils'
+import { PhaseDayCard } from '@/components/attendance/PhaseDayCard'
+import type { PhaseWindows } from '@/lib/attendance/phase'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,7 +64,8 @@ export default async function DashboardPage() {
 
   // Dates in Europe/London — the server runs in UTC, so toISOString() shows
   // yesterday's date between 00:00 and 01:00 BST
-  const today = londonDateISO()
+  const now = new Date()
+  const today = londonDateISO(now)
   const tomorrowDate = new Date(Date.now() + 86400000)
   const tomorrow = londonDateISO(tomorrowDate)
   const ago30 = londonDateISO(new Date(Date.now() - 30 * 86400000))
@@ -83,6 +86,8 @@ export default async function DashboardPage() {
     { data: chartScheduled },
     { data: openSurvey },
     { data: timetableSlots },
+    { data: academySettings },
+    { data: todayExcusal },
   ] = await Promise.all([
     supabase
       .from('nutrition_logs')
@@ -109,7 +114,7 @@ export default async function DashboardPage() {
       .order('opens_at'),
     supabase
       .from('daily_attendance')
-      .select('am_checked_at, pm_checked_at')
+      .select('am_checked_at, lunch_checked_at, pm_checked_at')
       .eq('student_id', user!.id)
       .eq('attendance_date', today)
       .maybeSingle(),
@@ -169,7 +174,24 @@ export default async function DashboardPage() {
           .select('id, day_of_week, start_time, end_time, title, location')
           .eq('year_group', profile.year_group)
       : Promise.resolve({ data: [] as never[] }),
+    supabase
+      .from('academy_settings')
+      .select('am_window_start, am_window_end, lunch_window_start, lunch_window_end, pm_window_start, pm_window_end')
+      .eq('id', 1)
+      .maybeSingle(),
+    supabase
+      .from('attendance_excusals')
+      .select('phases')
+      .eq('student_id', user!.id)
+      .eq('excused_date', today)
+      .maybeSingle(),
   ])
+
+  const attendanceWindows: PhaseWindows = {
+    am:    { start: academySettings?.am_window_start    ?? '07:30', end: academySettings?.am_window_end    ?? '10:30' },
+    lunch: { start: academySettings?.lunch_window_start ?? '11:00', end: academySettings?.lunch_window_end ?? '14:30' },
+    pm:    { start: academySettings?.pm_window_start    ?? '14:30', end: academySettings?.pm_window_end    ?? '17:30' },
+  }
 
   // Merge real timetable classes into today's/tomorrow's session lists —
   // attendance_sessions can still legitimately carry one-off entries
@@ -263,6 +285,14 @@ export default async function DashboardPage() {
       {/* ═══════════ INCOMPLETE PROFILE NUDGE ═══════════ */}
       {isProfileIncomplete(profile as any) && <CompleteProfilePromptCard />}
 
+      {/* ═══════════ TRI-PHASE ATTENDANCE ═══════════ */}
+      <PhaseDayCard
+        windows={attendanceWindows}
+        daily={todayDaily ?? null}
+        excusal={todayExcusal ?? null}
+        now={now}
+      />
+
       {/* ═══════════ TODAY'S ITINERARY — HERO ═══════════ */}
       <div className="rounded-2xl bg-gradient-to-br from-tranmere-blue to-blue-900 text-white p-5 shadow-lg space-y-4">
         <div className="flex items-center gap-2">
@@ -309,45 +339,6 @@ export default async function DashboardPage() {
             <span className="text-sm font-medium">No sessions today — day off</span>
           </p>
         )}
-
-        {/* AM / PM attendance strip */}
-        <div className="flex gap-2 pt-2 border-t border-white/15">
-          <div className="flex-1 flex items-center gap-2">
-            {todayDaily?.am_checked_at
-              ? <CheckCircle2 size={15} className="text-green-400 shrink-0" />
-              : <Sun size={15} className="text-blue-200 shrink-0" />}
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold uppercase tracking-wider text-blue-200">AM</p>
-              {todayDaily?.am_checked_at ? (
-                <p className="text-xs font-semibold">
-                  In {new Date(todayDaily.am_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
-                </p>
-              ) : (
-                <Link href="/attendance" className="text-xs font-semibold text-blue-100 hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg transition-colors">
-                  Check in →
-                </Link>
-              )}
-            </div>
-          </div>
-          <div className="w-px bg-white/15" />
-          <div className="flex-1 flex items-center gap-2">
-            {todayDaily?.pm_checked_at
-              ? <CheckCircle2 size={15} className="text-green-400 shrink-0" />
-              : <Moon size={15} className="text-blue-200 shrink-0" />}
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold uppercase tracking-wider text-blue-200">PM</p>
-              {todayDaily?.pm_checked_at ? (
-                <p className="text-xs font-semibold">
-                  Out {new Date(todayDaily.pm_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
-                </p>
-              ) : (
-                <Link href="/attendance" className="text-xs font-semibold text-blue-100 hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg transition-colors">
-                  Check out →
-                </Link>
-              )}
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* ═══════════ TOMORROW PREVIEW ═══════════ */}

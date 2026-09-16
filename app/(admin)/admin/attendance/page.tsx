@@ -1,17 +1,19 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { londonDateISO } from '@/lib/dates'
+import { londonDateISO, londonWallTimeToUTC } from '@/lib/dates'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
   ClipboardList, ChevronLeft, ChevronRight,
   CheckCircle2, AlertTriangle, UserX, Sun, Moon, ArrowRightCircle,
-  Printer, Download, Settings, UtensilsCrossed, FileText, CalendarOff,
+  Printer, Download, Settings, UtensilsCrossed, FileText,
 } from 'lucide-react'
 import { OverrideButton } from './OverrideButton'
 import { excusalCoversPhase } from '@/lib/attendance/excusal'
 import { ExcuseButton } from './ExcuseButton'
 import { ExcusedPill } from './ExcusedPill'
+import type { PhaseWindows } from '@/lib/attendance/phase'
+import { buildStudentDayStatus, applyStaffFilter, defaultStaffFilter, dayDots, type StudentDayStatus, type Phase } from '@/lib/attendance/dayStatus'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,17 +27,26 @@ function fmtTime(iso: string | null) {
   return iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' }) : null
 }
 
+const FILTERS: { key: 'all' | 'missing_am' | 'missing_lunch' | 'missing_pm' | 'flagged'; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'missing_am', label: 'Missing AM' },
+  { key: 'missing_lunch', label: 'Missing lunch' },
+  { key: 'missing_pm', label: 'Missing PM' },
+  { key: 'flagged', label: 'Flagged' },
+]
+
 export default async function AttendancePage({
   searchParams,
 }: {
-  searchParams: { date?: string }
+  searchParams: { date?: string; filter?: string }
 }) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const today = londonDateISO()
+  const now = new Date()
+  const today = londonDateISO(now)
   // Validate ?date= — an arbitrary string would give Invalid Date and make
   // shiftDate() throw on toISOString(). Fall back to today.
   const rawDate = searchParams.date
@@ -43,6 +54,23 @@ export default async function AttendancePage({
     ? rawDate
     : today
   const isToday = date === today
+
+  const { data: settings } = await admin
+    .from('academy_settings')
+    .select('am_window_start, am_window_end, lunch_window_start, lunch_window_end, pm_window_start, pm_window_end')
+    .eq('id', 1)
+    .maybeSingle()
+  const windows: PhaseWindows = {
+    am:    { start: settings?.am_window_start    ?? '07:30', end: settings?.am_window_end    ?? '10:30' },
+    lunch: { start: settings?.lunch_window_start ?? '11:00', end: settings?.lunch_window_end ?? '14:30' },
+    pm:    { start: settings?.pm_window_start    ?? '14:30', end: settings?.pm_window_end    ?? '17:30' },
+  }
+
+  // The time-of-day default only makes sense for today; a past/future date
+  // just starts on "all".
+  const requestedFilter = searchParams.filter
+  const validFilter = FILTERS.some(f => f.key === requestedFilter) ? (requestedFilter as typeof FILTERS[number]['key']) : null
+  const filter = validFilter ?? (isToday ? defaultStaffFilter(windows, now) : 'all')
 
   const dateLabel = new Date(date + 'T12:00:00').toLocaleDateString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -100,23 +128,47 @@ export default async function AttendancePage({
     }
   })
 
-  const amIn       = rows.filter(r => r.am).length
-  const lunchIn    = rows.filter(r => r.lunch).length
-  const pmOut      = rows.filter(r => r.pm).length
-  const amMissing    = rows.filter(r => !r.am && !excusalCoversPhase(r.excusal, 'am')).length
-  const lunchMissing = rows.filter(r => !r.lunch && !excusalCoversPhase(r.excusal, 'lunch')).length
-  const pmMissing    = rows.filter(r => !r.pm && !excusalCoversPhase(r.excusal, 'pm')).length
-  const flagged    = rows.filter(r => r.am_flagged || r.lunch_flagged || r.pm_flagged).length
-  const excused    = rows.filter(r => r.excusal).length
+  const amIn    = rows.filter(r => r.am).length
+  const lunchIn = rows.filter(r => r.lunch).length
+  const pmOut   = rows.filter(r => r.pm).length
+  const flagged = rows.filter(r => r.am_flagged || r.lunch_flagged || r.pm_flagged).length
 
-  // Sort: genuinely missing (not checked in AND not excused for that phase) first, then by name
-  const isGenuinelyMissing = (r: StudentRow) =>
-    (!r.am && !excusalCoversPhase(r.excusal, 'am')) ||
-    (!r.lunch && !excusalCoversPhase(r.excusal, 'lunch')) ||
-    (!r.pm && !excusalCoversPhase(r.excusal, 'pm'))
-  rows.sort((a, b) => {
-    const aMissing = isGenuinelyMissing(a)
-    const bMissing = isGenuinelyMissing(b)
+  // Window-open decisions need a real instant: "now" for today, but the end
+  // of the day for a past date (nothing is "not_yet" any more) and the start
+  // for a future one (nothing is "missing" yet) — otherwise a staff member
+  // looking at yesterday at 08:00 today would see yesterday's lunch/PM as
+  // "not yet", not "missing".
+  const statusInstant = date === today ? now
+    : date < today ? londonWallTimeToUTC(date, '23:59')
+    : londonWallTimeToUTC(date, '00:00')
+
+  const statusById = new Map<string, StudentDayStatus>(
+    rows.map(r => [r.id, buildStudentDayStatus(
+      r.id,
+      {
+        am:    { checkedAt: r.am,    isFlagged: r.am_flagged,    flagReason: r.am_reason },
+        lunch: { checkedAt: r.lunch, isFlagged: r.lunch_flagged, flagReason: r.lunch_reason },
+        pm:    { checkedAt: r.pm,    isFlagged: r.pm_flagged,    flagReason: r.pm_reason },
+      },
+      windows,
+      statusInstant,
+      (r.excusal?.phases ?? []) as Phase[],
+    )])
+  )
+  const statuses = rows.map(r => statusById.get(r.id)!)
+  const amMissing    = applyStaffFilter(statuses, 'missing_am').length
+  const lunchMissing = applyStaffFilter(statuses, 'missing_lunch').length
+  const pmMissing    = applyStaffFilter(statuses, 'missing_pm').length
+
+  const visibleIds = new Set(applyStaffFilter(statuses, filter).map(s => s.studentId))
+  const visibleRows = rows.filter(r => visibleIds.has(r.id))
+
+  // Sort: genuinely missing first, then by name
+  const isGenuinelyMissing = (id: string) =>
+    (['am', 'lunch', 'pm'] as const).some(p => statusById.get(id)!.phases[p].state === 'missing')
+  visibleRows.sort((a, b) => {
+    const aMissing = isGenuinelyMissing(a.id)
+    const bMissing = isGenuinelyMissing(b.id)
     if (aMissing !== bMissing) return aMissing ? -1 : 1
     return a.name.localeCompare(b.name)
   })
@@ -167,12 +219,29 @@ export default async function AttendancePage({
 
       {/* Summary tiles */}
       <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5">
-        <SummaryTile icon={<Sun size={14} />}             label="AM In"   value={`${amIn}/${rows.length}`} tone="blue" />
-        <SummaryTile icon={<UtensilsCrossed size={14} />} label="Lunch"   value={`${lunchIn}/${rows.length}`} tone="green" />
-        <SummaryTile icon={<Moon size={14} />}            label="PM Out"  value={`${pmOut}/${rows.length}`} tone="purple" />
-        <SummaryTile icon={<UserX size={14} />}           label="Missing" value={`${Math.max(amMissing, lunchMissing, pmMissing)}`} tone={Math.max(amMissing, lunchMissing, pmMissing) > 0 ? 'red' : 'gray'} />
-        <SummaryTile icon={<CalendarOff size={14} />}     label="Excused" value={`${excused}`} tone="gray" />
-        <SummaryTile icon={<AlertTriangle size={14} />}   label="Flagged" value={`${flagged}`} tone={flagged > 0 ? 'amber' : 'gray'} />
+        <SummaryTile icon={<Sun size={14} />}             label="AM checked"    value={`${amIn}/${rows.length}`} tone="blue" />
+        <SummaryTile icon={<UtensilsCrossed size={14} />} label="Lunch checked" value={`${lunchIn}/${rows.length}`} tone="green" />
+        <SummaryTile icon={<Moon size={14} />}            label="PM checked"    value={`${pmOut}/${rows.length}`} tone="purple" />
+        <SummaryTile icon={<UserX size={14} />}           label="Missing lunch" value={`${lunchMissing}`} tone={lunchMissing > 0 ? 'red' : 'gray'} />
+        <SummaryTile icon={<UserX size={14} />}           label="Missing PM"    value={`${pmMissing}`} tone={pmMissing > 0 ? 'red' : 'gray'} />
+        <SummaryTile icon={<AlertTriangle size={14} />}   label="Flagged"       value={`${flagged}`} tone={flagged > 0 ? 'amber' : 'gray'} />
+      </div>
+
+      {/* Filter chips */}
+      <div className="flex flex-wrap gap-1.5">
+        {FILTERS.map(f => (
+          <Link
+            key={f.key}
+            href={`/admin/attendance?date=${date}&filter=${f.key}`}
+            className={`text-xs font-semibold px-2.5 py-1.5 rounded-full transition-colors ${
+              filter === f.key
+                ? 'bg-tranmere-blue text-white'
+                : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'
+            }`}
+          >
+            {f.label}
+          </Link>
+        ))}
       </div>
 
       {/* Roster */}
@@ -184,33 +253,50 @@ export default async function AttendancePage({
           <span className="text-center">PM</span>
         </div>
 
-        {rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">No students enrolled</p>
+        {visibleRows.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">
+            {rows.length === 0 ? 'No students enrolled' : 'No one matches this filter'}
+          </p>
         ) : (
           <ul className="divide-y">
-            {rows.map(r => (
-              <li
-                key={r.id}
-                className="flex flex-col gap-2 sm:grid sm:grid-cols-[1fr_110px_110px_110px] sm:items-center px-4 py-2.5 sm:gap-3 text-sm hover:bg-gray-50/60 transition-colors"
-              >
-                <div className="flex items-center flex-wrap gap-2.5 min-w-0">
-                  {r.avatar_url
-                    // eslint-disable-next-line @next/next/no-img-element
-                    ? <img src={r.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
-                    : <div className="w-7 h-7 rounded-full bg-tranmere-blue/10 flex items-center justify-center text-tranmere-blue text-[10px] font-bold shrink-0">
-                        {r.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                      </div>
-                  }
-                  <span className="font-medium truncate">{r.name}</span>
-                  <ExcuseButton studentId={r.id} date={date} excusal={r.excusal ? { reason: r.excusal.reason, note: r.excusal.note } : null} />
-                </div>
-                <div className="grid grid-cols-3 gap-2 sm:contents">
-                  <PhaseCell time={r.am}    flagged={r.am_flagged}    reason={r.am_reason}    studentId={r.id} date={date} phase="am"    excusal={r.excusal} />
-                  <PhaseCell time={r.lunch} flagged={r.lunch_flagged} reason={r.lunch_reason} studentId={r.id} date={date} phase="lunch" excusal={r.excusal} />
-                  <PhaseCell time={r.pm}    flagged={r.pm_flagged}    reason={r.pm_reason}    studentId={r.id} date={date} phase="pm"    excusal={r.excusal} />
-                </div>
-              </li>
-            ))}
+            {visibleRows.map(r => {
+              const status = statusById.get(r.id)!
+              const filled = new Set(dayDots(status))
+              return (
+                <li
+                  key={r.id}
+                  className="flex flex-col gap-2 sm:grid sm:grid-cols-[1fr_110px_110px_110px] sm:items-center px-4 py-2.5 sm:gap-3 text-sm hover:bg-gray-50/60 transition-colors"
+                >
+                  <div className="flex items-center flex-wrap gap-2.5 min-w-0">
+                    <Link href={`/admin/students/${r.id}`} className="flex items-center gap-2.5 min-w-0 hover:underline">
+                      {r.avatar_url
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={r.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                        : <div className="w-7 h-7 rounded-full bg-tranmere-blue/10 flex items-center justify-center text-tranmere-blue text-[10px] font-bold shrink-0">
+                            {r.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </div>
+                      }
+                      <span className="font-medium truncate">{r.name}</span>
+                    </Link>
+                    <span className="flex items-center gap-1" aria-label="AM, lunch, PM status">
+                      {(['am', 'lunch', 'pm'] as const).map(p => (
+                        <span
+                          key={p}
+                          aria-label={`${p} ${filled.has(p) ? 'done' : 'not done'}`}
+                          className={`w-1.5 h-1.5 rounded-full ${filled.has(p) ? 'bg-green-500' : 'bg-gray-300'}`}
+                        />
+                      ))}
+                    </span>
+                    <ExcuseButton studentId={r.id} date={date} excusal={r.excusal ? { reason: r.excusal.reason, note: r.excusal.note } : null} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 sm:contents">
+                    <PhaseCell time={r.am}    flagged={r.am_flagged}    reason={r.am_reason}    studentId={r.id} date={date} phase="am"    excusal={r.excusal} />
+                    <PhaseCell time={r.lunch} flagged={r.lunch_flagged} reason={r.lunch_reason} studentId={r.id} date={date} phase="lunch" excusal={r.excusal} />
+                    <PhaseCell time={r.pm}    flagged={r.pm_flagged}    reason={r.pm_reason}    studentId={r.id} date={date} phase="pm"    excusal={r.excusal} />
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>

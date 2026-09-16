@@ -1,10 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { CalendarDays, CalendarOff, CheckCircle2, Clock, Sun, Moon, Utensils, type LucideIcon } from 'lucide-react'
-import type { AttendancePhase, PhaseWindows } from '@/lib/attendance/phase'
-import { EXCUSAL_LABELS, excusalCoversPhase, type ExcusalReason } from '@/lib/attendance/excusal'
-import { InAppCheckIn } from './InAppCheckIn'
+import { CalendarDays, CalendarOff, CheckCircle2, Clock } from 'lucide-react'
+import type { PhaseWindows } from '@/lib/attendance/phase'
+import { EXCUSAL_LABELS, type ExcusalReason } from '@/lib/attendance/excusal'
+import { PhaseDayCard } from '@/components/attendance/PhaseDayCard'
 
 export type PlannerSession = {
   id: string
@@ -32,11 +31,12 @@ type Props = {
   today:    string
   windows:  PhaseWindows
   /**
-   * Which window is open right now, decided SERVER-SIDE in Europe/London.
-   * The device clock is never consulted — a phone set to another timezone
-   * must not disagree with the academy clock about window state.
+   * The instant to decide window-open state against, computed SERVER-SIDE
+   * (Europe/London) and passed down to PhaseDayCard. The device clock is
+   * never consulted — a phone set to another timezone must not disagree
+   * with the academy clock about window state.
    */
-  serverPhase: AttendancePhase | null
+  now: Date
   /** Today's excusal for this student, if staff have logged one. Null when none. */
   excusal: PlannerExcusal
 }
@@ -47,93 +47,14 @@ const TYPE_CHIP: Record<string, string> = {
   classroom: 'bg-purple-100 text-purple-700',
 }
 
-const PHASE_META: Record<AttendancePhase, { icon: LucideIcon; title: string }> = {
-  am:    { icon: Sun,      title: 'Morning' },
-  lunch: { icon: Utensils, title: 'Lunch' },
-  pm:    { icon: Moon,     title: 'End of day' },
-}
-
 function fmt(iso: string) {
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })
 }
-function fmtTime(t: string) {
-  return t.substring(0, 5)
-}
 
-function PhaseCard({
-  phase, checkedAt, window, isOpen, excusal,
-}: {
-  phase: AttendancePhase
-  checkedAt: string | null
-  window: { start: string; end: string }
-  isOpen: boolean
-  excusal: PlannerExcusal
-}) {
-  const { icon: Icon, title } = PHASE_META[phase]
-
-  if (checkedAt) {
-    return (
-      <div className="flex-1 rounded-2xl border border-green-200 bg-green-50/60 p-4 space-y-1">
-        <div className="flex items-center gap-2">
-          <CheckCircle2 size={18} className="text-green-600" />
-          <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">{title}</p>
-        </div>
-        <p className="text-sm font-bold text-green-800">Checked in</p>
-        <p className="text-[11px] text-green-700/80">at {fmt(checkedAt)}</p>
-      </div>
-    )
-  }
-
-  // A real check-in always wins above — this only applies when there is none.
-  if (excusalCoversPhase(excusal, phase)) {
-    return (
-      <div className="flex-1 rounded-2xl border border-blue-200 bg-blue-50/60 p-4 space-y-1">
-        <div className="flex items-center gap-2">
-          <CalendarOff size={18} className="text-blue-600" />
-          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">{title}</p>
-        </div>
-        <p className="text-sm font-bold text-blue-800">Excused</p>
-        <p className="text-[11px] text-blue-700/80">{EXCUSAL_LABELS[excusal!.reason]}</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className={`flex-1 rounded-2xl border p-4 space-y-1 ${isOpen ? 'border-tranmere-blue bg-tranmere-blue/5' : 'border-border bg-white'}`}>
-      <div className="flex items-center gap-2">
-        <Icon size={18} className={isOpen ? 'text-tranmere-blue' : 'text-muted-foreground'} />
-        <p className={`text-xs font-semibold uppercase tracking-wide ${isOpen ? 'text-tranmere-blue' : 'text-muted-foreground'}`}>
-          {title}
-        </p>
-      </div>
-      <p className={`text-sm font-bold ${isOpen ? 'text-tranmere-blue' : 'text-muted-foreground'}`}>
-        {isOpen ? 'Tap board or check in below' : 'Not yet'}
-      </p>
-      <p className="text-[11px] text-muted-foreground">
-        Window: {fmtTime(window.start)}–{fmtTime(window.end)}
-      </p>
-    </div>
-  )
-}
-
-export function StudentPlanner({ sessions, daily, today, windows, serverPhase, excusal }: Props) {
-  const now = new Date() // only used for absolute session timestamps below — never for window state
-
-  const [checkedAt, setCheckedAt] = useState<Record<AttendancePhase, string | null>>({
-    am:    daily?.am_checked_at ?? null,
-    lunch: daily?.lunch_checked_at ?? null,
-    pm:    daily?.pm_checked_at ?? null,
-  })
-
-  // Window-open state comes from the server (Europe/London), not the device clock.
-  const activePhase: AttendancePhase | null =
-    serverPhase && !checkedAt[serverPhase] && !excusalCoversPhase(excusal, serverPhase) ? serverPhase : null
-
+export function StudentPlanner({ sessions, daily, today, windows, now, excusal }: Props) {
   const dayLabel = new Date(today + 'T12:00:00').toLocaleDateString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long',
   })
-
-  const phases: AttendancePhase[] = ['am', 'lunch', 'pm']
 
   return (
     <div className="space-y-5 max-w-md mx-auto pb-10">
@@ -162,27 +83,8 @@ export function StudentPlanner({ sessions, daily, today, windows, serverPhase, e
         </div>
       )}
 
-      {/* AM / Lunch / PM status cards */}
-      <div className="flex gap-3">
-        {phases.map(p => (
-          <PhaseCard
-            key={p}
-            phase={p}
-            checkedAt={checkedAt[p]}
-            window={windows[p]}
-            isOpen={serverPhase === p}
-            excusal={excusal}
-          />
-        ))}
-      </div>
-
-      {/* In-app check-in — shown when a window is open and not yet checked in */}
-      {activePhase && (
-        <InAppCheckIn
-          phase={activePhase}
-          onSuccess={ts => setCheckedAt(prev => ({ ...prev, [activePhase]: ts }))}
-        />
-      )}
+      {/* Tri-phase status + check-in — the same component used on the dashboard */}
+      <PhaseDayCard windows={windows} daily={daily} excusal={excusal} now={now} />
 
       {/* Today's lessons */}
       {sessions.length > 0 && (

@@ -4,6 +4,9 @@ import {
   missingStudents,
   dayDots,
   isExpectedToday,
+  describeCardState,
+  defaultStaffFilter,
+  applyStaffFilter,
   type StudentDayStatus,
   type PhaseRecord,
 } from '@/lib/attendance/dayStatus'
@@ -143,6 +146,103 @@ describe('dayDots', () => {
       },
     }
     expect(dayDots(status)).toEqual(['am'])
+  })
+})
+
+describe('describeCardState', () => {
+  it('is "weekend" on a non-weekday, even with an open phase', () => {
+    const saturday = new Date('2026-09-19T12:00:00Z')
+    const status = buildStudentDayStatus('s', {}, WINDOWS, saturday, [])
+    expect(describeCardState(status, WINDOWS, saturday)).toEqual({ kind: 'weekend' })
+  })
+
+  it('is "cta" for the currently open, missing phase', () => {
+    const status = buildStudentDayStatus('s', {}, WINDOWS, DURING_LUNCH, [])
+    expect(describeCardState(status, WINDOWS, DURING_LUNCH)).toEqual({ kind: 'cta', phase: 'lunch' })
+  })
+
+  it('is "upcoming" the next window when nothing is open (a gap, or before the day starts)', () => {
+    const status = buildStudentDayStatus('s', {}, WINDOWS, BEFORE_AM, [])
+    expect(describeCardState(status, WINDOWS, BEFORE_AM)).toEqual({ kind: 'upcoming', phase: 'am', startsAt: '07:30' })
+  })
+
+  it('is "upcoming" the next phase once the open one is already handled', () => {
+    const status = buildStudentDayStatus(
+      's',
+      { lunch: { checkedAt: '2026-09-16T11:30:00Z', isFlagged: false, flagReason: null } },
+      WINDOWS,
+      DURING_LUNCH,
+      [],
+    )
+    expect(describeCardState(status, WINDOWS, DURING_LUNCH)).toEqual({ kind: 'upcoming', phase: 'pm', startsAt: '14:30' })
+  })
+
+  it('is "done" once every phase is checked or excused', () => {
+    const status = buildStudentDayStatus(
+      's',
+      {
+        am: { checkedAt: '2026-09-16T08:00:00Z', isFlagged: false, flagReason: null },
+        lunch: { checkedAt: '2026-09-16T12:00:00Z', isFlagged: false, flagReason: null },
+      },
+      WINDOWS,
+      DURING_LUNCH,
+      ['pm'],
+    )
+    expect(describeCardState(status, WINDOWS, DURING_LUNCH)).toEqual({ kind: 'done' })
+  })
+
+  it('is "closed" once the day is over and something is still missing', () => {
+    const afterPm = new Date('2026-09-16T17:00:00Z') // 18:00 London, past pm.end (17:30)
+    const status = buildStudentDayStatus('s', {}, WINDOWS, afterPm, [])
+    expect(describeCardState(status, WINDOWS, afterPm)).toEqual({ kind: 'closed' })
+  })
+})
+
+describe('defaultStaffFilter', () => {
+  it('defaults to missing_am before the lunch window opens', () => {
+    expect(defaultStaffFilter(WINDOWS, BEFORE_AM)).toBe('missing_am')
+  })
+
+  it('defaults to missing_lunch once the lunch window has opened', () => {
+    expect(defaultStaffFilter(WINDOWS, DURING_LUNCH)).toBe('missing_lunch')
+  })
+
+  it('defaults to missing_pm once the pm window has opened', () => {
+    const afterPmOpen = new Date('2026-09-16T14:00:00Z') // 15:00 London, past pm.start (14:30)
+    expect(defaultStaffFilter(WINDOWS, afterPmOpen)).toBe('missing_pm')
+  })
+})
+
+describe('applyStaffFilter', () => {
+  function fixture(id: string, phaseStates: Record<'am' | 'lunch' | 'pm', StudentDayStatus['phases']['am']['state']>): StudentDayStatus {
+    return {
+      studentId: id,
+      phases: {
+        am: { state: phaseStates.am, at: null, flag: null },
+        lunch: { state: phaseStates.lunch, at: null, flag: null },
+        pm: { state: phaseStates.pm, at: null, flag: null },
+      },
+    }
+  }
+
+  const roster = [
+    fixture('missing-lunch-kid', { am: 'checked', lunch: 'missing', pm: 'not_yet' }),
+    fixture('flagged-kid', { am: 'flagged', lunch: 'not_yet', pm: 'not_yet' }),
+    fixture('all-good-kid', { am: 'checked', lunch: 'checked', pm: 'checked' }),
+  ]
+
+  it('"all" returns the whole roster unfiltered', () => {
+    expect(applyStaffFilter(roster, 'all')).toHaveLength(3)
+  })
+
+  it('"missing_lunch" returns only the student missing lunch', () => {
+    const result = applyStaffFilter(roster, 'missing_lunch')
+    expect(result.map(s => s.studentId)).toEqual(['missing-lunch-kid'])
+  })
+
+  it('"flagged" returns only the flagged student', () => {
+    const result = applyStaffFilter(roster, 'flagged')
+    expect(result.map(s => s.studentId)).toEqual(['flagged-kid'])
   })
 })
 
