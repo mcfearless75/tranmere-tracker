@@ -77,6 +77,59 @@ export async function createGroupChat(name: string, memberIds: string[]): Promis
   return room.id
 }
 
+/** Rename an existing group chat. Staff-only, custom groups only — matches
+ *  the create-time validation in createGroupChat (60-char cap). */
+export async function renameGroupChat(roomId: string, name: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+
+  const admin = createAdminClient()
+  const { data: me } = await admin.from('users').select('role').eq('id', user.id).maybeSingle()
+  if (!me || !['admin', 'coach', 'teacher'].includes(me.role)) return { ok: false, error: 'Staff only' }
+
+  const { isGroup } = await groupRoomState(admin, roomId)
+  if (!isGroup) return { ok: false, error: 'Not a group chat' }
+
+  const trimmedName = name.trim()
+  if (!trimmedName) return { ok: false, error: 'Group needs a name' }
+  if (trimmedName.length > 60) return { ok: false, error: 'Group name must be 60 characters or fewer' }
+
+  const { error } = await admin.from('chat_rooms').update({ name: trimmedName }).eq('id', roomId)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/chat')
+  revalidatePath(`/chat/${roomId}`)
+  revalidatePath('/admin/chat-groups')
+  return { ok: true }
+}
+
+/** Add the current staff member to a group chat, whether or not they were
+ *  ever added before. The admin membership page (by design — see
+ *  056_chat_member_only_visibility.sql) lists every custom group chat
+ *  regardless of the viewing staff member's own membership, so there was no
+ *  way to actually open one you'd never been added to. Idempotent. */
+export async function joinGroupChat(roomId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+
+  const admin = createAdminClient()
+  const { data: me } = await admin.from('users').select('role').eq('id', user.id).maybeSingle()
+  if (!me || !['admin', 'coach', 'teacher'].includes(me.role)) return { ok: false, error: 'Staff only' }
+
+  const { isGroup } = await groupRoomState(admin, roomId)
+  if (!isGroup) return { ok: false, error: 'Not a group chat' }
+
+  const { error } = await admin
+    .from('chat_members')
+    .upsert({ room_id: roomId, user_id: user.id, role: 'member' }, { onConflict: 'room_id,user_id', ignoreDuplicates: true })
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/chat')
+  return { ok: true }
+}
+
 /** Add one or more people to an existing group chat. Staff-only. Parents are
  *  never added; on an auto-synced room, only non-student targets go through
  *  (the room's student roster is trigger-managed, not manually editable). */

@@ -2,13 +2,18 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { ChatGroupCard } from '@/app/(admin)/admin/chat-groups/ChatGroupCard'
 
 const refreshMock = jest.fn()
-jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh: refreshMock }) }))
+const pushMock = jest.fn()
+jest.mock('next/navigation', () => ({ useRouter: () => ({ refresh: refreshMock, push: pushMock }) }))
 
 const addGroupMembersMock = jest.fn()
 const removeGroupMemberMock = jest.fn()
+const renameGroupChatMock = jest.fn()
+const joinGroupChatMock = jest.fn()
 jest.mock('@/app/chat/actions', () => ({
   addGroupMembers: (...args: any[]) => addGroupMembersMock(...args),
   removeGroupMember: (...args: any[]) => removeGroupMemberMock(...args),
+  renameGroupChat: (...args: any[]) => renameGroupChatMock(...args),
+  joinGroupChat: (...args: any[]) => joinGroupChatMock(...args),
 }))
 
 const members = [
@@ -20,8 +25,11 @@ const addable = [{ id: 'c2', name: 'Troy Lockyer', role: 'coach' }]
 describe('ChatGroupCard', () => {
   beforeEach(() => {
     refreshMock.mockClear()
+    pushMock.mockClear()
     addGroupMembersMock.mockReset()
     removeGroupMemberMock.mockReset()
+    renameGroupChatMock.mockReset()
+    joinGroupChatMock.mockReset()
   })
 
   it('renders collapsed by default, showing the member count', () => {
@@ -80,5 +88,33 @@ describe('ChatGroupCard', () => {
     fireEvent.click(screen.getByText(/^Add$/))
     expect(screen.getByText('Pick at least one person')).toBeInTheDocument()
     expect(addGroupMembersMock).not.toHaveBeenCalled()
+  })
+
+  it('joins the room then navigates to it when "Open chat" is clicked', async () => {
+    joinGroupChatMock.mockResolvedValue({ ok: true })
+    render(<ChatGroupCard roomId="r1" roomName="Year 2 Students" syncYearGroup={2} members={members} addable={addable} />)
+    fireEvent.click(screen.getByLabelText('Open chat'))
+    await waitFor(() => expect(joinGroupChatMock).toHaveBeenCalledWith('r1'))
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/chat/r1'))
+  })
+
+  it('renames the group and refreshes on success', async () => {
+    renameGroupChatMock.mockResolvedValue({ ok: true })
+    render(<ChatGroupCard roomId="r1" roomName="Year 2 Students" syncYearGroup={2} members={members} addable={addable} />)
+    fireEvent.click(screen.getByLabelText('Rename group'))
+    const input = screen.getByPlaceholderText('Group name')
+    fireEvent.change(input, { target: { value: 'Year 2 Squad' } })
+    fireEvent.click(screen.getByLabelText('Save name'))
+    await waitFor(() => expect(renameGroupChatMock).toHaveBeenCalledWith('r1', 'Year 2 Squad'))
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled())
+  })
+
+  it('shows an error instead of saving an empty rename', () => {
+    render(<ChatGroupCard roomId="r1" roomName="Year 2 Students" syncYearGroup={2} members={members} addable={addable} />)
+    fireEvent.click(screen.getByLabelText('Rename group'))
+    fireEvent.change(screen.getByPlaceholderText('Group name'), { target: { value: '   ' } })
+    fireEvent.click(screen.getByLabelText('Save name'))
+    expect(screen.getByText('Give the group a name')).toBeInTheDocument()
+    expect(renameGroupChatMock).not.toHaveBeenCalled()
   })
 })
