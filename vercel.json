@@ -5,8 +5,16 @@
       "schedule": "30 9 * * 1-5"
     },
     {
+      "path": "/api/cron/attendance-report-am",
+      "schedule": "30 10 * * 1-5"
+    },
+    {
       "path": "/api/cron/attendance-report-pm",
       "schedule": "30 16 * * 1-5"
+    },
+    {
+      "path": "/api/cron/attendance-report-pm",
+      "schedule": "30 17 * * 1-5"
     },
     {
       "path": "/api/cron/refresh-reports",
@@ -23,6 +31,18 @@
     {
       "path": "/api/cron/check-in-nudges",
       "schedule": "0 15 * * 1-5"
+    },
+    {
+      "path": "/api/cron/check-in-nudges",
+      "schedule": "0 9 * * 1-5"
+    },
+    {
+      "path": "/api/cron/check-in-nudges",
+      "schedule": "0 13 * * 1-5"
+    },
+    {
+      "path": "/api/cron/check-in-nudges",
+      "schedule": "0 16 * * 1-5"
     },
     {
       "path": "/api/cron/lunch-ending",
@@ -47,6 +67,10 @@
     {
       "path": "/api/cron/wellbeing-survey",
       "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/cron/wellbeing-survey",
+      "schedule": "0 10 * * 1"
     },
     {
       "path": "/api/cron/schedule-reviews",

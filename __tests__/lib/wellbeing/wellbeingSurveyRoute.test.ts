@@ -75,7 +75,7 @@ describe('GET /api/cron/wellbeing-survey', () => {
   it('sends on an ISO week that the old fortnightly gate would have skipped', async () => {
     // 2024-01-08 is ISO week 2 (even) — the old isFortnightlyWeek gate returned
     // false for this date and the route would have skipped entirely.
-    jest.setSystemTime(new Date('2024-01-08T09:00:00Z'))
+    jest.setSystemTime(new Date('2024-01-08T10:00:00Z'))
     setupAdmin()
     const res = await GET(makeRequest())
     const json = await res.json()
@@ -84,7 +84,7 @@ describe('GET /api/cron/wellbeing-survey', () => {
 
   it('sends on an ISO week the old gate would also have fired on (regression guard)', async () => {
     // 2024-01-01 is ISO week 1 (odd) — old gate would have fired here too.
-    jest.setSystemTime(new Date('2024-01-01T09:00:00Z'))
+    jest.setSystemTime(new Date('2024-01-01T10:00:00Z'))
     setupAdmin()
     const res = await GET(makeRequest())
     const json = await res.json()
@@ -92,7 +92,7 @@ describe('GET /api/cron/wellbeing-survey', () => {
   })
 
   it('skips a student who already has an open survey this week', async () => {
-    jest.setSystemTime(new Date('2024-01-08T09:00:00Z'))
+    jest.setSystemTime(new Date('2024-01-08T10:00:00Z'))
     const { insertMock } = setupAdmin({ existingOpenStudentIds: ['student-1'] })
     const res = await GET(makeRequest())
     const json = await res.json()
@@ -106,7 +106,7 @@ describe('GET /api/cron/wellbeing-survey', () => {
   })
 
   it('notifies via notifyUsers with the weekly copy, not the old per-subscription push', async () => {
-    jest.setSystemTime(new Date('2024-01-08T09:00:00Z'))
+    jest.setSystemTime(new Date('2024-01-08T10:00:00Z'))
     setupAdmin()
     await GET(makeRequest())
     expect(notifyUsersMock).toHaveBeenCalledTimes(1)
@@ -120,5 +120,17 @@ describe('GET /api/cron/wellbeing-survey', () => {
     )
     expect(notification.body).toMatch(/weekly/i)
     expect(notification.body).not.toMatch(/fortnightly/i)
+  })
+
+  // DST dual-schedule guard: vercel.json now fires this route twice on
+  // Monday (9:00 and 10:00 UTC, covering BST and GMT respectively) — only
+  // the invocation that lands on 10am London time should do anything.
+  it('skips the invocation that is not actually 10am London time', async () => {
+    jest.setSystemTime(new Date('2024-01-08T09:00:00Z')) // 9am London GMT — the other invocation
+    setupAdmin()
+    const res = await GET(makeRequest())
+    const json = await res.json()
+    expect(json).toEqual({ skipped: true, reason: 'not 10am London time', londonHour: 9 })
+    expect(notifyUsersMock).not.toHaveBeenCalled()
   })
 })

@@ -29,6 +29,7 @@ function setupAdmin(opts: {
   dailyRows?: { student_id: string; am_checked_at: string | null }[]
   excusals?: { student_id: string; phases: string[] }[]
   alreadySwept?: boolean
+  sweepUpsertRows?: { id: string }[]
 } = {}) {
   const {
     students = [{ id: 'student-1', name: 'Alice' }, { id: 'student-2', name: 'Bob' }],
@@ -40,7 +41,13 @@ function setupAdmin(opts: {
   const academySelectMock = jest.fn(() => ({
     eq: () => ({ maybeSingle: () => Promise.resolve({ data: { am_window_end: '09:00:00' } }) }),
   }))
-  const sweepLogInsertMock = jest.fn(() => Promise.resolve({ error: null }))
+  // ignoreDuplicates upsert: a winning call returns the row, a losing/
+  // repeat call (already swept, or racing) returns zero rows and no error —
+  // opts.sweepUpsertRows lets a specific test simulate the losing case.
+  const sweepLogUpsertSelectMock = jest.fn(() =>
+    Promise.resolve({ data: opts.sweepUpsertRows ?? [{ id: 'sweep-new' }], error: null })
+  )
+  const sweepLogUpsertMock = jest.fn(() => ({ select: sweepLogUpsertSelectMock }))
 
   adminFromMock.mockImplementation((table: string) => {
     if (table === 'academy_settings') return { select: academySelectMock }
@@ -51,7 +58,7 @@ function setupAdmin(opts: {
             eq: () => ({ maybeSingle: () => Promise.resolve({ data: alreadySwept ? { id: 'sweep-1' } : null }) }),
           }),
         }),
-        insert: sweepLogInsertMock,
+        upsert: sweepLogUpsertMock,
       }
     }
     if (table === 'users') {
@@ -76,7 +83,7 @@ function setupAdmin(opts: {
     throw new Error(`Unexpected table: ${table}`)
   })
 
-  return { academySelectMock, sweepLogInsertMock }
+  return { academySelectMock, sweepLogUpsertMock }
 }
 
 function makeRequest(): Request {
@@ -143,5 +150,37 @@ describe('GET /api/cron/missed-checkin-sweep', () => {
 
     expect(json.am).toEqual({ sent: 0, missing: 0 })
     expect(sendPushNotificationMock).not.toHaveBeenCalled()
+  })
+
+  // Regression coverage: a plain .insert() into attendance_sweep_log was
+  // generating ~38 duplicate-key Postgres errors/day (confirmed via the
+  // Supabase log explorer, 2026-09-15) — the same already-swept phase
+  // retried, and failed, on every 15-min tick for the rest of the day.
+  // upsert(ignoreDuplicates) makes a losing/repeat call return zero rows
+  // with no error, which is what a losing race actually looks like now.
+  it('skips silently (no duplicate push) when the sweep-log upsert reports it lost the race', async () => {
+    jest.setSystemTime(new Date('2026-09-10T08:30:00Z'))
+    setupAdmin({
+      dailyRows: [{ student_id: 'student-1', am_checked_at: null }],
+      sweepUpsertRows: [],
+    })
+
+    const res = await GET(makeRequest())
+    const json = await res.json()
+
+    expect(json.am).toEqual({ skipped: true, reason: 'already swept (lost race)' })
+    expect(sendPushNotificationMock).not.toHaveBeenCalled()
+  })
+
+  it('upserts into attendance_sweep_log rather than a plain insert', async () => {
+    jest.setSystemTime(new Date('2026-09-10T08:30:00Z'))
+    const { sweepLogUpsertMock } = setupAdmin({ dailyRows: [] })
+
+    await GET(makeRequest())
+
+    expect(sweepLogUpsertMock).toHaveBeenCalledWith(
+      { attendance_date: '2026-09-10', phase: 'am', missing_count: 2 },
+      { onConflict: 'attendance_date,phase', ignoreDuplicates: true },
+    )
   })
 })
