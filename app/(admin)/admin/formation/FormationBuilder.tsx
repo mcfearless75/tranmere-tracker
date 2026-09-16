@@ -13,11 +13,12 @@ type Student = { id: string; name: string; avatar_url: string | null; year_group
 type Match = { id: string; match_date: string; kick_off_time?: string | null; opponent: string; status: string }
 type Placement = { slotId: string; playerId: string; playerName: string; avatarUrl?: string | null }
 
-export function FormationBuilder({ students, matches, selectedMatchId, initialSquad }: {
+export function FormationBuilder({ students, matches, selectedMatchId, initialSquad, existingSquadPlayerIds }: {
   students: Student[]
   matches: Match[]
   selectedMatchId: string | null
   initialSquad: { player_id: string; position: string | null }[]
+  existingSquadPlayerIds: string[]
 }) {
   const router = useRouter()
   const [formation, setFormation] = useState<string>('4-4-2')
@@ -84,15 +85,47 @@ export function FormationBuilder({ students, matches, selectedMatchId, initialSq
     setSaving(true)
     setMsg(null)
     const supabase = createClient()
-    for (const p of placements) {
+
+    // A placement for a player already in match_squads (any status) just
+    // gets its position updated. A placement for a player with no row yet
+    // needs one created here — the builder lets a coach place any active
+    // student, not just those CreateMatchForm already invited — and that
+    // player needs the same squad-invite push a normal invite sends, or
+    // they'd never find out they were added.
+    const existingIds = new Set(existingSquadPlayerIds)
+    const toUpdate = placements.filter(p => existingIds.has(p.playerId))
+    const toAdd = placements.filter(p => !existingIds.has(p.playerId))
+
+    for (const p of toUpdate) {
       await supabase
         .from('match_squads')
         .update({ position: p.slotId })
         .eq('match_id', matchId)
         .eq('player_id', p.playerId)
     }
+
+    let notified = 0
+    if (toAdd.length > 0) {
+      const rows = toAdd.map(p => ({ match_id: matchId, player_id: p.playerId, position: p.slotId, status: 'invited' }))
+      const { error } = await supabase.from('match_squads').insert(rows)
+      if (!error) {
+        const match = matches.find(m => m.id === matchId)
+        notified = toAdd.length
+        void fetch('/api/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: 'New match published',
+            body: `You've been added to the squad${match ? ` vs ${match.opponent} on ${new Date(match.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}${match.kick_off_time ? ` — kick-off ${formatEventTime(match.kick_off_time)}` : ''}` : ''}`,
+            targetUserIds: toAdd.map(p => p.playerId),
+            url: '/matches',
+          }),
+        }).catch(() => { /* notification failure must not break the save */ })
+      }
+    }
+
     setSaving(false)
-    setMsg(`Saved ${placements.length} position(s)`)
+    setMsg(`Saved ${placements.length} position(s)${notified ? ` — ${notified} new player(s) notified` : ''}`)
     setTimeout(() => setMsg(null), 3000)
     router.refresh()
   }
