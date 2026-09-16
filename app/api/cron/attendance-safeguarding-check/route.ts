@@ -36,7 +36,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushNotification } from '@/lib/webpush'
 import { verifyCronSecret } from '@/lib/security'
-import { londonDateISO, londonWallTimeToUTC } from '@/lib/dates'
+import { londonDateISO } from '@/lib/dates'
 import { toMinutes, londonMinutes } from '@/lib/attendance/phase'
 import { excusalCoversPhase } from '@/lib/attendance/excusal'
 import { NextResponse } from 'next/server'
@@ -112,16 +112,21 @@ export async function GET(request: Request) {
 
     if (!existingNudge) {
       // Race-guard identical in spirit to attendance_sweep_log: only the
-      // invocation that wins this unique-constrained insert sends the nudge.
-      const { error: nudgeLogError } = await admin
+      // invocation that wins this upsert sends the nudge. ignoreDuplicates
+      // means a losing/repeat invocation gets zero rows back and no
+      // Postgres-level error either — a plain .insert() here was generating
+      // ~23 duplicate-key errors/day (the upfront select above isn't the
+      // real guard on its own; two overlapping ticks can both pass it).
+      const { data: nudgeLogRows, error: nudgeLogError } = await admin
         .from('attendance_safeguarding_nudge_log')
-        .insert({ attendance_date: today, notified_count: atRisk.length })
+        .upsert({ attendance_date: today, notified_count: atRisk.length }, { onConflict: 'attendance_date', ignoreDuplicates: true })
+        .select('attendance_date')
 
-      if (nudgeLogError && nudgeLogError.code !== '23505') {
-        console.error('[attendance-safeguarding-check] nudge log insert failed:', nudgeLogError)
+      if (nudgeLogError) {
+        console.error('[attendance-safeguarding-check] nudge log upsert failed:', nudgeLogError)
       }
 
-      if (!nudgeLogError) {
+      if (nudgeLogRows?.length) {
         // Stage 1 is a "please go take a look" nudge — coaches/teachers are
         // the ones on site who can actually go find the student, so this
         // goes to the wider staff group (same targeting as
@@ -152,62 +157,40 @@ export async function GET(request: Request) {
     return NextResponse.json(result)
   }
 
-  const todayStartUTC = londonWallTimeToUTC(today, '00:00').toISOString()
-
   const raised: { id: string; name: string }[] = []
 
   for (const student of atRisk) {
-    // Cheap upfront skip for the common (non-racing) case — never raise a
-    // second case for the same student on the same day, however many times
-    // this sweep re-runs. This alone is NOT the real guard: two overlapping
-    // invocations can both pass it before either has inserted. The unique
-    // index (safeguarding_concerns_one_auto_per_day, migration 060) is the
-    // actual race guard — checked via the insert's error below.
-    const { data: already } = await admin
-      .from('safeguarding_concerns')
-      .select('id')
-      .eq('student_id', student.id)
-      .eq('category', 'attendance')
-      .gte('created_at', todayStartUTC)
-      .limit(1)
-      .maybeSingle()
-    if (already) continue
-
     const row = rowByStudent.get(student.id)
     const amTime = row?.am_checked_at
       ? new Date(row.am_checked_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })
       : 'this morning'
     const nowTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })
 
-    const { data: concern, error: insertError } = await admin
-      .from('safeguarding_concerns')
-      .insert({
-        student_id: student.id,
-        raised_by: null, // system-raised, no admin user
-        category: 'attendance',
-        raised_date: today,
-        severity: 'high',
-        description:
-          `Auto-detected by the attendance system: ${student.name ?? 'This student'} checked in at ${amTime} ` +
-          `but has not checked in for lunch or the afternoon session as of ${nowTime}. ` +
-          `Please locate the student and confirm their welfare.`,
-        status: 'open',
-      })
-      .select('id')
-      .single()
+    // raise_attendance_safeguarding_concern() (migration 070) does the
+    // check-and-insert atomically server-side: INSERT ... ON CONFLICT
+    // (student_id, category, raised_date) WHERE raised_by IS NULL DO
+    // NOTHING. safeguarding_concerns_one_auto_per_day is a PARTIAL unique
+    // index, which PostgREST's upsert can't target (no WHERE support), so
+    // a plain select-then-insert was the only REST-level option — and it
+    // was generating ~490 duplicate-key Postgres errors/day (the same
+    // already-cased student retried on every 15-min tick for the rest of
+    // the day). This function returns zero rows, with no error at any
+    // layer, when a case already exists for this student/day.
+    const { data: rpcRows, error: rpcError } = await admin.rpc('raise_attendance_safeguarding_concern', {
+      p_student_id: student.id,
+      p_raised_date: today,
+      p_description:
+        `Auto-detected by the attendance system: ${student.name ?? 'This student'} checked in at ${amTime} ` +
+        `but has not checked in for lunch or the afternoon session as of ${nowTime}. ` +
+        `Please locate the student and confirm their welfare.`,
+    })
 
-    // A unique-index violation here means another overlapping invocation
-    // already won the race for this student/day — exactly like the upfront
-    // check above, just race-proof. Any other error is unexpected and
-    // logged, but never thrown: a safeguarding cron must never crash out
-    // partway and skip the remaining at-risk students in this batch.
-    if (insertError) {
-      if (insertError.code !== '23505') {
-        console.error('[attendance-safeguarding-check] insert failed:', insertError)
-      }
+    if (rpcError) {
+      console.error('[attendance-safeguarding-check] raise_attendance_safeguarding_concern failed:', rpcError)
       continue
     }
 
+    const concern = rpcRows?.[0]
     if (concern) raised.push({ id: concern.id, name: student.name ?? 'Unknown' })
   }
 

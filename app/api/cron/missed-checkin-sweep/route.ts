@@ -103,19 +103,23 @@ export async function GET(request: Request) {
     // The upfront `existing` check above only protects against two
     // invocations that DON'T overlap — if two cron ticks (or an old and a
     // freshly-deployed instance) run this concurrently, both can pass that
-    // check before either has inserted, race the UNIQUE(attendance_date,
-    // phase) constraint below, and — because this insert's result used to
-    // go unchecked — the LOSING invocation would still fall through and
-    // send its own duplicate staff notification even though only the
-    // winner's row was actually saved. Checking the error here makes the
-    // insert itself the real gate: only the invocation that actually wins
-    // the unique constraint may proceed to notify.
-    const { error: sweepLogError } = await admin.from('attendance_sweep_log').insert({
-      attendance_date: today,
-      phase,
-      missing_count: missing.length,
-    })
+    // check before either has inserted. Upsert with ignoreDuplicates makes
+    // this insert itself the real gate — only the invocation that actually
+    // wins the unique constraint gets a row back and may proceed to notify
+    // — while a losing/repeat invocation gets zero rows and no Postgres-
+    // level error either. A plain .insert() here was generating ~38
+    // duplicate-key errors/day (the same already-swept phase retried on
+    // every 15-min tick for the rest of the day).
+    const { data: sweepLogRows, error: sweepLogError } = await admin
+      .from('attendance_sweep_log')
+      .upsert({ attendance_date: today, phase, missing_count: missing.length }, { onConflict: 'attendance_date,phase', ignoreDuplicates: true })
+      .select('id')
     if (sweepLogError) {
+      console.error('[missed-checkin-sweep] sweep log upsert failed:', sweepLogError)
+      results[phase] = { skipped: true, reason: 'sweep log error' }
+      continue
+    }
+    if (!sweepLogRows?.length) {
       results[phase] = { skipped: true, reason: 'already swept (lost race)' }
       continue
     }

@@ -1,7 +1,18 @@
+// Vercel Cron: Monday 10:00 London — opens this week's wellbeing survey.
+//
+// Vercel cron schedules are fixed UTC — there is no DST-aware option. The UK's
+// offset from UTC is always a whole number of hours, so the MINUTE never
+// shifts — only the hour does. vercel.json fires this route twice on Monday,
+// at 9:00 and 10:00 UTC (one covers BST, the other GMT); this handler checks
+// the real London hour via Intl and only sends when it's actually 10, so
+// exactly one of the two invocations does anything on any given Monday —
+// self-correcting across the clock change with no manual schedule edit. Same
+// pattern as lunch-ending and calendar-reminders.
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyUsers } from '@/lib/notifications/notifyStaff'
 import { verifyCronSecret } from '@/lib/security'
+import { londonHour } from '@/lib/dates'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +22,9 @@ export async function GET(request: NextRequest) {
   }
 
   const now = new Date()
+  if (londonHour(now) !== 10) {
+    return NextResponse.json({ skipped: true, reason: 'not 10am London time', londonHour: londonHour(now) })
+  }
 
   const admin = createAdminClient()
 

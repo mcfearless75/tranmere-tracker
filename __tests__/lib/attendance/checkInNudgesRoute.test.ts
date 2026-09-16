@@ -114,4 +114,19 @@ describe('GET /api/cron/check-in-nudges', () => {
     expect(json).toEqual({ sent: 0, phase: 'am' })
     expect(notifyUsersMock).not.toHaveBeenCalled()
   })
+
+  // DST dual-schedule guard: vercel.json now fires this route at both the
+  // BST and GMT UTC time for each of 9am/1pm/4pm London — without an
+  // exact-hour guard, both would run year-round (phase was derived from an
+  // hour RANGE, not the intended exact time), so during BST the GMT-side
+  // entry would land an hour later, still inside the same phase window, and
+  // send a redundant second nudge every day.
+  it('skips an invocation that lands outside the three intended London hours', async () => {
+    jest.setSystemTime(new Date('2026-09-10T09:00:00Z')) // 10:00 London BST — the GMT-side entry, an hour off today
+    setupAdmin()
+    const res = await GET(makeRequest())
+    const json = await res.json()
+    expect(json).toEqual({ skipped: true, reason: 'not an intended London hour', londonHour: 10 })
+    expect(notifyUsersMock).not.toHaveBeenCalled()
+  })
 })
