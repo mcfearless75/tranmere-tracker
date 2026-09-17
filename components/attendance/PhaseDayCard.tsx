@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, MapPin } from 'lucide-react'
+import { CheckCircle2, MapPin, X } from 'lucide-react'
 import { PHASE_LABELS, type AttendancePhase, type PhaseWindows } from '@/lib/attendance/phase'
 import { buildStudentDayStatus, describeCardState, dayDots, type Phase } from '@/lib/attendance/dayStatus'
 import { InAppCheckIn } from '@/app/(student)/attendance/InAppCheckIn'
@@ -123,10 +123,25 @@ export function PhaseDayCard({ windows, daily, excusal, now }: Props) {
   // tracked in dayStatus, this is purely a this-device,
   // not-yet-server-confirmed fact, refreshed after every sweep below.
   const [pendingPhases, setPendingPhases] = useState<Set<Phase>>(new Set())
-  // The most recent definitive (4xx) rejection a sweep found for some
-  // phase's queued item — surfaced to that phase's InAppCheckIn if it
-  // happens to be the one currently showing as the CTA.
-  const [sweepRejection, setSweepRejection] = useState<{ phase: Phase; message: string } | null>(null)
+  // Definitive (4xx) rejections a sweep found for a queued item, keyed by
+  // phase — every phase's rejection is kept (not just the latest across the
+  // sweep), and shown regardless of which phase is the current CTA. A
+  // dropped phase's window has, by definition, already closed — it can
+  // never be the phase currently offered as the CTA — so gating this on
+  // "matches the current CTA phase" would make the message unreachable for
+  // exactly the cross-phase case this queue exists to handle. Dismissible;
+  // otherwise sticks until the tab closes (there's no later event that
+  // would naturally clear it — the phase is done, one way or another).
+  const [sweepRejections, setSweepRejections] = useState<Partial<Record<Phase, string>>>({})
+
+  const dismissRejection = useCallback((phase: Phase) => {
+    setSweepRejections(prev => {
+      if (!(phase in prev)) return prev
+      const next = { ...prev }
+      delete next[phase]
+      return next
+    })
+  }, [])
 
   const refreshPending = useCallback(() => {
     setPendingPhases(new Set(getQueuedPhasesForToday()))
@@ -156,10 +171,13 @@ export function PhaseDayCard({ windows, daily, excusal, now }: Props) {
     )
     if (results.length > 0) {
       const updates: Partial<Record<Phase, string>> = {}
-      let rejection: { phase: Phase; message: string } | null = null
+      // Every 'dropped' result this sweep produced, not just the last one —
+      // two different phases can each get a definitive rejection in the
+      // same sweep (e.g. AM and lunch both queued, both now out of window).
+      const rejections: Partial<Record<Phase, string>> = {}
       for (const result of results) {
         if (result.outcome === 'sent') updates[result.phase] = new Date().toISOString()
-        else if (result.outcome === 'dropped') rejection = { phase: result.phase, message: result.error }
+        else if (result.outcome === 'dropped') rejections[result.phase] = result.error
         // 'kept' (still offline / 5xx) and 'stale' (previous London day,
         // pruned) need no further action here.
       }
@@ -167,7 +185,9 @@ export function PhaseDayCard({ windows, daily, excusal, now }: Props) {
         setCheckedAt(prev => ({ ...prev, ...updates }))
         routerRef.current.refresh()
       }
-      if (rejection) setSweepRejection(rejection)
+      if (Object.keys(rejections).length > 0) {
+        setSweepRejections(prev => ({ ...prev, ...rejections }))
+      }
     }
     refreshPending()
   }, [refreshPending])
@@ -235,6 +255,31 @@ export function PhaseDayCard({ windows, daily, excusal, now }: Props) {
         })}
       </div>
 
+      {/*
+        Sweep-driven rejection messages — shown regardless of which phase is
+        the current CTA. A phase whose queued check-in just got a
+        definitive 4xx (e.g. its window closed before the retry landed) has,
+        by definition, already moved past being the active CTA, so this
+        can't be routed through InAppCheckIn's own error state — it would
+        never be seen.
+      */}
+      {(['am', 'lunch', 'pm'] as const)
+        .filter(phase => sweepRejections[phase])
+        .map(phase => (
+          <div key={phase} className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-2.5 text-left">
+            <p className="flex-1 text-xs text-red-700">
+              <span className="font-semibold">{CHIP_LABEL[phase]}:</span> {sweepRejections[phase]}
+            </p>
+            <button
+              onClick={() => dismissRejection(phase)}
+              aria-label={`Dismiss ${CHIP_LABEL[phase]} check-in error`}
+              className="text-red-400 hover:text-red-600 shrink-0"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+
       {prompt.kind === 'weekend' && (
         <p className="text-sm text-muted-foreground">No check-in today.</p>
       )}
@@ -273,7 +318,6 @@ export function PhaseDayCard({ windows, daily, excusal, now }: Props) {
               onSuccess={ts => setCheckedAt(prev => ({ ...prev, [prompt.phase]: ts }))}
               onQueueChange={refreshPending}
               isQueued={pendingPhases.has(prompt.phase)}
-              queueError={sweepRejection?.phase === prompt.phase ? sweepRejection.message : null}
             />
           )}
         </div>

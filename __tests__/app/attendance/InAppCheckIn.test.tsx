@@ -40,10 +40,13 @@ afterEach(() => {
 describe('InAppCheckIn — enqueueing a fresh failed tap', () => {
   // Note: the actual RETRY (sending a queued item) is owned by
   // PhaseDayCard's sweep now, not by InAppCheckIn — see
-  // __tests__/components/attendance/PhaseDayCard.test.tsx for that. This
-  // file only covers InAppCheckIn's own responsibilities: enqueue-on-
-  // failure for a fresh tap, and reflecting the isQueued/queueError props
-  // PhaseDayCard passes down.
+  // __tests__/components/attendance/PhaseDayCard.test.tsx for that
+  // (including the sweep's rejection-message banner, which replaced an
+  // earlier queueError prop on this component — a sweep-dropped phase's
+  // window has already closed, so it's often not the phase currently
+  // mounted here at all). This file only covers InAppCheckIn's own
+  // responsibilities: enqueue-on-failure for a fresh tap, and reflecting
+  // the isQueued prop PhaseDayCard passes down.
 
   it('queues the attempt on a thrown fetch (network down) and switches to the "saved on this phone" message', async () => {
     fetchMock.mockRejectedValue(new TypeError('Failed to fetch'))
@@ -104,7 +107,7 @@ describe('InAppCheckIn — enqueueing a fresh failed tap', () => {
   })
 })
 
-describe('InAppCheckIn — reflecting the isQueued / queueError props from PhaseDayCard\'s sweep', () => {
+describe('InAppCheckIn — reflecting the isQueued prop from PhaseDayCard\'s sweep', () => {
   it('shows the "saved on this phone" message when isQueued is true on mount, without attempting any network call itself', async () => {
     render(<InAppCheckIn phase="am" onSuccess={jest.fn()} isQueued />)
 
@@ -118,11 +121,5 @@ describe('InAppCheckIn — reflecting the isQueued / queueError props from Phase
 
     rerender(<InAppCheckIn phase="am" onSuccess={jest.fn()} isQueued={false} />)
     expect(await screen.findByText('Morning Check-in')).toBeInTheDocument()
-  })
-
-  it('shows a queueError from a sweep-driven 4xx rejection', async () => {
-    render(<InAppCheckIn phase="am" onSuccess={jest.fn()} queueError="Morning check-in isn't open right now" />)
-
-    expect(await screen.findByText("Morning check-in isn't open right now")).toBeInTheDocument()
   })
 })

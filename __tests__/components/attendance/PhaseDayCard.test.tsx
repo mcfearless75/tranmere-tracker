@@ -231,5 +231,75 @@ describe('PhaseDayCard', () => {
       expect(fetchMock).toHaveBeenCalledTimes(2)
       expect(localStorage.getItem('checkin_queue_v1')).toBe('[]')
     })
+
+    it('shows the server\'s rejection message for a queued item dropped on a DIFFERENT, no-longer-displayed phase (AM, dropped after lunch has become the CTA) — not routed through the current CTA at all', async () => {
+      localStorage.setItem(
+        'checkin_queue_v1',
+        JSON.stringify([
+          { phase: 'am', lat: 1, lng: 2, accuracy: 10, recordedAt: '2026-09-16T08:00:00Z', londonDate: todayLondonDate() },
+        ]),
+      )
+      const fetchMock = jest.fn().mockResolvedValue({
+        status: 422,
+        json: async () => ({ ok: false, error: 'Morning check-in isn\'t open right now — it runs 07:30 to 10:30.' }),
+      })
+      global.fetch = fetchMock as unknown as typeof fetch
+      setPermissions(queryPermission('granted'))
+      render(<PhaseDayCard windows={WINDOWS} daily={null} excusal={null} now={DURING_LUNCH} />)
+
+      // Lunch remains the only CTA the student sees at any point — the
+      // dropped phase (AM) never becomes the current CTA, since its
+      // window has already closed. The old (broken) implementation only
+      // forwarded a rejection when it matched the current CTA phase, so
+      // this is exactly the case that used to fail silently.
+      expect(await screen.findByText('Check in — lunch')).toBeInTheDocument()
+
+      await waitFor(() => expect(screen.getByText(/Morning check-in isn't open right now/)).toBeInTheDocument())
+      expect(screen.getByText('AM:', { exact: false })).toBeInTheDocument()
+      // Dropped, not stuck "pending" forever, and no data loss beyond the
+      // (already-expired) window itself.
+      expect(JSON.parse(localStorage.getItem('checkin_queue_v1') ?? '[]')).toHaveLength(0)
+      expect(screen.queryByLabelText('AM pending')).not.toBeInTheDocument()
+    })
+
+    it('lets the student dismiss a sweep rejection banner', async () => {
+      localStorage.setItem(
+        'checkin_queue_v1',
+        JSON.stringify([
+          { phase: 'am', lat: 1, lng: 2, accuracy: 10, recordedAt: '2026-09-16T08:00:00Z', londonDate: todayLondonDate() },
+        ]),
+      )
+      global.fetch = jest.fn().mockResolvedValue({
+        status: 422,
+        json: async () => ({ ok: false, error: 'Window closed' }),
+      }) as unknown as typeof fetch
+      setPermissions(queryPermission('granted'))
+      render(<PhaseDayCard windows={WINDOWS} daily={null} excusal={null} now={DURING_LUNCH} />)
+
+      const dismiss = await screen.findByLabelText('Dismiss AM check-in error')
+      fireEvent.click(dismiss)
+      expect(screen.queryByText('Window closed')).not.toBeInTheDocument()
+    })
+
+    it('keeps both phases\' rejection messages when two different queued phases are each dropped in the same sweep', async () => {
+      localStorage.setItem(
+        'checkin_queue_v1',
+        JSON.stringify([
+          { phase: 'am', lat: 1, lng: 2, accuracy: 10, recordedAt: '2026-09-16T08:00:00Z', londonDate: todayLondonDate() },
+          { phase: 'pm', lat: 1, lng: 2, accuracy: 10, recordedAt: '2026-09-16T09:00:00Z', londonDate: todayLondonDate() },
+        ]),
+      )
+      const fetchMock = jest.fn(async (_url: string, init?: { body?: string }) => {
+        const body = JSON.parse((init?.body as string) ?? '{}')
+        const message = body.phase === 'am' ? 'AM window closed' : 'PM window closed'
+        return { status: 422, json: async () => ({ ok: false, error: message }) }
+      })
+      global.fetch = fetchMock as unknown as typeof fetch
+      setPermissions(queryPermission('granted'))
+      render(<PhaseDayCard windows={WINDOWS} daily={null} excusal={null} now={DURING_LUNCH} />)
+
+      await waitFor(() => expect(screen.getByText('AM window closed')).toBeInTheDocument())
+      expect(screen.getByText('PM window closed')).toBeInTheDocument()
+    })
   })
 })

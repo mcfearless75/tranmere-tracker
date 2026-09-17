@@ -26,14 +26,16 @@ interface Props {
    * `flushAllQueued` doc comment for why that has to live one level up),
    * not derived locally, so this component always reflects the sweep's
    * latest result rather than a one-off mount-time read.
+   *
+   * There is deliberately no equivalent "queueError" prop: a sweep-driven
+   * 4xx rejection is shown by PhaseDayCard itself (a small banner, visible
+   * regardless of which phase is the current CTA), not routed through this
+   * component — the whole point of a cross-phase sweep is that the
+   * rejected phase's window has already closed, so it's frequently NOT the
+   * one with an InAppCheckIn mounted at all by the time the rejection
+   * happens.
    */
   isQueued?: boolean
-  /**
-   * A message from PhaseDayCard's sweep: this phase's queued attempt was
-   * just definitively rejected (4xx — e.g. the window has since closed).
-   * Shown once, the same way a fresh tap's own rejection is.
-   */
-  queueError?: string | null
 }
 
 const PHASE_UI: Record<AttendancePhase, { icon: LucideIcon; button: string; success: string }> = {
@@ -42,7 +44,7 @@ const PHASE_UI: Record<AttendancePhase, { icon: LucideIcon; button: string; succ
   pm:    { icon: Moon,     button: 'End of Day Check-out',  success: 'End of day recorded' },
 }
 
-export function InAppCheckIn({ phase, onSuccess, onQueueChange, isQueued = false, queueError = null }: Props) {
+export function InAppCheckIn({ phase, onSuccess, onQueueChange, isQueued = false }: Props) {
   const [state, setState] = useState<ScanState>('idle')
   const [error, setError] = useState('')
   const geoRef = useRef<GeoFix | null>(null)
@@ -78,17 +80,6 @@ export function InAppCheckIn({ phase, onSuccess, onQueueChange, isQueued = false
       return prev
     })
   }, [isQueued])
-
-  // A sweep just definitively rejected (4xx) this phase's queued attempt —
-  // surface it the same way a fresh tap's own rejection would be. Only
-  // reacts to the message actually changing, so a local "Try again" dismiss
-  // (which doesn't change PhaseDayCard's prop) sticks until a genuinely new
-  // rejection comes in.
-  useEffect(() => {
-    if (!queueError) return
-    setError(queueError)
-    setState('error')
-  }, [queueError])
 
   const handleCheckIn = useCallback(async () => {
     setState('locating')
