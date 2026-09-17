@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { Check } from 'lucide-react'
 import type { Phase } from '@/lib/attendance/dayStatus'
 import { postManualOverride } from '@/lib/attendance/attendanceClient'
 import { MissingRowActions } from '@/components/attendance/MissingRowActions'
@@ -62,11 +63,8 @@ export function MissingBatchList({
       }
     }
     setBusy(false)
-    if (failed.length) {
-      setError(`Could not mark: ${failed.join(', ')}`)
-    } else {
-      setSelected({})
-    }
+    if (failed.length) setError(`Could not mark: ${failed.join(', ')}`)
+    else setSelected({})
     startTransition(() => router.refresh())
   }
 
@@ -74,36 +72,50 @@ export function MissingBatchList({
 
   return (
     <div className="space-y-3">
-      <div className="sticky top-0 z-10 flex items-center justify-between gap-2 flex-wrap rounded-xl bg-blue-50 border border-tranmere-blue/20 px-3 py-2">
-        <label className="flex items-center gap-2 text-sm font-semibold text-tranmere-blue">
-          <input type="checkbox" checked={allOn} onChange={toggleAll} className="h-5 w-5 accent-tranmere-blue" />
-          Select all ({students.length})
-        </label>
-        <button
-          type="button"
-          onClick={markSelectedPresent}
-          disabled={busy || pending || selectedIds.length === 0}
-          className="text-sm font-semibold px-3 py-2 rounded-lg bg-tranmere-blue text-white disabled:opacity-40"
-        >
-          {busy || pending ? 'Marking…' : selectedIds.length ? `Mark ${selectedIds.length} present` : 'Mark present'}
-        </button>
+      <div className="rounded-xl bg-tranmere-blue text-white p-3 space-y-2">
+        <p className="text-sm font-bold">Batch select</p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={toggleAll}
+            className="flex-1 rounded-lg bg-white text-tranmere-blue text-sm font-semibold py-2.5"
+          >
+            {allOn ? 'Clear all' : `Select all (${students.length})`}
+          </button>
+          <button
+            type="button"
+            onClick={markSelectedPresent}
+            disabled={busy || pending || selectedIds.length === 0}
+            className="flex-1 rounded-lg bg-white/15 border border-white/40 text-sm font-semibold py-2.5 disabled:opacity-40"
+          >
+            {busy || pending ? 'Marking…' : selectedIds.length ? `Mark ${selectedIds.length} present` : 'Mark present'}
+          </button>
+        </div>
       </div>
       {error && <p role="alert" className="text-[11px] text-red-600">{error}</p>}
       <ul className="divide-y">
-        {students.map(s => (
-          <li key={s.studentId} className="flex items-center justify-between gap-2 py-2 text-sm flex-wrap">
-            <label className="flex items-center gap-3 min-w-0 font-medium flex-1">
-              <input
-                type="checkbox"
-                checked={!!selected[s.studentId]}
-                onChange={() => toggle(s.studentId)}
-                className="h-5 w-5 shrink-0 accent-tranmere-blue"
-              />
-              <span className="truncate">{s.name}</span>
-            </label>
-            <MissingRowActions studentId={s.studentId} studentName={s.name} date={date} phase={phase} />
-          </li>
-        ))}
+        {students.map(s => {
+          const on = !!selected[s.studentId]
+          return (
+            <li key={s.studentId} className="py-2 space-y-2">
+              <button
+                type="button"
+                onClick={() => toggle(s.studentId)}
+                className="flex w-full items-center gap-3 text-left"
+              >
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-2 ${
+                  on ? 'border-tranmere-blue bg-tranmere-blue text-white' : 'border-gray-300 bg-white'
+                }`}>
+                  {on && <Check size={16} strokeWidth={3} />}
+                </span>
+                <span className="font-medium text-sm">{s.name}</span>
+              </button>
+              <div className="pl-10">
+                <MissingRowActions studentId={s.studentId} studentName={s.name} date={date} phase={phase} />
+              </div>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )
