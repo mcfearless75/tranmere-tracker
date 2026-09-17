@@ -1,10 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { CheckCircle2, MapPin } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { CheckCircle2, MapPin, X } from 'lucide-react'
 import { PHASE_LABELS, type AttendancePhase, type PhaseWindows } from '@/lib/attendance/phase'
 import { buildStudentDayStatus, describeCardState, dayDots, type Phase } from '@/lib/attendance/dayStatus'
 import { InAppCheckIn } from '@/app/(student)/attendance/InAppCheckIn'
+import { flushAllQueued, getQueuedPhasesForToday } from '@/lib/attendance/checkInQueue'
+import { submitTapCheckIn, toSubmitResult } from '@/lib/attendance/submitTapCheckIn'
 
 export type PhaseDayCardExcusal = { phases: string[] } | null
 
@@ -103,6 +106,7 @@ function LocationDeniedSteps() {
  * mechanics themselves (delegated to InAppCheckIn).
  */
 export function PhaseDayCard({ windows, daily, excusal, now }: Props) {
+  const router = useRouter()
   const [checkedAt, setCheckedAt] = useState<Record<Phase, string | null>>({
     am: daily?.am_checked_at ?? null,
     lunch: daily?.lunch_checked_at ?? null,
@@ -113,6 +117,86 @@ export function PhaseDayCard({ windows, daily, excusal, now }: Props) {
   // must never mount before we know whether the explainer should show first.
   const [geoStep, setGeoStep] = useState<'checking' | 'explainer' | 'ready'>('checking')
   const [geoDenied, setGeoDenied] = useState(false)
+  // Phases with a check-in saved locally (InAppCheckIn's offline queue) but
+  // not yet confirmed by the server — a distinct "pending" segment state,
+  // separate from dayStatus's own checked/missing/excused/etc. Rather than
+  // tracked in dayStatus, this is purely a this-device,
+  // not-yet-server-confirmed fact, refreshed after every sweep below.
+  const [pendingPhases, setPendingPhases] = useState<Set<Phase>>(new Set())
+  // Definitive (4xx) rejections a sweep found for a queued item, keyed by
+  // phase — every phase's rejection is kept (not just the latest across the
+  // sweep), and shown regardless of which phase is the current CTA. A
+  // dropped phase's window has, by definition, already closed — it can
+  // never be the phase currently offered as the CTA — so gating this on
+  // "matches the current CTA phase" would make the message unreachable for
+  // exactly the cross-phase case this queue exists to handle. Dismissible;
+  // otherwise sticks until the tab closes (there's no later event that
+  // would naturally clear it — the phase is done, one way or another).
+  const [sweepRejections, setSweepRejections] = useState<Partial<Record<Phase, string>>>({})
+
+  const dismissRejection = useCallback((phase: Phase) => {
+    setSweepRejections(prev => {
+      if (!(phase in prev)) return prev
+      const next = { ...prev }
+      delete next[phase]
+      return next
+    })
+  }, [])
+
+  const refreshPending = useCallback(() => {
+    setPendingPhases(new Set(getQueuedPhasesForToday()))
+  }, [])
+
+  // next/navigation's useRouter() is stable in real Next.js, but nothing
+  // guarantees every consumer/mock is — keep the latest in a ref so `sweep`
+  // (and therefore the mount/online effect below) only ever depends on
+  // `refreshPending`, which never changes identity. Without this, an
+  // unstable `router` reference would recreate `sweep` on every render and
+  // re-fire the effect (and its `sweep()` call) far more often than once
+  // per mount/online-event — i.e. duplicate POSTs to the same endpoint.
+  const routerRef = useRef(router)
+  useEffect(() => { routerRef.current = router }, [router])
+
+  // The offline-queue retry SWEEP. This is deliberately at this level, not
+  // inside InAppCheckIn: PhaseDayCard only ever mounts ONE InAppCheckIn at a
+  // time (for whichever phase is currently open), so a sweep scoped to that
+  // single component would permanently orphan a queued item for any OTHER
+  // phase once the day moves past its window and that component unmounts.
+  // PhaseDayCard is the one place that can see (and route the result of)
+  // every queued phase at once — see checkInQueue.ts's `flushAllQueued` doc
+  // comment for the full reasoning.
+  const sweep = useCallback(async () => {
+    const results = await flushAllQueued(item =>
+      submitTapCheckIn(item.phase, { lat: item.lat, lng: item.lng, accuracy: item.accuracy }, false).then(toSubmitResult),
+    )
+    if (results.length > 0) {
+      const updates: Partial<Record<Phase, string>> = {}
+      // Every 'dropped' result this sweep produced, not just the last one —
+      // two different phases can each get a definitive rejection in the
+      // same sweep (e.g. AM and lunch both queued, both now out of window).
+      const rejections: Partial<Record<Phase, string>> = {}
+      for (const result of results) {
+        if (result.outcome === 'sent') updates[result.phase] = new Date().toISOString()
+        else if (result.outcome === 'dropped') rejections[result.phase] = result.error
+        // 'kept' (still offline / 5xx) and 'stale' (previous London day,
+        // pruned) need no further action here.
+      }
+      if (Object.keys(updates).length > 0) {
+        setCheckedAt(prev => ({ ...prev, ...updates }))
+        routerRef.current.refresh()
+      }
+      if (Object.keys(rejections).length > 0) {
+        setSweepRejections(prev => ({ ...prev, ...rejections }))
+      }
+    }
+    refreshPending()
+  }, [refreshPending])
+
+  useEffect(() => {
+    sweep()
+    window.addEventListener('online', sweep)
+    return () => window.removeEventListener('online', sweep)
+  }, [sweep])
 
   const excusedPhases = (excusal?.phases ?? []) as Phase[]
   const status = buildStudentDayStatus(
@@ -154,16 +238,47 @@ export function PhaseDayCard({ windows, daily, excusal, now }: Props) {
 
       {/* Three equal segments */}
       <div className="flex gap-1.5">
-        {(['am', 'lunch', 'pm'] as const).map(phase => (
-          <div key={phase} className="flex-1 space-y-1 text-center">
-            <div
-              aria-label={`${CHIP_LABEL[phase]} ${filled.has(phase) ? 'done' : 'not done'}`}
-              className={`h-1.5 rounded-full ${filled.has(phase) ? 'bg-tranmere-blue' : 'bg-gray-200'}`}
-            />
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{CHIP_LABEL[phase]}</p>
+        {(['am', 'lunch', 'pm'] as const).map(phase => {
+          const isFilled = filled.has(phase)
+          // A real tap always wins over a merely-queued one still waiting
+          // to send — once the server confirms it, `filled` takes over.
+          const isPending = !isFilled && pendingPhases.has(phase)
+          return (
+            <div key={phase} className="flex-1 space-y-1 text-center">
+              <div
+                aria-label={`${CHIP_LABEL[phase]} ${isFilled ? 'done' : isPending ? 'pending' : 'not done'}`}
+                className={`h-1.5 rounded-full ${isFilled ? 'bg-tranmere-blue' : isPending ? 'bg-amber-400' : 'bg-gray-200'}`}
+              />
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{CHIP_LABEL[phase]}</p>
+            </div>
+          )
+        })}
+      </div>
+
+      {/*
+        Sweep-driven rejection messages — shown regardless of which phase is
+        the current CTA. A phase whose queued check-in just got a
+        definitive 4xx (e.g. its window closed before the retry landed) has,
+        by definition, already moved past being the active CTA, so this
+        can't be routed through InAppCheckIn's own error state — it would
+        never be seen.
+      */}
+      {(['am', 'lunch', 'pm'] as const)
+        .filter(phase => sweepRejections[phase])
+        .map(phase => (
+          <div key={phase} className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-2.5 text-left">
+            <p className="flex-1 text-xs text-red-700">
+              <span className="font-semibold">{CHIP_LABEL[phase]}:</span> {sweepRejections[phase]}
+            </p>
+            <button
+              onClick={() => dismissRejection(phase)}
+              aria-label={`Dismiss ${CHIP_LABEL[phase]} check-in error`}
+              className="text-red-400 hover:text-red-600 shrink-0"
+            >
+              <X size={14} />
+            </button>
           </div>
         ))}
-      </div>
 
       {prompt.kind === 'weekend' && (
         <p className="text-sm text-muted-foreground">No check-in today.</p>
@@ -201,6 +316,8 @@ export function PhaseDayCard({ windows, daily, excusal, now }: Props) {
             <InAppCheckIn
               phase={prompt.phase as AttendancePhase}
               onSuccess={ts => setCheckedAt(prev => ({ ...prev, [prompt.phase]: ts }))}
+              onQueueChange={refreshPending}
+              isQueued={pendingPhases.has(prompt.phase)}
             />
           )}
         </div>

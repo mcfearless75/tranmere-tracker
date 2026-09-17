@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
   ClipboardList, Heart, ClipboardCheck, ShieldAlert,
-  Satellite, CalendarDays, Calendar, Users, CheckCircle2, ChevronRight,
+  Satellite, CalendarDays, Calendar, Users, CheckCircle2, ChevronRight, Activity,
 } from 'lucide-react'
 import { londonDateISO } from '@/lib/dates'
 import { PHASE_LABELS, type PhaseWindows } from '@/lib/attendance/phase'
@@ -12,6 +12,7 @@ import { buildStudentDayStatus, missingStudents, exceptionsWindowPhase, type Pha
 import { mondayOf, shiftDate } from '@/lib/attendance/weeklyReport'
 import { buildWellbeingFlags } from '@/lib/wellbeing/wellbeingUtils'
 import { buildReviewsDue } from '@/lib/staff/exceptionsHome'
+import { MissingRowActions } from '@/components/attendance/MissingRowActions'
 
 export const dynamic = 'force-dynamic'
 
@@ -134,7 +135,13 @@ export default async function StaffHomePage() {
       <ExceptionBlock
         icon={<ClipboardList size={15} className="text-tranmere-blue" />}
         title={windowPhase ? `Missing this window — ${PHASE_LABELS[windowPhase]}` : 'Missing this window'}
-        items={missing.slice(0, MISSING_CAP).map(m => ({ key: m.studentId, label: m.name }))}
+        items={missing.slice(0, MISSING_CAP).map(m => ({
+          key: m.studentId,
+          label: m.name,
+          actions: windowPhase
+            ? <MissingRowActions studentId={m.studentId} studentName={m.name} date={today} phase={windowPhase} />
+            : undefined,
+        }))}
         total={missing.length}
         cap={MISSING_CAP}
         viewAllHref="/admin/attendance"
@@ -184,12 +191,13 @@ export default async function StaffHomePage() {
       />
 
       {/* Footer — the sitemap; the top is exceptions */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 pt-2">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-2">
         <ToolLink href="/admin/gps-dashboard" icon={<Satellite size={18} />} label="GPS" />
         <ToolLink href="/admin/attendance/calendar" icon={<CalendarDays size={18} />} label="Calendar" />
         <ToolLink href="/admin/match-events" icon={<Calendar size={18} />} label="Matches" />
         <ToolLink href="/admin/wellbeing" icon={<Heart size={18} />} label="Wellbeing" />
         <ToolLink href="/admin/students" icon={<Users size={18} />} label="Students" />
+        <ToolLink href="/admin/attendance/health" icon={<Activity size={18} />} label="Check-in health" />
       </div>
     </div>
   )
@@ -200,7 +208,7 @@ function ExceptionBlock({
 }: {
   icon: React.ReactNode
   title: string
-  items: { key: string; label: string; meta?: string; warn?: boolean }[]
+  items: { key: string; label: string; meta?: string; warn?: boolean; actions?: React.ReactNode }[]
   total: number
   cap?: number
   viewAllHref: string
@@ -220,13 +228,16 @@ function ExceptionBlock({
       ) : (
         <ul className="divide-y">
           {items.map(item => (
-            <li key={item.key} className="flex items-center justify-between py-1.5 text-sm">
+            <li key={item.key} className="flex items-center justify-between gap-2 py-1.5 text-sm flex-wrap">
               <span className="font-medium truncate">{item.label}</span>
-              {item.meta && (
-                <span className={`text-xs shrink-0 ml-2 ${item.warn ? 'text-red-600 font-semibold' : 'text-muted-foreground'}`}>
-                  {item.meta}
-                </span>
-              )}
+              <span className="flex items-center gap-2 shrink-0 ml-auto">
+                {item.meta && (
+                  <span className={`text-xs ${item.warn ? 'text-red-600 font-semibold' : 'text-muted-foreground'}`}>
+                    {item.meta}
+                  </span>
+                )}
+                {item.actions}
+              </span>
             </li>
           ))}
         </ul>

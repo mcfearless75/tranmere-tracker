@@ -6,6 +6,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { postManualOverride } from '@/lib/attendance/attendanceClient'
 
 export function OverrideButton({
   studentId,
@@ -31,12 +32,7 @@ export function OverrideButton({
     setBusy(true)
     setError(false)
     try {
-      const res = await fetch('/api/attendance/manual-override', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId, date, phase, action }),
-      })
-      if (!res.ok) throw new Error()
+      await postManualOverride({ studentId, date, phase, action })
       startTransition(() => router.refresh())
     } catch {
       setError(true)
