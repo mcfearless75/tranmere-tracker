@@ -73,31 +73,31 @@ export function MissingBatchList({
   if (students.length === 0) return null
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-          <input type="checkbox" checked={allOn} onChange={toggleAll} className="h-4 w-4 accent-tranmere-blue" />
+    <div className="space-y-3">
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-2 flex-wrap rounded-xl bg-blue-50 border border-tranmere-blue/20 px-3 py-2">
+        <label className="flex items-center gap-2 text-sm font-semibold text-tranmere-blue">
+          <input type="checkbox" checked={allOn} onChange={toggleAll} className="h-5 w-5 accent-tranmere-blue" />
           Select all ({students.length})
         </label>
         <button
           type="button"
           onClick={markSelectedPresent}
           disabled={busy || pending || selectedIds.length === 0}
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-tranmere-blue text-white disabled:opacity-40"
+          className="text-sm font-semibold px-3 py-2 rounded-lg bg-tranmere-blue text-white disabled:opacity-40"
         >
-          {busy || pending ? 'Marking…' : `Mark ${selectedIds.length || ''} present`.trim()}
+          {busy || pending ? 'Marking…' : selectedIds.length ? `Mark ${selectedIds.length} present` : 'Mark present'}
         </button>
       </div>
       {error && <p role="alert" className="text-[11px] text-red-600">{error}</p>}
       <ul className="divide-y">
         {students.map(s => (
-          <li key={s.studentId} className="flex items-center justify-between gap-2 py-1.5 text-sm flex-wrap">
-            <label className="flex items-center gap-2 min-w-0 font-medium">
+          <li key={s.studentId} className="flex items-center justify-between gap-2 py-2 text-sm flex-wrap">
+            <label className="flex items-center gap-3 min-w-0 font-medium flex-1">
               <input
                 type="checkbox"
                 checked={!!selected[s.studentId]}
                 onChange={() => toggle(s.studentId)}
-                className="h-4 w-4 shrink-0 accent-tranmere-blue"
+                className="h-5 w-5 shrink-0 accent-tranmere-blue"
               />
               <span className="truncate">{s.name}</span>
             </label>
