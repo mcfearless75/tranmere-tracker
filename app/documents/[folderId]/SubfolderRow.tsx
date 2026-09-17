@@ -4,13 +4,14 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Folder, Pencil, Check, X } from 'lucide-react'
-import { renameFolder } from '../actions'
+import { moveDocument, renameFolder } from '../actions'
 
 export function SubfolderRow({ id, name, isStaff }: { id: string; name: string; isStaff: boolean }) {
   const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(name)
   const [pending, start] = useTransition()
+  const [over, setOver] = useState(false)
 
   function save() {
     start(async () => {
@@ -22,8 +23,24 @@ export function SubfolderRow({ id, name, isStaff }: { id: string; name: string; 
     })
   }
 
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setOver(false)
+    const docId = e.dataTransfer.getData('application/x-tranmere-doc') || e.dataTransfer.getData('text/plain')
+    if (!docId || !isStaff) return
+    start(async () => {
+      const res = await moveDocument(docId, id)
+      if (res.ok) router.refresh()
+    })
+  }
+
   return (
-    <div className="flex items-center gap-3 p-3">
+    <div
+      className={`flex items-center gap-3 p-3 ${over ? 'bg-tranmere-blue/10 ring-2 ring-tranmere-blue/30' : ''}`}
+      onDragOver={e => { e.preventDefault(); setOver(true) }}
+      onDragLeave={() => setOver(false)}
+      onDrop={onDrop}
+    >
       <Link href={`/documents/${id}`} className="flex items-center gap-3 min-w-0 flex-1">
         <div className="w-10 h-10 rounded-full bg-tranmere-blue/10 text-tranmere-blue flex items-center justify-center shrink-0">
           <Folder size={18} />

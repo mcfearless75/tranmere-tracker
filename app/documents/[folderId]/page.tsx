@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Folder, Pencil } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { UploadDropzone } from '../UploadDropzone'
 import { DocumentList } from './DocumentList'
 import { FolderHeader } from './FolderHeader'
@@ -41,6 +41,12 @@ export default async function DocumentFolderPage({ params }: { params: { folderI
   const childQuery = await admin.from('document_folders').select('id, name').eq('parent_id', params.folderId).order('name')
   if (!childQuery.error) children = childQuery.data ?? []
 
+  const destinations: { id: string; name: string }[] = children.map(c => ({ id: c.id, name: c.name }))
+  if (folder.parent_id) {
+    const { data: parent } = await admin.from('document_folders').select('id, name').eq('id', folder.parent_id).maybeSingle()
+    destinations.unshift({ id: folder.parent_id, name: parent?.name ? `↑ ${parent.name}` : '↑ Parent folder' })
+  }
+
   const documents = await Promise.all(
     (rows ?? []).map(async d => {
       const { data: signed } = await admin.storage.from('documents').createSignedUrl(d.storage_path, 3600)
@@ -77,7 +83,7 @@ export default async function DocumentFolderPage({ params }: { params: { folderI
         </div>
       )}
 
-      <DocumentList documents={documents} isStaff={isStaff} />
+      <DocumentList documents={documents} isStaff={isStaff} destinations={destinations} />
     </div>
   )
 }

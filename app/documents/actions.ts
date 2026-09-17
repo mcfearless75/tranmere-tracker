@@ -86,6 +86,28 @@ export async function renameDocument(documentId: string, name: string): Promise<
   return { ok: true }
 }
 
+export async function moveDocument(documentId: string, targetFolderId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+  const admin = createAdminClient()
+  if (!await requireStaff(admin, user.id)) return { ok: false, error: 'Staff only' }
+
+  const { data: doc } = await admin.from('documents').select('id, folder_id').eq('id', documentId).maybeSingle()
+  if (!doc) return { ok: false, error: 'File not found' }
+  if (doc.folder_id === targetFolderId) return { ok: true }
+
+  const { data: dest } = await admin.from('document_folders').select('id').eq('id', targetFolderId).maybeSingle()
+  if (!dest) return { ok: false, error: 'Folder not found' }
+
+  const { error } = await admin.from('documents').update({ folder_id: targetFolderId }).eq('id', documentId)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath(`/documents/${doc.folder_id}`)
+  revalidatePath(`/documents/${targetFolderId}`)
+  return { ok: true }
+}
+
 async function collectFolderTree(admin: SupabaseClient, rootId: string): Promise<string[]> {
   const ids = [rootId]
   const { data: all } = await admin.from('document_folders').select('id, parent_id')

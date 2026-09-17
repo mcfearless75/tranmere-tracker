@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileText, FileSpreadsheet, FileImage, File as FileIcon, Trash2, Download, Eye, Pencil, Check, X } from 'lucide-react'
-import { deleteDocument, renameDocument } from '../actions'
+import { FileText, FileSpreadsheet, FileImage, File as FileIcon, Trash2, Download, Eye, Pencil, Check, X, FolderInput } from 'lucide-react'
+import { deleteDocument, moveDocument, renameDocument } from '../actions'
 
 type Doc = {
   id: string
@@ -12,6 +12,8 @@ type Doc = {
   size_bytes: number
   url: string | null
 }
+
+type Dest = { id: string; name: string }
 
 function iconFor(mimeType: string) {
   if (mimeType === 'application/pdf') return FileText
@@ -27,11 +29,12 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function DocumentList({ documents, isStaff }: { documents: Doc[]; isStaff: boolean }) {
+export function DocumentList({ documents, isStaff, destinations }: { documents: Doc[]; isStaff: boolean; destinations: Dest[] }) {
   const router = useRouter()
   const [pending, start] = useTransition()
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [movingId, setMovingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -58,6 +61,17 @@ export function DocumentList({ documents, isStaff }: { documents: Doc[]; isStaff
     })
   }
 
+  function moveTo(docId: string, folderId: string) {
+    setError(null)
+    start(async () => {
+      const res = await moveDocument(docId, folderId)
+      if (res.ok) {
+        setMovingId(null)
+        router.refresh()
+      } else setError(res.error ?? 'Could not move')
+    })
+  }
+
   if (documents.length === 0) {
     return <p className="text-center text-xs text-muted-foreground py-8">No files in this folder yet.</p>
   }
@@ -65,11 +79,24 @@ export function DocumentList({ documents, isStaff }: { documents: Doc[]; isStaff
   return (
     <div className="rounded-2xl border bg-white divide-y overflow-hidden">
       {error && <p className="text-xs text-red-600 px-3 py-2">{error}</p>}
+      {isStaff && destinations.length > 0 && (
+        <p className="hidden md:block text-[11px] text-muted-foreground px-3 py-2">On a computer you can drag a file onto a folder above.</p>
+      )}
       {documents.map(doc => {
         const Icon = iconFor(doc.mime_type)
         const editing = editingId === doc.id
+        const moving = movingId === doc.id
         return (
-          <div key={doc.id} className="p-3 space-y-2">
+          <div
+            key={doc.id}
+            className="p-3 space-y-2"
+            draggable={isStaff}
+            onDragStart={e => {
+              e.dataTransfer.setData('application/x-tranmere-doc', doc.id)
+              e.dataTransfer.setData('text/plain', doc.id)
+              e.dataTransfer.effectAllowed = 'move'
+            }}
+          >
             <div className="flex items-start gap-3 min-w-0">
               <div className="w-10 h-10 rounded-lg bg-tranmere-blue/10 flex items-center justify-center text-tranmere-blue shrink-0">
                 <Icon size={18} />
@@ -100,6 +127,11 @@ export function DocumentList({ documents, isStaff }: { documents: Doc[]; isStaff
                   </a>
                 </>
               )}
+              {isStaff && destinations.length > 0 && (
+                <button type="button" onClick={() => setMovingId(moving ? null : doc.id)} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700">
+                  <FolderInput size={14} /> Move
+                </button>
+              )}
               {isStaff && (editing ? (
                 <>
                   <button type="button" onClick={() => saveName(doc.id)} disabled={pending} className="inline-flex items-center gap-1.5 rounded-lg border border-tranmere-blue/20 px-3 py-2 text-xs font-semibold text-tranmere-blue">
@@ -120,6 +152,22 @@ export function DocumentList({ documents, isStaff }: { documents: Doc[]; isStaff
                 </button>
               )}
             </div>
+            {moving && (
+              <div className="rounded-xl border bg-gray-50 p-2 space-y-1">
+                <p className="text-[11px] text-muted-foreground px-1">Move to</p>
+                {destinations.map(d => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => moveTo(doc.id, d.id)}
+                    disabled={pending}
+                    className="w-full text-left rounded-lg px-3 py-2 text-sm font-medium hover:bg-white"
+                  >
+                    {d.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )
       })}
