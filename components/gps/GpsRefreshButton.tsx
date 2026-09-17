@@ -1,36 +1,43 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { RefreshCw } from 'lucide-react'
 
 /**
- * iOS Home Screen PWAs have no pull-to-refresh. This button re-fetches the
- * server GPS page. Also refreshes when the app comes back to the foreground
- * so opening the icon after an import does not stay stuck on stale HTML.
+ * Re-fetches the server GPS page. Runs on first paint and whenever the tab /
+ * PWA comes back to the foreground so opening GPS never needs a manual tap.
  */
 export function GpsRefreshButton() {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [justUpdated, setJustUpdated] = useState(false)
+  const lastAt = useRef(0)
 
   function refresh() {
+    const now = Date.now()
+    if (now - lastAt.current < 800) return
+    lastAt.current = now
     startTransition(() => {
       router.refresh()
       setJustUpdated(true)
-      window.setTimeout(() => setJustUpdated(false), 1600)
+      window.setTimeout(() => setJustUpdated(false), 1200)
     })
   }
 
   useEffect(() => {
+    refresh()
     const onVisible = () => {
       if (document.visibilityState === 'visible') refresh()
     }
+    const onPageShow = () => refresh()
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', onVisible)
+    window.addEventListener('pageshow', onPageShow)
     return () => {
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('focus', onVisible)
+      window.removeEventListener('pageshow', onPageShow)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -41,10 +48,11 @@ export function GpsRefreshButton() {
       onClick={refresh}
       disabled={pending}
       aria-label="Refresh GPS data"
-      className="inline-flex items-center gap-1.5 rounded-xl border border-tranmere-blue/20 bg-white px-3 py-2 text-sm font-medium text-tranmere-blue shadow-sm active:bg-blue-50 disabled:opacity-60"
+      title={pending ? 'Refreshing' : 'Refresh'}
+      className="inline-flex items-center justify-center rounded-full p-2 text-tranmere-blue/70 active:bg-blue-50 disabled:opacity-60"
     >
-      <RefreshCw size={15} className={pending ? 'animate-spin' : ''} />
-      {pending ? 'Refreshing…' : justUpdated ? 'Updated' : 'Refresh'}
+      <RefreshCw size={16} className={pending ? 'animate-spin' : ''} />
+      <span className="sr-only">{pending ? 'Refreshing' : justUpdated ? 'Updated' : 'Refresh'}</span>
     </button>
   )
 }

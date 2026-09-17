@@ -1,3 +1,4 @@
+import { unstable_noStore as noStore } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TeamLeaderboard } from '@/components/gps/TeamLeaderboard'
 import { GpsRefreshButton } from '@/components/gps/GpsRefreshButton'
@@ -5,6 +6,8 @@ import { GpsAiAnalysis } from '@/components/gps/GpsAiAnalysis'
 import { Trophy, Route, Zap, Gauge, Activity } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
 
 type Sess = {
   player_id: string
@@ -17,9 +20,9 @@ type Sess = {
 }
 
 export default async function GpsDashboardPage() {
+  noStore()
   const supabase = createAdminClient()
 
-  // Last 7 days of sessions — wrapped so any failure shows the migration prompt
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10)
   let sessions: any[] | null = null
   let sessErr: { message?: string } | null = null
@@ -29,14 +32,13 @@ export default async function GpsDashboardPage() {
       .select('player_id, total_distance_m, max_speed_kmh, sprint_count, player_load, session_date, users:player_id(name)')
       .gte('session_date', weekAgo)
       .order('session_date', { ascending: false })
-      .limit(1000) // safety cap: ~30 players x 7 days x multiple sessions still fits
+      .limit(1000)
     sessions = res.data
     sessErr = res.error as any
   } catch (err: any) {
     sessErr = { message: String(err?.message ?? err) }
   }
 
-  // Migration not run yet (or any DB failure)
   if (sessErr || !sessions) {
     return (
       <div className="space-y-4">
@@ -54,7 +56,7 @@ export default async function GpsDashboardPage() {
             <li><code className="bg-amber-100 px-1.5 py-0.5 rounded">supabase/migrations/004_gps_zones.sql</code></li>
           </ol>
           <p className="text-xs text-amber-600 mt-3">
-            Open Supabase → SQL Editor → paste each file → Run. Then refresh this page.
+            Open Supabase → SQL Editor → paste each file → Run. Then open this page again.
           </p>
         </div>
       </div>
@@ -63,7 +65,6 @@ export default async function GpsDashboardPage() {
 
   const s = (sessions ?? []) as unknown as Sess[]
 
-  // Aggregate per player
   const byPlayer: Record<string, { id: string; name: string; distance: number; topSpeed: number; sprints: number; load: number }> = {}
   for (const row of s) {
     if (!row.users?.name) continue
@@ -105,7 +106,6 @@ export default async function GpsDashboardPage() {
         <GpsRefreshButton />
       </div>
 
-      {/* TEAM TOTALS HERO */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <TotalCard icon={<Route size={16} />}   label="Team Distance"  value={totalDistance.toFixed(1)} suffix=" km" colour="blue" />
         <TotalCard icon={<Gauge size={16} />}   label="Fastest Player" value={highestSpeed.toFixed(1)}  suffix=" km/h" colour="orange" />
