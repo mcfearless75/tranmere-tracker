@@ -3,7 +3,8 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronUp, X, UserPlus, Users, MessageSquare, Pencil, Check, Trash2 } from 'lucide-react'
-import { addGroupMembers, removeGroupMember, renameGroupChat, joinGroupChat, deleteGroupChat } from '@/app/chat/actions'
+import { addGroupMembers, removeGroupMember, renameGroupChat, joinGroupChat } from '@/app/chat/actions'
+import { deleteGroupChat } from '@/app/chat/deleteGroupChat'
 
 type Person = { id: string; name: string | null; role: string }
 
@@ -103,7 +104,7 @@ export function ChatGroupCard({
 
   function handleDelete() {
     setError(null)
-    const ok = window.confirm(`Delete “${roomName}”? Messages in this group will be removed. This cannot be undone.`)
+    const ok = window.confirm(`Delete "${roomName}"? Messages in this group will be removed. This cannot be undone.`)
     if (!ok) return
     start(async () => {
       const res = await deleteGroupChat(roomId)
@@ -134,37 +135,16 @@ export function ChatGroupCard({
             </p>
           </div>
         </button>
-        <button
-          onClick={handleOpen}
-          disabled={pending}
-          aria-label="Open chat"
-          title="Open chat"
-          className="p-2 rounded-lg text-tranmere-blue hover:bg-tranmere-blue/10 disabled:opacity-50 shrink-0"
-        >
+        <button onClick={handleOpen} disabled={pending} aria-label="Open chat" title="Open chat" className="p-2 rounded-lg text-tranmere-blue hover:bg-tranmere-blue/10 disabled:opacity-50 shrink-0">
           <MessageSquare size={16} />
         </button>
-        <button
-          onClick={startRename}
-          aria-label="Rename group"
-          title="Rename group"
-          className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 shrink-0"
-        >
+        <button onClick={startRename} aria-label="Rename group" title="Rename group" className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 shrink-0">
           <Pencil size={14} />
         </button>
-        <button
-          onClick={handleDelete}
-          disabled={pending}
-          aria-label="Delete group"
-          title="Delete group"
-          className="p-2 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 shrink-0"
-        >
+        <button onClick={handleDelete} disabled={pending} aria-label="Delete group" title="Delete group" className="p-2 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 shrink-0">
           <Trash2 size={14} />
         </button>
-        <button
-          onClick={() => setExpanded(e => !e)}
-          aria-label={expanded ? 'Collapse' : 'Expand'}
-          className="p-1.5 shrink-0"
-        >
+        <button onClick={() => setExpanded(e => !e)} aria-label={expanded ? 'Collapse' : 'Expand'} className="p-1.5 shrink-0">
           {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
         </button>
       </div>
@@ -174,97 +154,46 @@ export function ChatGroupCard({
           {renaming && (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <input
-                  autoFocus
-                  value={nameInput}
-                  onChange={e => setNameInput(e.target.value)}
-                  maxLength={60}
-                  placeholder="Group name"
-                  className="flex-1 px-2 py-1.5 border rounded-lg text-sm"
-                />
-                <button
-                  onClick={submitRename}
-                  disabled={pending}
-                  aria-label="Save name"
-                  className="p-2 rounded-lg bg-tranmere-blue text-white disabled:opacity-50"
-                >
-                  <Check size={14} />
-                </button>
-                <button
-                  onClick={() => { setRenaming(false); setRenameError(null) }}
-                  aria-label="Cancel rename"
-                  className="p-2 rounded-lg hover:bg-gray-200"
-                >
-                  <X size={14} />
-                </button>
+                <input autoFocus value={nameInput} onChange={e => setNameInput(e.target.value)} maxLength={60} placeholder="Group name" className="flex-1 px-2 py-1.5 border rounded-lg text-sm" />
+                <button onClick={submitRename} disabled={pending} aria-label="Save name" className="p-2 rounded-lg bg-tranmere-blue text-white disabled:opacity-50"><Check size={14} /></button>
+                <button onClick={() => { setRenaming(false); setRenameError(null) }} aria-label="Cancel rename" className="p-2 rounded-lg hover:bg-gray-200"><X size={14} /></button>
               </div>
               {renameError && <p className="text-xs text-red-600">{renameError}</p>}
             </div>
           )}
-
           {error && <p className="text-xs text-red-600">{error}</p>}
-
           <div className="space-y-1 max-h-48 overflow-y-auto">
-            {members
-              .slice()
-              .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
-              .map(m => {
-                const canRemove = !(syncYearGroup && m.role === 'student')
-                return (
-                  <div key={m.id} className="flex items-center gap-2 text-sm py-1 bg-white rounded-lg px-2.5">
-                    <span className="flex-1 truncate">{m.name ?? 'Unknown'}</span>
-                    <span className="text-[10px] text-muted-foreground capitalize">{m.role}</span>
-                    {canRemove && (
-                      <button
-                        onClick={() => handleRemove(m.id)}
-                        disabled={pending && busyId === m.id}
-                        aria-label={`Remove ${m.name ?? 'member'}`}
-                        className="text-gray-400 hover:text-red-600 disabled:opacity-50 ml-1"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
+            {members.slice().sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')).map(m => {
+              const canRemove = !(syncYearGroup && m.role === 'student')
+              return (
+                <div key={m.id} className="flex items-center gap-2 text-sm py-1 bg-white rounded-lg px-2.5">
+                  <span className="flex-1 truncate">{m.name ?? 'Unknown'}</span>
+                  <span className="text-[10px] text-muted-foreground capitalize">{m.role}</span>
+                  {canRemove && (
+                    <button onClick={() => handleRemove(m.id)} disabled={pending && busyId === m.id} aria-label={`Remove ${m.name ?? 'member'}`} className="text-gray-400 hover:text-red-600 disabled:opacity-50 ml-1">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              )
+            })}
           </div>
-
           {!adding ? (
-            <button
-              onClick={() => setAdding(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-tranmere-blue"
-            >
+            <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 text-xs font-semibold text-tranmere-blue">
               <UserPlus size={13} /> Add people
             </button>
           ) : (
             <div className="border rounded-xl p-2 space-y-2 bg-white">
               <div className="flex items-center gap-2">
-                <input
-                  autoFocus
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  placeholder="Search people…"
-                  className="flex-1 px-2 py-1.5 border rounded-lg text-xs"
-                />
-                <button
-                  onClick={() => { setAdding(false); setSelected(new Set()); setQuery('') }}
-                  aria-label="Close"
-                  className="p-1 rounded hover:bg-gray-200"
-                >
-                  <X size={13} />
-                </button>
+                <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search people..." className="flex-1 px-2 py-1.5 border rounded-lg text-xs" />
+                <button onClick={() => { setAdding(false); setSelected(new Set()); setQuery('') }} aria-label="Close" className="p-1 rounded hover:bg-gray-200"><X size={13} /></button>
               </div>
-
               <div className="max-h-32 overflow-y-auto space-y-1">
                 {filtered.length === 0 && <p className="text-xs text-muted-foreground text-center py-2">No match</p>}
                 {filtered.map(p => {
                   const checked = selected.has(p.id)
                   return (
-                    <button
-                      key={p.id}
-                      onClick={() => toggleSelected(p.id)}
-                      className={`w-full flex items-center gap-2 p-1.5 rounded-lg text-left text-xs ${checked ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
-                    >
+                    <button key={p.id} onClick={() => toggleSelected(p.id)} className={`w-full flex items-center gap-2 p-1.5 rounded-lg text-left text-xs ${checked ? 'bg-blue-100' : 'hover:bg-gray-100'}`}>
                       <input type="checkbox" checked={checked} readOnly />
                       <span className="flex-1 truncate">{p.name}</span>
                       <span className="text-[10px] text-muted-foreground capitalize">{p.role}</span>
@@ -272,13 +201,8 @@ export function ChatGroupCard({
                   )
                 })}
               </div>
-
-              <button
-                onClick={submitAdd}
-                disabled={pending}
-                className="w-full rounded-lg bg-tranmere-blue text-white px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
-              >
-                {pending ? 'Adding…' : `Add${selected.size ? ` (${selected.size})` : ''}`}
+              <button onClick={submitAdd} disabled={pending} className="w-full rounded-lg bg-tranmere-blue text-white px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
+                {pending ? 'Adding...' : `Add${selected.size ? ` (${selected.size})` : ''}`}
               </button>
             </div>
           )}
