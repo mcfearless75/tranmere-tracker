@@ -1,6 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TeamLeaderboard } from '@/components/gps/TeamLeaderboard'
-import { SeedDemoButton } from '@/components/gps/SeedDemoButton'
 import { GpsRefreshButton } from '@/components/gps/GpsRefreshButton'
 import { GpsAiAnalysis } from '@/components/gps/GpsAiAnalysis'
 import { Trophy, Route, Zap, Gauge, Activity } from 'lucide-react'
@@ -103,10 +102,7 @@ export default async function GpsDashboardPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-tranmere-blue">Squad GPS Dashboard</h1>
           <p className="text-xs sm:text-sm text-muted-foreground">Last 7 days · {entries.length} player{entries.length === 1 ? '' : 's'} with data · tap a player for full stats</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <GpsRefreshButton />
-          <SeedDemoButton />
-        </div>
+        <GpsRefreshButton />
       </div>
 
       {/* TEAM TOTALS HERO */}
