@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Image from 'next/image'
 import Link from 'next/link'
 import { PushOptIn } from '@/components/PushOptIn'
-import { Trophy, Dumbbell, Apple, CheckCircle2, Clock, CalendarDays, Brain, ChevronRight, Target, ClipboardList, BookOpen, GraduationCap, ShieldCheck, CheckSquare, Video, Satellite } from 'lucide-react'
+import { Trophy, Dumbbell, Apple, CheckCircle2, Clock, CalendarDays, Brain, ChevronRight, Target, ClipboardList, BookOpen, GraduationCap, ShieldCheck, CheckSquare, Video, Satellite, Heart, ListChecks } from 'lucide-react'
 import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
 import { londonDateISO } from '@/lib/dates'
 import { VALID_TIMETABLE_YEAR_GROUPS, getSlotsForDate, timetableSlotToSession } from '@/lib/timetable/timetableUtils'
@@ -17,6 +17,7 @@ import { isProfileIncomplete } from '@/lib/profile/profileCompleteness'
 import { formatEventTime } from '@/lib/calendar/calendarUtils'
 import { PhaseDayCard } from '@/components/attendance/PhaseDayCard'
 import type { PhaseWindows } from '@/lib/attendance/phase'
+import { buildNextUpRows } from '@/lib/dashboard/nextUp'
 
 export const dynamic = 'force-dynamic'
 
@@ -210,6 +211,26 @@ export default async function DashboardPage() {
     .sort((a: any, b: any) => new Date(a.match_events.match_date).getTime() - new Date(b.match_events.match_date).getTime())
     .slice(0, 3)
 
+  // "Next up" (below PhaseDayCard) reuses the same query results as the
+  // itinerary hero / wellbeing prompt / upcoming-matches sections further
+  // down the page (now inside the collapsed "More" disclosure) — no extra
+  // queries, just a compact re-derivation of what's already fetched.
+  // `as any` here matches the existing cast further down this file (the
+  // "Upcoming Matches" card's own `.map((entry: any) => ...)`) — Supabase's
+  // generated types treat the `match_events(...)` embed as a one-to-many
+  // array even though match_squads.match_id is actually one-to-one.
+  const nextFixtureRaw = (mySquadEntries[0] as any)?.match_events as
+    | { opponent: string; match_date: string; location: string | null }
+    | undefined
+  const nextUpRows = buildNextUpRows({
+    todaySessions: allTodaySessions,
+    hasOpenWellbeingSurvey: !!openSurvey,
+    nextFixture: nextFixtureRaw
+      ? { opponent: nextFixtureRaw.opponent, match_date: nextFixtureRaw.match_date, location: nextFixtureRaw.location }
+      : null,
+    now,
+  })
+
   // Attendance % — unique days present ∩ scheduled / unique days scheduled
   // (last 30 days). Intersecting means a check-in on an unscheduled day can't
   // push the figure over 100%.
@@ -292,6 +313,73 @@ export default async function DashboardPage() {
         excusal={todayExcusal ?? null}
         now={now}
       />
+
+      {/* ═══════════ NEXT UP ═══════════
+          At most one compact row per category (session/wellbeing/fixture),
+          each shown only when it has content — see lib/dashboard/nextUp.ts.
+          Everything else (today's full itinerary, tomorrow preview, AI
+          report, Moodle, stats, charts, tools grid) lives in the collapsed
+          "More" disclosure below so this is visible without scrolling. */}
+      <div className="rounded-2xl bg-white border border-gray-200 p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <ListChecks size={14} className="text-muted-foreground" />
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Next up</p>
+        </div>
+
+        {nextUpRows.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-2">Nothing due right now</p>
+        ) : (
+          <div className="space-y-1">
+            {nextUpRows.map((row, i) => {
+              if (row.kind === 'session') {
+                return (
+                  <div key={`next-session-${i}`} className="flex items-center gap-3 text-sm py-1.5">
+                    {row.live
+                      ? <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse shrink-0" />
+                      : <Clock size={15} className="text-tranmere-blue shrink-0" />}
+                    <span className="font-medium flex-1 line-clamp-1 break-words">{row.label}</span>
+                    <span className="text-xs font-mono text-muted-foreground shrink-0">{row.timeLabel}</span>
+                    {row.live && (
+                      <span className="text-xs font-bold bg-green-400 text-blue-900 px-1.5 py-0.5 rounded uppercase shrink-0">Live</span>
+                    )}
+                  </div>
+                )
+              }
+              if (row.kind === 'wellbeing') {
+                return (
+                  <Link key="next-wellbeing" href="/wellbeing" className="flex items-center gap-3 text-sm py-1.5 group">
+                    <Heart size={15} className="text-rose-500 shrink-0" />
+                    <span className="font-medium flex-1">Wellbeing check-in ready</span>
+                    <ChevronRight size={14} className="text-muted-foreground group-hover:text-tranmere-blue transition-colors shrink-0" />
+                  </Link>
+                )
+              }
+              return (
+                <Link key="next-fixture" href="/matches" className="flex items-center gap-3 text-sm py-1.5 group">
+                  <Trophy size={15} className="text-amber-500 shrink-0" />
+                  <span className="font-medium flex-1 truncate">
+                    vs {row.opponent}
+                    {row.location && <span className="text-muted-foreground"> · {row.location}</span>}
+                  </span>
+                  <span className="text-xs font-semibold text-muted-foreground shrink-0">{row.daysLabel}</span>
+                </Link>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ═══════════ MORE — everything else, collapsed by default ═══════════
+          Nothing here is deleted or unfetched; the "tools mosaic" (itinerary
+          hero, tomorrow preview, wellbeing/AI/Moodle cards, upcoming
+          matches, stats grid, charts, My Tools grid, mobile quick links)
+          just no longer renders above the fold. */}
+      <details className="group">
+        <summary className="cursor-pointer list-none select-none flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-tranmere-blue">
+          <span>More — full schedule, tools &amp; stats</span>
+          <ChevronRight size={16} className="text-muted-foreground group-open:rotate-90 transition-transform shrink-0" />
+        </summary>
+        <div className="mt-3 space-y-4">
 
       {/* ═══════════ TODAY'S ITINERARY — HERO ═══════════ */}
       <div className="rounded-2xl bg-gradient-to-br from-tranmere-blue to-blue-900 text-white p-5 shadow-lg space-y-4">
@@ -585,7 +673,7 @@ export default async function DashboardPage() {
 
       {/* Quick links — mobile access for Training & Nutrition (not in bottom nav) */}
       <div className="md:hidden">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-0.5">More</p>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-0.5">Quick Links</p>
         <div className="grid grid-cols-2 gap-2">
           <Link href="/training" className="flex flex-col items-center gap-1.5 rounded-2xl border bg-white p-3 text-center hover:bg-gray-50 active:bg-gray-100 transition-colors">
             <Dumbbell size={20} className="text-tranmere-blue" />
@@ -597,6 +685,9 @@ export default async function DashboardPage() {
           </Link>
         </div>
       </div>
+
+        </div>
+      </details>
 
       <PushOptIn />
     </div>
