@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileText, FileSpreadsheet, FileImage, File as FileIcon, Trash2, Download } from 'lucide-react'
+import { FileText, FileSpreadsheet, FileImage, File as FileIcon, Trash2, Download, Eye } from 'lucide-react'
 import { deleteDocument } from '../actions'
 
 type Doc = {
@@ -55,30 +55,47 @@ export function DocumentList({ documents, isStaff }: { documents: Doc[]; isStaff
       {documents.map(doc => {
         const Icon = iconFor(doc.mime_type)
         return (
-          <div key={doc.id} className="flex items-center gap-3 p-3">
-            <div className="w-10 h-10 rounded-lg bg-tranmere-blue/10 flex items-center justify-center text-tranmere-blue shrink-0">
-              <Icon size={18} />
+          <div key={doc.id} className="flex flex-col gap-2 p-3">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-lg bg-tranmere-blue/10 flex items-center justify-center text-tranmere-blue shrink-0">
+                <Icon size={18} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium break-words">{doc.name}</p>
+                <p className="text-xs text-muted-foreground">{formatSize(doc.size_bytes)}</p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{doc.name}</p>
-              <p className="text-xs text-muted-foreground">{formatSize(doc.size_bytes)}</p>
+            <div className="flex flex-wrap items-center gap-2 pl-0 sm:pl-13">
+              {doc.url && (
+                <>
+                  <a
+                    href={doc.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-tranmere-blue/20 bg-tranmere-blue/5 px-3 py-2 text-xs font-semibold text-tranmere-blue"
+                  >
+                    <Eye size={14} /> View
+                  </a>
+                  <a
+                    href={doc.url}
+                    download={doc.name}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700"
+                  >
+                    <Download size={14} /> Download
+                  </a>
+                </>
+              )}
+              {isStaff && (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(doc.id, doc.name)}
+                  disabled={pending && removingId === doc.id}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50"
+                >
+                  <Trash2 size={14} /> Delete
+                </button>
+              )}
             </div>
-            {doc.url && (
-              <a href={doc.url} target="_blank" rel="noreferrer" aria-label={`Download ${doc.name}`}
-                className="p-2 rounded-lg text-tranmere-blue hover:bg-tranmere-blue/10 shrink-0">
-                <Download size={16} />
-              </a>
-            )}
-            {isStaff && (
-              <button
-                onClick={() => handleDelete(doc.id, doc.name)}
-                disabled={pending && removingId === doc.id}
-                aria-label={`Delete ${doc.name}`}
-                className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 shrink-0 disabled:opacity-50"
-              >
-                <Trash2 size={16} />
-              </button>
-            )}
           </div>
         )
       })}
