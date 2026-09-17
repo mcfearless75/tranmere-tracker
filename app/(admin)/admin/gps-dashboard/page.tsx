@@ -1,9 +1,10 @@
 import { unstable_noStore as noStore } from 'next/cache'
+import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TeamLeaderboard } from '@/components/gps/TeamLeaderboard'
 import { GpsRefreshButton } from '@/components/gps/GpsRefreshButton'
 import { GpsAiAnalysis } from '@/components/gps/GpsAiAnalysis'
-import { Trophy, Route, Zap, Gauge, Activity } from 'lucide-react'
+import { Trophy, Route, Zap, Gauge, Activity, Upload } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -39,25 +40,25 @@ export default async function GpsDashboardPage() {
     sessErr = { message: String(err?.message ?? err) }
   }
 
+  const headerActions = (
+    <div className="flex items-center gap-2">
+      <Link href="/admin/gps-import" className="inline-flex items-center gap-1.5 rounded-xl bg-tranmere-blue text-white px-3 py-2 text-sm font-semibold">
+        <Upload size={16} /> Import GPS
+      </Link>
+      <GpsRefreshButton />
+    </div>
+  )
+
   if (sessErr || !sessions) {
     return (
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-tranmere-blue">Squad GPS Dashboard</h1>
-          <GpsRefreshButton />
+          {headerActions}
         </div>
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-          <p className="font-semibold text-amber-800">⚠️ Database migration needed</p>
-          <p className="text-sm text-amber-700 mt-2">
-            Run these migrations in the Supabase SQL Editor (in order):
-          </p>
-          <ol className="text-sm text-amber-700 mt-2 list-decimal list-inside space-y-1">
-            <li><code className="bg-amber-100 px-1.5 py-0.5 rounded">supabase/migrations/003_gps_sessions.sql</code></li>
-            <li><code className="bg-amber-100 px-1.5 py-0.5 rounded">supabase/migrations/004_gps_zones.sql</code></li>
-          </ol>
-          <p className="text-xs text-amber-600 mt-3">
-            Open Supabase → SQL Editor → paste each file → Run. Then open this page again.
-          </p>
+          <p className="font-semibold text-amber-800">Database migration needed</p>
+          <p className="text-sm text-amber-700 mt-2">Run the GPS migrations in the Supabase SQL Editor, then try Import GPS.</p>
         </div>
       </div>
     )
@@ -103,7 +104,7 @@ export default async function GpsDashboardPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-tranmere-blue">Squad GPS Dashboard</h1>
           <p className="text-xs sm:text-sm text-muted-foreground">Last 7 days · {entries.length} player{entries.length === 1 ? '' : 's'} with data · tap a player for full stats</p>
         </div>
-        <GpsRefreshButton />
+        {headerActions}
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -121,9 +122,9 @@ export default async function GpsDashboardPage() {
             <Trophy size={28} />
           </div>
           <p className="font-semibold">No GPS data in the last 7 days</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Import Catapult / STATSports sessions from <a href="/admin/gps-import" className="text-tranmere-blue underline">GPS Import</a> to populate the leaderboard.
-          </p>
+          <Link href="/admin/gps-import" className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-tranmere-blue text-white px-4 py-2.5 text-sm font-semibold">
+            <Upload size={16} /> Import GPS
+          </Link>
         </div>
       ) : (
         <TeamLeaderboard distance={distance} topSpeed={topSpeed} sprints={sprints} load={load} />
