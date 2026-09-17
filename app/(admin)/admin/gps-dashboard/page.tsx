@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TeamLeaderboard } from '@/components/gps/TeamLeaderboard'
 import { SeedDemoButton } from '@/components/gps/SeedDemoButton'
+import { GpsRefreshButton } from '@/components/gps/GpsRefreshButton'
 import { GpsAiAnalysis } from '@/components/gps/GpsAiAnalysis'
 import { Trophy, Route, Zap, Gauge, Activity } from 'lucide-react'
 
@@ -40,7 +41,10 @@ export default async function GpsDashboardPage() {
   if (sessErr || !sessions) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-tranmere-blue">Squad GPS Dashboard</h1>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <h1 className="text-2xl font-bold text-tranmere-blue">Squad GPS Dashboard</h1>
+          <GpsRefreshButton />
+        </div>
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
           <p className="font-semibold text-amber-800">⚠️ Database migration needed</p>
           <p className="text-sm text-amber-700 mt-2">
@@ -99,7 +103,10 @@ export default async function GpsDashboardPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-tranmere-blue">Squad GPS Dashboard</h1>
           <p className="text-xs sm:text-sm text-muted-foreground">Last 7 days · {entries.length} player{entries.length === 1 ? '' : 's'} with data · tap a player for full stats</p>
         </div>
-        <SeedDemoButton />
+        <div className="flex items-center gap-2 flex-wrap">
+          <GpsRefreshButton />
+          <SeedDemoButton />
+        </div>
       </div>
 
       {/* TEAM TOTALS HERO */}
@@ -119,7 +126,7 @@ export default async function GpsDashboardPage() {
           </div>
           <p className="font-semibold">No GPS data in the last 7 days</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Import STATSports sessions from <a href="/admin/gps-import" className="text-tranmere-blue underline">GPS Import</a> to populate the leaderboard.
+            Import Catapult / STATSports sessions from <a href="/admin/gps-import" className="text-tranmere-blue underline">GPS Import</a> to populate the leaderboard.
           </p>
         </div>
       ) : (
