@@ -7,6 +7,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { EXCUSAL_LABELS, EXCUSAL_REASONS, type ExcusalReason } from '@/lib/attendance/excusal'
+import { postExcuse } from '@/lib/attendance/attendanceClient'
 
 export function ExcuseButton({
   studentId,
@@ -24,20 +25,12 @@ export function ExcuseButton({
   const [error, setError] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const submit = async (body: Record<string, unknown>) => {
+  const submit = async (body: Parameters<typeof postExcuse>[0]) => {
     setBusy(true)
     setError(false)
     setErrorMessage(null)
     try {
-      const res = await fetch('/api/attendance/excuse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId, date, ...body }),
-      })
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => null)
-        throw new Error(typeof errBody?.error === 'string' ? errBody.error : undefined)
-      }
+      await postExcuse(body)
       setPicking(false)
       startTransition(() => router.refresh())
     } catch (e) {
@@ -51,12 +44,12 @@ export function ExcuseButton({
 
   const excuse = (reason: ExcusalReason) => {
     const note = window.prompt(`Optional note (e.g. "back for PM"):`)?.trim()
-    submit({ action: 'excuse', reason, note: note || undefined })
+    submit({ studentId, date, action: 'excuse', reason, note: note || undefined })
   }
 
   const undo = () => {
     if (!window.confirm('Clear this excusal? Any uncovered phases will go back to "missing".')) return
-    submit({ action: 'clear' })
+    submit({ studentId, date, action: 'clear' })
   }
 
   if (excusal) {

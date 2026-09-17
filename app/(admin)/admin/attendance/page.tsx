@@ -12,6 +12,7 @@ import { OverrideButton } from './OverrideButton'
 import { excusalCoversPhase } from '@/lib/attendance/excusal'
 import { ExcuseButton } from './ExcuseButton'
 import { ExcusedPill } from './ExcusedPill'
+import { MissingRowActions } from '@/components/attendance/MissingRowActions'
 import type { PhaseWindows } from '@/lib/attendance/phase'
 import { buildStudentDayStatus, applyStaffFilter, defaultStaffFilter, dayDots, type StudentDayStatus, type Phase } from '@/lib/attendance/dayStatus'
 
@@ -290,9 +291,9 @@ export default async function AttendancePage({
                     <ExcuseButton studentId={r.id} date={date} excusal={r.excusal ? { reason: r.excusal.reason, note: r.excusal.note } : null} />
                   </div>
                   <div className="grid grid-cols-3 gap-2 sm:contents">
-                    <PhaseCell time={r.am}    flagged={r.am_flagged}    reason={r.am_reason}    studentId={r.id} date={date} phase="am"    excusal={r.excusal} />
-                    <PhaseCell time={r.lunch} flagged={r.lunch_flagged} reason={r.lunch_reason} studentId={r.id} date={date} phase="lunch" excusal={r.excusal} />
-                    <PhaseCell time={r.pm}    flagged={r.pm_flagged}    reason={r.pm_reason}    studentId={r.id} date={date} phase="pm"    excusal={r.excusal} />
+                    <PhaseCell time={r.am}    flagged={r.am_flagged}    reason={r.am_reason}    studentId={r.id} studentName={r.name} date={date} phase="am"    excusal={r.excusal} />
+                    <PhaseCell time={r.lunch} flagged={r.lunch_flagged} reason={r.lunch_reason} studentId={r.id} studentName={r.name} date={date} phase="lunch" excusal={r.excusal} />
+                    <PhaseCell time={r.pm}    flagged={r.pm_flagged}    reason={r.pm_reason}    studentId={r.id} studentName={r.name} date={date} phase="pm"    excusal={r.excusal} />
                   </div>
                 </li>
               )
@@ -378,12 +379,13 @@ function SummaryTile({
 }
 
 function PhaseCell({
-  time, flagged, reason, studentId, date, phase, excusal,
+  time, flagged, reason, studentId, studentName, date, phase, excusal,
 }: {
   time: string | null
   flagged: boolean
   reason: string | null
   studentId: string
+  studentName: string
   date: string
   phase: 'am' | 'lunch' | 'pm'
   excusal: { reason: 'ill' | 'appointment' | 'other'; note: string | null; phases: string[] } | null
@@ -401,9 +403,9 @@ function PhaseCell({
   }
   if (!time) {
     return (
-      <span className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+      <span className="flex flex-col items-center justify-center gap-1 text-xs text-muted-foreground">
         <span aria-label="Missing">—</span>
-        <OverrideButton studentId={studentId} date={date} phase={phase} present={false} />
+        <MissingRowActions studentId={studentId} studentName={studentName} date={date} phase={phase} />
       </span>
     )
   }

@@ -12,6 +12,7 @@ import { buildStudentDayStatus, missingStudents, exceptionsWindowPhase, type Pha
 import { mondayOf, shiftDate } from '@/lib/attendance/weeklyReport'
 import { buildWellbeingFlags } from '@/lib/wellbeing/wellbeingUtils'
 import { buildReviewsDue } from '@/lib/staff/exceptionsHome'
+import { MissingRowActions } from '@/components/attendance/MissingRowActions'
 
 export const dynamic = 'force-dynamic'
 
@@ -134,7 +135,13 @@ export default async function StaffHomePage() {
       <ExceptionBlock
         icon={<ClipboardList size={15} className="text-tranmere-blue" />}
         title={windowPhase ? `Missing this window — ${PHASE_LABELS[windowPhase]}` : 'Missing this window'}
-        items={missing.slice(0, MISSING_CAP).map(m => ({ key: m.studentId, label: m.name }))}
+        items={missing.slice(0, MISSING_CAP).map(m => ({
+          key: m.studentId,
+          label: m.name,
+          actions: windowPhase
+            ? <MissingRowActions studentId={m.studentId} studentName={m.name} date={today} phase={windowPhase} />
+            : undefined,
+        }))}
         total={missing.length}
         cap={MISSING_CAP}
         viewAllHref="/admin/attendance"
@@ -200,7 +207,7 @@ function ExceptionBlock({
 }: {
   icon: React.ReactNode
   title: string
-  items: { key: string; label: string; meta?: string; warn?: boolean }[]
+  items: { key: string; label: string; meta?: string; warn?: boolean; actions?: React.ReactNode }[]
   total: number
   cap?: number
   viewAllHref: string
@@ -220,13 +227,16 @@ function ExceptionBlock({
       ) : (
         <ul className="divide-y">
           {items.map(item => (
-            <li key={item.key} className="flex items-center justify-between py-1.5 text-sm">
+            <li key={item.key} className="flex items-center justify-between gap-2 py-1.5 text-sm flex-wrap">
               <span className="font-medium truncate">{item.label}</span>
-              {item.meta && (
-                <span className={`text-xs shrink-0 ml-2 ${item.warn ? 'text-red-600 font-semibold' : 'text-muted-foreground'}`}>
-                  {item.meta}
-                </span>
-              )}
+              <span className="flex items-center gap-2 shrink-0 ml-auto">
+                {item.meta && (
+                  <span className={`text-xs ${item.warn ? 'text-red-600 font-semibold' : 'text-muted-foreground'}`}>
+                    {item.meta}
+                  </span>
+                )}
+                {item.actions}
+              </span>
             </li>
           ))}
         </ul>
