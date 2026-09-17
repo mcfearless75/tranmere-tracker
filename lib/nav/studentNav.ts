@@ -24,6 +24,7 @@ import {
   Apple,
   Trophy,
   Brain,
+  Route,
 } from 'lucide-react'
 import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
 
@@ -61,6 +62,7 @@ export const STUDENT_NAV_ALL: StudentNavItem[] = [
   { href: '/nutrition', label: 'Nutrition', icon: Apple },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
   { href: '/training', label: 'Training', icon: Dumbbell },
+  { href: '/gps', label: 'GPS', icon: Route },
   { href: '/gym', label: 'Gym', icon: Dumbbell },
   { href: '/matches', label: 'Matches', icon: Trophy },
   { href: '/calendar', label: 'Calendar', icon: CalendarDays },

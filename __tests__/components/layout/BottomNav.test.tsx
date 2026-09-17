@@ -57,10 +57,11 @@ describe('BottomNav', () => {
   // Report added to it — students on phones had no way to reach any of
   // these pages at all, only desktop users did. Both navs now derive from
   // lib/nav/studentNav.ts's shared list.
-  it('includes Nutrition, Training, Matches, and AI Report in the More sheet', () => {
+  it('includes Nutrition, Training, GPS, Matches, and AI Report in the More sheet', () => {
     render(<BottomNav />)
     expect(screen.getByText('Nutrition').closest('a')).toHaveAttribute('href', '/nutrition')
     expect(screen.getByText('Training').closest('a')).toHaveAttribute('href', '/training')
+    expect(screen.getByText('GPS').closest('a')).toHaveAttribute('href', '/gps')
     expect(screen.getByText('Matches').closest('a')).toHaveAttribute('href', '/matches')
     expect(screen.getByText('AI Report').closest('a')).toHaveAttribute('href', '/ai-report')
   })
