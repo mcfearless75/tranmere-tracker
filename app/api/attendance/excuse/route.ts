@@ -105,11 +105,29 @@ export async function POST(request: Request) {
     )
   }
 
+  // Atomic merge (migration 071's upsert_attendance_excusal_merge_phases):
+  // a plain `.upsert(row, { onConflict: ... })` here would REPLACE the whole
+  // row wholesale, silently dropping any phase/reason/note already recorded
+  // for this student+date that isn't in THIS request (see the Critical
+  // final-review finding this fixed). The RPC does the read-merge-write as
+  // one atomic statement — phases are unioned, and reason/note are only
+  // set on a genuine insert, never overwritten on an existing row.
   const row = buildExcusalRow(studentId, date, body.reason, body.note, phases, user.id)
-  const { error } = await admin
-    .from('attendance_excusals')
-    .upsert(row, { onConflict: 'student_id,excused_date' })
+  const { data: mergedRows, error } = await admin.rpc('upsert_attendance_excusal_merge_phases', {
+    p_student_id: row.student_id,
+    p_excused_date: row.excused_date,
+    p_reason: row.reason,
+    p_note: row.note,
+    p_phases: row.phases,
+    p_created_by: row.created_by,
+  })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ ok: true, action, reason: body.reason, phases: row.phases })
+  const merged = mergedRows?.[0]
+  return NextResponse.json({
+    ok: true,
+    action,
+    reason: merged?.reason ?? body.reason,
+    phases: merged?.phases ?? row.phases,
+  })
 }

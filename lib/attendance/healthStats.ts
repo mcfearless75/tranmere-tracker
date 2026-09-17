@@ -246,3 +246,18 @@ export function computeCheckInHealth(
     repeatLocationDenied,
   }
 }
+
+/**
+ * Final-review Finding 2: the health page used to gate its empty-state on
+ * `stats.flaggedRate.totalTaps === 0`, which conflates "nothing was
+ * expected this window" (genuinely empty — holiday week, empty roster) with
+ * "something was expected but NOTHING was tapped" (a total check-in
+ * outage — exactly the incident this page exists to surface). The latter
+ * must render the real, alarming 0%/100% figures instead of an empty-state
+ * message that hides them. Emptiness is decided on EXPECTED phase-slots,
+ * never on taps.
+ */
+export function isCheckInHealthEmpty(studentCount: number, stats: CheckInHealthStats): boolean {
+  const totalExpected = stats.phaseCompletion.am.expected + stats.phaseCompletion.lunch.expected + stats.phaseCompletion.pm.expected
+  return studentCount === 0 || totalExpected === 0
+}

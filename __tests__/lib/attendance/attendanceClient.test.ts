@@ -69,4 +69,16 @@ describe('postManualOverride', () => {
       postManualOverride({ studentId: 's1', date: '2026-09-17', phase: 'lunch', action: 'mark_present' })
     ).rejects.toThrow()
   })
+
+  it('throws with the server-provided error message on failure (Finding 4 — was a generic Error() with no message)', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: false,
+      json: () => Promise.resolve({ error: 'Student not found' }),
+    })
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    await expect(
+      postManualOverride({ studentId: 's1', date: '2026-09-17', phase: 'lunch', action: 'mark_present' })
+    ).rejects.toThrow('Student not found')
+  })
 })

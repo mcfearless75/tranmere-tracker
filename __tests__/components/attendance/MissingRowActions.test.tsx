@@ -87,6 +87,16 @@ describe('MissingRowActions', () => {
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
   })
 
+  it('shows the server-provided error message and a Retry label when the mark-present mutation fails (Finding 4)', async () => {
+    mockedPostManualOverride.mockRejectedValue(new Error('Student not found'))
+    render(<MissingRowActions studentId="s1" studentName="Jordan" date="2026-09-17" phase="am" />)
+
+    fireEvent.click(screen.getByRole('button', { name: /mark present/i }))
+
+    expect(await screen.findByText('Student not found')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+  })
+
   it('disables Mark present while an excuse mutation is still in flight (mutual exclusion)', async () => {
     let resolveExcuse!: () => void
     mockedPostExcuse.mockImplementation(() => new Promise<void>(resolve => { resolveExcuse = resolve }))

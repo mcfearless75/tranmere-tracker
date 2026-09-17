@@ -43,12 +43,15 @@ export async function postExcuse(body: ExcuseRequestBody): Promise<void> {
   }
 }
 
-/** POSTs to /api/attendance/manual-override. Throws on failure. */
+/** POSTs to /api/attendance/manual-override. Throws (with a server-provided message when available) on failure. */
 export async function postManualOverride(body: OverrideRequestBody): Promise<void> {
   const res = await fetch('/api/attendance/manual-override', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error()
+  if (!res.ok) {
+    const message = await readErrorMessage(res)
+    throw new Error(message)
+  }
 }

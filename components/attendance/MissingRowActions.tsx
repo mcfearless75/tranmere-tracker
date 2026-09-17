@@ -59,8 +59,8 @@ export function MissingRowActions({
     try {
       await postManualOverride({ studentId, date, phase, action: 'mark_present' })
       startTransition(() => router.refresh())
-    } catch {
-      setOverrideError('Failed — try again')
+    } catch (e) {
+      setOverrideError(e instanceof Error && e.message ? e.message : 'Failed — try again')
     } finally {
       setOverrideBusy(false)
     }

@@ -3,6 +3,7 @@ import {
   classifyFlagReason,
   isManualOverride,
   computeCheckInHealth,
+  isCheckInHealthEmpty,
   type HealthAttendanceRecord,
   type HealthStudent,
 } from '@/lib/attendance/healthStats'
@@ -207,5 +208,47 @@ describe('computeCheckInHealth', () => {
     expect(stats.phaseCompletion.am).toEqual({ tapped: 0, expected: 0, pct: null })
     expect(stats.flaggedRate).toEqual({ flaggedCount: 0, totalTaps: 0, pct: null })
     expect(stats.repeatLocationDenied).toEqual([])
+  })
+})
+
+describe('isCheckInHealthEmpty (Finding 2)', () => {
+  const students: HealthStudent[] = [
+    { id: 's1', name: 'Amy' },
+    { id: 's2', name: 'Ben' },
+  ]
+
+  it('is empty when there are no students at all', () => {
+    const stats = computeCheckInHealth([], [], WINDOWS, 7, '2026-09-16', AFTER_PM_16TH)
+    expect(isCheckInHealthEmpty(0, stats)).toBe(true)
+  })
+
+  it('is empty when there is an active roster but nothing was expected (e.g. a holiday window)', () => {
+    // A roster that is somehow never "expected" any day in range (no records,
+    // but expected only comes from buildStudentDayStatus's own window logic —
+    // simulated here indirectly isn't possible without records, so this
+    // covers the same shape isCheckInHealthEmpty is asked to handle: zero
+    // expected slots regardless of student count).
+    const stats = computeCheckInHealth(students, [], WINDOWS, 0, '2026-09-16', AFTER_PM_16TH)
+    expect(isCheckInHealthEmpty(students.length, stats)).toBe(true)
+  })
+
+  it('is NOT empty when a real roster was expected but nobody tapped at all — a total check-in outage, not an empty academy', () => {
+    // Both students expected for every phase on 2026-09-16 (window closed,
+    // no excusals) but no daily_attendance rows at all — the exact shape of
+    // the September check-in outage this page exists to catch. The old
+    // `stats.flaggedRate.totalTaps === 0` gate would have called this
+    // "empty" and hidden the real 0% figures.
+    const stats = computeCheckInHealth(students, [], WINDOWS, 1, '2026-09-16', AFTER_PM_16TH)
+    expect(stats.flaggedRate.totalTaps).toBe(0)
+    expect(stats.phaseCompletion.am.expected).toBeGreaterThan(0)
+    expect(isCheckInHealthEmpty(students.length, stats)).toBe(false)
+  })
+
+  it('is not empty when there is real completion data', () => {
+    const records: HealthAttendanceRecord[] = [
+      rec({ student_id: 's1', attendance_date: '2026-09-16', am_checked_at: '2026-09-16T08:00:00Z' }),
+    ]
+    const stats = computeCheckInHealth(students, records, WINDOWS, 1, '2026-09-16', AFTER_PM_16TH)
+    expect(isCheckInHealthEmpty(students.length, stats)).toBe(false)
   })
 })

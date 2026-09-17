@@ -297,9 +297,9 @@ export default async function AttendancePage({
                     <ExcuseButton studentId={r.id} date={date} excusal={r.excusal ? { reason: r.excusal.reason, note: r.excusal.note } : null} />
                   </div>
                   <div className="grid grid-cols-3 gap-2 sm:contents">
-                    <PhaseCell time={r.am}    flagged={r.am_flagged}    reason={r.am_reason}    studentId={r.id} studentName={r.name} date={date} phase="am"    excusal={r.excusal} />
-                    <PhaseCell time={r.lunch} flagged={r.lunch_flagged} reason={r.lunch_reason} studentId={r.id} studentName={r.name} date={date} phase="lunch" excusal={r.excusal} />
-                    <PhaseCell time={r.pm}    flagged={r.pm_flagged}    reason={r.pm_reason}    studentId={r.id} studentName={r.name} date={date} phase="pm"    excusal={r.excusal} />
+                    <PhaseCell time={r.am}    flagged={r.am_flagged}    reason={r.am_reason}    studentId={r.id} studentName={r.name} date={date} phase="am"    excusal={r.excusal} filter={filter} />
+                    <PhaseCell time={r.lunch} flagged={r.lunch_flagged} reason={r.lunch_reason} studentId={r.id} studentName={r.name} date={date} phase="lunch" excusal={r.excusal} filter={filter} />
+                    <PhaseCell time={r.pm}    flagged={r.pm_flagged}    reason={r.pm_reason}    studentId={r.id} studentName={r.name} date={date} phase="pm"    excusal={r.excusal} filter={filter} />
                   </div>
                 </li>
               )
@@ -385,7 +385,7 @@ function SummaryTile({
 }
 
 function PhaseCell({
-  time, flagged, reason, studentId, studentName, date, phase, excusal,
+  time, flagged, reason, studentId, studentName, date, phase, excusal, filter,
 }: {
   time: string | null
   flagged: boolean
@@ -395,6 +395,7 @@ function PhaseCell({
   date: string
   phase: 'am' | 'lunch' | 'pm'
   excusal: { reason: 'ill' | 'appointment' | 'other'; note: string | null; phases: string[] } | null
+  filter: string
 }) {
   if (!time && excusalCoversPhase(excusal, phase)) {
     return (
@@ -408,10 +409,21 @@ function PhaseCell({
     )
   }
   if (!time) {
+    // The compact Excuse/Mark-present pair only renders for rows matching
+    // the currently-active missing_<phase> filter (final-review Finding 3)
+    // — showing it in every filter view meant up to 3 button-pairs per row
+    // at once on mobile, and made it trivially easy to fire the same
+    // per-phase excuse action twice back to back on one row (see the
+    // Finding 1 excusal-merge fix). Every other filter falls back to the
+    // plain OverrideButton, exactly as it rendered before this branch.
     return (
       <span className="flex flex-col items-center justify-center gap-1 text-xs text-muted-foreground">
         <span aria-label="Missing">—</span>
-        <MissingRowActions studentId={studentId} studentName={studentName} date={date} phase={phase} />
+        {filter === `missing_${phase}` ? (
+          <MissingRowActions studentId={studentId} studentName={studentName} date={date} phase={phase} />
+        ) : (
+          <OverrideButton studentId={studentId} date={date} phase={phase} present={false} />
+        )}
       </span>
     )
   }

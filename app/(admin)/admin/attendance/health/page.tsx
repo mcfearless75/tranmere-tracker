@@ -7,6 +7,7 @@ import { londonDateISO } from '@/lib/dates'
 import type { AttendancePhase, PhaseWindows } from '@/lib/attendance/phase'
 import {
   computeCheckInHealth,
+  isCheckInHealthEmpty,
   lastNLondonWeekdays,
   type HealthAttendanceRecord,
   type ExcusalsByStudentDate,
@@ -88,7 +89,13 @@ export default async function CheckInHealthPage({
     excusalsByStudentDate,
   )
 
-  const isEmpty = (students ?? []).length === 0 || stats.flaggedRate.totalTaps === 0
+  // Gate emptiness on whether anything was EXPECTED in the window, not on
+  // whether anything was TAPPED — zero taps against a non-zero expected
+  // count is a total check-in outage (exactly the September incident this
+  // page exists to surface), not an empty academy. That state must render
+  // the real (alarming) 0%/100% figures below, not this message. See
+  // isCheckInHealthEmpty's doc comment (lib/attendance/healthStats.ts).
+  const isEmpty = isCheckInHealthEmpty((students ?? []).length, stats)
 
   const completionData = [
     { phase: 'AM', pct: stats.phaseCompletion.am.pct ?? 0 },
