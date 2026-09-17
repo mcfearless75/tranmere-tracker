@@ -34,4 +34,16 @@ describe('SideNav', () => {
     expect(within(nav).queryByText('Sign Out')).not.toBeInTheDocument()
     expect(screen.getByText('Sign Out')).toBeInTheDocument()
   })
+
+  // Regression: SideNav's list used to be a separate hand-written array
+  // from BottomNav's, and never got Calendar/Gym/Targets/Wellbeing added
+  // to it — desktop students had no sidebar link to any of these pages,
+  // only mobile users did. Both navs now derive from lib/nav/studentNav.ts.
+  it('includes Calendar, Gym, Targets, and Wellbeing links', () => {
+    render(<SideNav userName="Test Player" avatarUrl={null} role="student" />)
+    expect(screen.getByText('Calendar').closest('a')).toHaveAttribute('href', '/calendar')
+    expect(screen.getByText('Gym').closest('a')).toHaveAttribute('href', '/gym')
+    expect(screen.getByText('Targets').closest('a')).toHaveAttribute('href', '/targets')
+    expect(screen.getByText('Wellbeing').closest('a')).toHaveAttribute('href', '/wellbeing')
+  })
 })

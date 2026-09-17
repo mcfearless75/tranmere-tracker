@@ -51,4 +51,24 @@ describe('BottomNav', () => {
     fireEvent.click(screen.getByRole('button', { name: /more/i }))
     expect(screen.getByRole('dialog', { name: /more/i })).toHaveAttribute('aria-hidden', 'false')
   })
+
+  // Regression: the "More" sheet used to be a separate hand-written list
+  // from SideNav's, and never got Nutrition/Moodle/Training/Matches/AI
+  // Report added to it — students on phones had no way to reach any of
+  // these pages at all, only desktop users did. Both navs now derive from
+  // lib/nav/studentNav.ts's shared list.
+  it('includes Nutrition, Training, Matches, and AI Report in the More sheet', () => {
+    render(<BottomNav />)
+    expect(screen.getByText('Nutrition').closest('a')).toHaveAttribute('href', '/nutrition')
+    expect(screen.getByText('Training').closest('a')).toHaveAttribute('href', '/training')
+    expect(screen.getByText('Matches').closest('a')).toHaveAttribute('href', '/matches')
+    expect(screen.getByText('AI Report').closest('a')).toHaveAttribute('href', '/ai-report')
+  })
+
+  it('opens the external Moodle link in a new tab, not via client-side routing', () => {
+    render(<BottomNav />)
+    const moodleLink = screen.getByText('Moodle').closest('a')!
+    expect(moodleLink).toHaveAttribute('target', '_blank')
+    expect(moodleLink).toHaveAttribute('rel', expect.stringContaining('noopener'))
+  })
 })
