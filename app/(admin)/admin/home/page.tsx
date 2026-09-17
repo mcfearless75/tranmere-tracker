@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
   ClipboardList, Heart, ClipboardCheck, ShieldAlert,
-  Satellite, CalendarDays, Calendar, Users, CheckCircle2, ChevronRight,
+  Satellite, CalendarDays, Calendar, Users, CheckCircle2, ChevronRight, Activity,
 } from 'lucide-react'
 import { londonDateISO } from '@/lib/dates'
 import { PHASE_LABELS, type PhaseWindows } from '@/lib/attendance/phase'
@@ -191,12 +191,13 @@ export default async function StaffHomePage() {
       />
 
       {/* Footer — the sitemap; the top is exceptions */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 pt-2">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-2">
         <ToolLink href="/admin/gps-dashboard" icon={<Satellite size={18} />} label="GPS" />
         <ToolLink href="/admin/attendance/calendar" icon={<CalendarDays size={18} />} label="Calendar" />
         <ToolLink href="/admin/match-events" icon={<Calendar size={18} />} label="Matches" />
         <ToolLink href="/admin/wellbeing" icon={<Heart size={18} />} label="Wellbeing" />
         <ToolLink href="/admin/students" icon={<Users size={18} />} label="Students" />
+        <ToolLink href="/admin/attendance/health" icon={<Activity size={18} />} label="Check-in health" />
       </div>
     </div>
   )

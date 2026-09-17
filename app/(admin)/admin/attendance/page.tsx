@@ -182,6 +182,12 @@ export default async function AttendancePage({
         <div className="flex items-center gap-2">
           <ClipboardList size={22} className="text-tranmere-blue" />
           <h1 className="text-xl font-bold text-tranmere-blue">Daily Attendance</h1>
+          <Link
+            href="/admin/attendance/health"
+            className="text-xs font-medium text-tranmere-blue underline underline-offset-2"
+          >
+            Check-in health
+          </Link>
         </div>
         <div className="flex gap-2">
           <Link
