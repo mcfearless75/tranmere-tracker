@@ -66,7 +66,13 @@ export function MissingRowActions({
     }
   }
 
-  const busy = pending
+  // Mutual exclusion: while EITHER mutation is in flight (or the post-success
+  // router.refresh() transition is pending), both buttons are disabled — not
+  // just the one that was clicked. Without this, a double-tap or a slow
+  // network lets postExcuse and postManualOverride race against the same
+  // studentId/phase/date row (the same bug class as the duplicate-checkin
+  // and safeguarding-duplicate-case races this codebase has hit before).
+  const anyMutationInFlight = excuseBusy || overrideBusy || pending
   const errorMessage = excuseError ?? overrideError
 
   return (
@@ -74,24 +80,24 @@ export function MissingRowActions({
       <button
         type="button"
         onClick={excuse}
-        disabled={excuseBusy || busy}
+        disabled={anyMutationInFlight}
         title={excuseError ?? `Excuse ${label} for ${studentName}`}
         className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border shrink-0 transition-colors disabled:opacity-40 ${
           excuseError ? 'border-red-300 text-red-600 bg-red-50' : 'border-gray-200 text-muted-foreground hover:bg-gray-100'
         }`}
       >
-        {excuseBusy || busy ? '…' : excuseError ? 'Retry' : `Excuse ${label}`}
+        {excuseBusy || pending ? '…' : excuseError ? 'Retry' : `Excuse ${label}`}
       </button>
       <button
         type="button"
         onClick={markPresent}
-        disabled={overrideBusy || busy}
+        disabled={anyMutationInFlight}
         title={overrideError ?? `Mark ${studentName} present for ${label} (staff override)`}
         className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border shrink-0 transition-colors disabled:opacity-40 ${
           overrideError ? 'border-red-300 text-red-600 bg-red-50' : 'border-tranmere-blue/30 text-tranmere-blue hover:bg-tranmere-blue/10'
         }`}
       >
-        {overrideBusy || busy ? '…' : overrideError ? 'Retry' : 'Mark present'}
+        {overrideBusy || pending ? '…' : overrideError ? 'Retry' : 'Mark present'}
       </button>
       {errorMessage && (
         <span role="alert" className="text-[10px] text-red-600 basis-full w-full">
