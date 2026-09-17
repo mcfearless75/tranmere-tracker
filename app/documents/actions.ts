@@ -9,6 +9,13 @@ async function requireStaff(admin: SupabaseClient, userId: string): Promise<bool
   return !!data && ['admin', 'coach', 'teacher'].includes(data.role)
 }
 
+function cleanName(name: string, max = 80): string | { error: string } {
+  const trimmedName = name.trim().replace(/\s+/g, ' ')
+  if (!trimmedName) return { error: 'Needs a name' }
+  if (trimmedName.length > max) return { error: `Name must be ${max} characters or fewer` }
+  return trimmedName
+}
+
 export async function createFolder(name: string, parentId?: string): Promise<string | { error: string }> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -17,9 +24,8 @@ export async function createFolder(name: string, parentId?: string): Promise<str
   const admin = createAdminClient()
   if (!await requireStaff(admin, user.id)) return { error: 'Staff only' }
 
-  const trimmedName = name.trim()
-  if (!trimmedName) return { error: 'Folder needs a name' }
-  if (trimmedName.length > 60) return { error: 'Folder name must be 60 characters or fewer' }
+  const trimmedName = cleanName(name, 60)
+  if (typeof trimmedName !== 'string') return trimmedName
 
   const row: { name: string; created_by: string; parent_id?: string } = {
     name: trimmedName,
@@ -49,6 +55,37 @@ export async function createFolder(name: string, parentId?: string): Promise<str
   return folder.id
 }
 
+export async function renameFolder(folderId: string, name: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+  const admin = createAdminClient()
+  if (!await requireStaff(admin, user.id)) return { ok: false, error: 'Staff only' }
+  const trimmedName = cleanName(name, 60)
+  if (typeof trimmedName !== 'string') return { ok: false, error: trimmedName.error }
+  const { error } = await admin.from('document_folders').update({ name: trimmedName }).eq('id', folderId)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/documents')
+  revalidatePath(`/documents/${folderId}`)
+  return { ok: true }
+}
+
+export async function renameDocument(documentId: string, name: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+  const admin = createAdminClient()
+  if (!await requireStaff(admin, user.id)) return { ok: false, error: 'Staff only' }
+  const trimmedName = cleanName(name, 120)
+  if (typeof trimmedName !== 'string') return { ok: false, error: trimmedName.error }
+  const { data: doc } = await admin.from('documents').select('id, folder_id').eq('id', documentId).maybeSingle()
+  if (!doc) return { ok: false, error: 'File not found' }
+  const { error } = await admin.from('documents').update({ name: trimmedName }).eq('id', documentId)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath(`/documents/${doc.folder_id}`)
+  return { ok: true }
+}
+
 async function collectFolderTree(admin: SupabaseClient, rootId: string): Promise<string[]> {
   const ids = [rootId]
   const { data: all } = await admin.from('document_folders').select('id, parent_id')
@@ -70,7 +107,7 @@ async function collectFolderTree(admin: SupabaseClient, rootId: string): Promise
   return ids
 }
 
-export async function deleteFolder(folderId: string): Promise<{ ok: boolean; error?: string }> {
+export async function deleteFolder(folderId: string): Promise<{ ok: boolean; parentId?: string | null; error?: string }> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'Unauthorized' }
@@ -78,6 +115,7 @@ export async function deleteFolder(folderId: string): Promise<{ ok: boolean; err
   const admin = createAdminClient()
   if (!await requireStaff(admin, user.id)) return { ok: false, error: 'Staff only' }
 
+  const { data: folder } = await admin.from('document_folders').select('parent_id').eq('id', folderId).maybeSingle()
   const tree = await collectFolderTree(admin, folderId)
   const { data: files } = await admin.from('documents').select('storage_path').in('folder_id', tree)
   const paths = (files ?? []).map(f => f.storage_path)
@@ -89,7 +127,7 @@ export async function deleteFolder(folderId: string): Promise<{ ok: boolean; err
   if (error) return { ok: false, error: error.message }
 
   revalidatePath('/documents')
-  return { ok: true }
+  return { ok: true, parentId: folder?.parent_id ?? null }
 }
 
 export async function recordDocument(

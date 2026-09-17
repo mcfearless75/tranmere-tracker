@@ -2,11 +2,12 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Folder } from 'lucide-react'
+import { ArrowLeft, Folder, Pencil } from 'lucide-react'
 import { UploadDropzone } from '../UploadDropzone'
 import { DocumentList } from './DocumentList'
-import { DeleteFolderButton } from './DeleteFolderButton'
+import { FolderHeader } from './FolderHeader'
 import { CreateFolderButton } from '../CreateFolderButton'
+import { SubfolderRow } from './SubfolderRow'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,7 +63,7 @@ export default async function DocumentFolderPage({ params }: { params: { folderI
           <ArrowLeft size={18} />
         </Link>
         <h1 className="text-xl sm:text-2xl font-bold text-tranmere-blue break-words min-w-0 flex-1">{folder.name}</h1>
-        {isStaff && <DeleteFolderButton folderId={params.folderId} folderName={folder.name} />}
+        {isStaff && <FolderHeader folderId={params.folderId} folderName={folder.name} parentId={folder.parent_id} />}
       </div>
 
       {isStaff && <CreateFolderButton parentId={params.folderId} />}
@@ -71,12 +72,7 @@ export default async function DocumentFolderPage({ params }: { params: { folderI
       {children.length > 0 && (
         <div className="rounded-2xl border bg-white divide-y">
           {children.map(child => (
-            <Link key={child.id} href={`/documents/${child.id}`} className="flex items-center gap-3 p-3 active:bg-gray-50">
-              <div className="w-10 h-10 rounded-full bg-tranmere-blue/10 text-tranmere-blue flex items-center justify-center shrink-0">
-                <Folder size={18} />
-              </div>
-              <p className="font-medium text-sm break-words">{child.name}</p>
-            </Link>
+            <SubfolderRow key={child.id} id={child.id} name={child.name} isStaff={isStaff} />
           ))}
         </div>
       )}
