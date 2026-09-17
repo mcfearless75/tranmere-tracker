@@ -1,11 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { CheckCircle2, MapPin } from 'lucide-react'
 import { PHASE_LABELS, type AttendancePhase, type PhaseWindows } from '@/lib/attendance/phase'
 import { buildStudentDayStatus, describeCardState, dayDots, type Phase } from '@/lib/attendance/dayStatus'
 import { InAppCheckIn } from '@/app/(student)/attendance/InAppCheckIn'
-import { getQueuedPhasesForToday } from '@/lib/attendance/checkInQueue'
+import { flushAllQueued, getQueuedPhasesForToday } from '@/lib/attendance/checkInQueue'
+import { submitTapCheckIn, toSubmitResult } from '@/lib/attendance/submitTapCheckIn'
 
 export type PhaseDayCardExcusal = { phases: string[] } | null
 
@@ -104,6 +106,7 @@ function LocationDeniedSteps() {
  * mechanics themselves (delegated to InAppCheckIn).
  */
 export function PhaseDayCard({ windows, daily, excusal, now }: Props) {
+  const router = useRouter()
   const [checkedAt, setCheckedAt] = useState<Record<Phase, string | null>>({
     am: daily?.am_checked_at ?? null,
     lunch: daily?.lunch_checked_at ?? null,
@@ -116,22 +119,64 @@ export function PhaseDayCard({ windows, daily, excusal, now }: Props) {
   const [geoDenied, setGeoDenied] = useState(false)
   // Phases with a check-in saved locally (InAppCheckIn's offline queue) but
   // not yet confirmed by the server — a distinct "pending" segment state,
-  // separate from dayStatus's own checked/missing/excused/etc. It's read
-  // fresh from localStorage on mount and whenever the queue might have
-  // changed (InAppCheckIn calls onQueueChange after every enqueue/flush
-  // attempt), rather than tracked in dayStatus, since it's purely a
-  // this-device, not-yet-server-confirmed fact.
+  // separate from dayStatus's own checked/missing/excused/etc. Rather than
+  // tracked in dayStatus, this is purely a this-device,
+  // not-yet-server-confirmed fact, refreshed after every sweep below.
   const [pendingPhases, setPendingPhases] = useState<Set<Phase>>(new Set())
+  // The most recent definitive (4xx) rejection a sweep found for some
+  // phase's queued item — surfaced to that phase's InAppCheckIn if it
+  // happens to be the one currently showing as the CTA.
+  const [sweepRejection, setSweepRejection] = useState<{ phase: Phase; message: string } | null>(null)
 
   const refreshPending = useCallback(() => {
     setPendingPhases(new Set(getQueuedPhasesForToday()))
   }, [])
 
-  useEffect(() => {
+  // next/navigation's useRouter() is stable in real Next.js, but nothing
+  // guarantees every consumer/mock is — keep the latest in a ref so `sweep`
+  // (and therefore the mount/online effect below) only ever depends on
+  // `refreshPending`, which never changes identity. Without this, an
+  // unstable `router` reference would recreate `sweep` on every render and
+  // re-fire the effect (and its `sweep()` call) far more often than once
+  // per mount/online-event — i.e. duplicate POSTs to the same endpoint.
+  const routerRef = useRef(router)
+  useEffect(() => { routerRef.current = router }, [router])
+
+  // The offline-queue retry SWEEP. This is deliberately at this level, not
+  // inside InAppCheckIn: PhaseDayCard only ever mounts ONE InAppCheckIn at a
+  // time (for whichever phase is currently open), so a sweep scoped to that
+  // single component would permanently orphan a queued item for any OTHER
+  // phase once the day moves past its window and that component unmounts.
+  // PhaseDayCard is the one place that can see (and route the result of)
+  // every queued phase at once — see checkInQueue.ts's `flushAllQueued` doc
+  // comment for the full reasoning.
+  const sweep = useCallback(async () => {
+    const results = await flushAllQueued(item =>
+      submitTapCheckIn(item.phase, { lat: item.lat, lng: item.lng, accuracy: item.accuracy }, false).then(toSubmitResult),
+    )
+    if (results.length > 0) {
+      const updates: Partial<Record<Phase, string>> = {}
+      let rejection: { phase: Phase; message: string } | null = null
+      for (const result of results) {
+        if (result.outcome === 'sent') updates[result.phase] = new Date().toISOString()
+        else if (result.outcome === 'dropped') rejection = { phase: result.phase, message: result.error }
+        // 'kept' (still offline / 5xx) and 'stale' (previous London day,
+        // pruned) need no further action here.
+      }
+      if (Object.keys(updates).length > 0) {
+        setCheckedAt(prev => ({ ...prev, ...updates }))
+        routerRef.current.refresh()
+      }
+      if (rejection) setSweepRejection(rejection)
+    }
     refreshPending()
-    window.addEventListener('online', refreshPending)
-    return () => window.removeEventListener('online', refreshPending)
   }, [refreshPending])
+
+  useEffect(() => {
+    sweep()
+    window.addEventListener('online', sweep)
+    return () => window.removeEventListener('online', sweep)
+  }, [sweep])
 
   const excusedPhases = (excusal?.phases ?? []) as Phase[]
   const status = buildStudentDayStatus(
@@ -227,6 +272,8 @@ export function PhaseDayCard({ windows, daily, excusal, now }: Props) {
               phase={prompt.phase as AttendancePhase}
               onSuccess={ts => setCheckedAt(prev => ({ ...prev, [prompt.phase]: ts }))}
               onQueueChange={refreshPending}
+              isQueued={pendingPhases.has(prompt.phase)}
+              queueError={sweepRejection?.phase === prompt.phase ? sweepRejection.message : null}
             />
           )}
         </div>

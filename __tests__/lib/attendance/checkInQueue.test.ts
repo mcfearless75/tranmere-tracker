@@ -1,9 +1,9 @@
 import {
   enqueueCheckIn,
-  flushQueuedCheckIn,
+  flushAllQueued,
   getQueuedPhasesForToday,
-  hasQueuedCheckInToday,
   type QueuedCheckIn,
+  type SubmitResult,
 } from '@/lib/attendance/checkInQueue'
 import { londonDateISO } from '@/lib/dates'
 
@@ -77,27 +77,26 @@ describe('checkInQueue', () => {
     })
   })
 
-  describe('hasQueuedCheckInToday / getQueuedPhasesForToday', () => {
+  describe('getQueuedPhasesForToday', () => {
     it('ignores items from a previous London day', () => {
       seedRawQueue([item({ phase: 'am', londonDate: '2020-01-01' })])
-      expect(hasQueuedCheckInToday('am')).toBe(false)
       expect(getQueuedPhasesForToday()).toEqual([])
     })
   })
 
-  describe('flushQueuedCheckIn', () => {
-    it('returns "none" when nothing is queued for that phase', async () => {
+  describe('flushAllQueued', () => {
+    it('returns an empty array when nothing is queued', async () => {
       const submit = jest.fn()
-      const result = await flushQueuedCheckIn('am', submit)
-      expect(result).toEqual({ outcome: 'none' })
+      const results = await flushAllQueued(submit)
+      expect(results).toEqual([])
       expect(submit).not.toHaveBeenCalled()
     })
 
-    it('drops a stale (previous-day) item without ever calling submit', async () => {
+    it('prunes a stale (previous-day) item WITHOUT ever calling submit for it — this is the path that was previously unreachable in production', async () => {
       seedRawQueue([item({ phase: 'am', londonDate: '2020-01-01' })])
       const submit = jest.fn()
-      const result = await flushQueuedCheckIn('am', submit)
-      expect(result).toEqual({ outcome: 'stale' })
+      const results = await flushAllQueued(submit)
+      expect(results).toEqual([{ phase: 'am', outcome: 'stale' }])
       expect(submit).not.toHaveBeenCalled()
       expect(readRawQueue()).toHaveLength(0)
     })
@@ -105,51 +104,98 @@ describe('checkInQueue', () => {
     it('drops the item on success and reports "sent"', async () => {
       seedRawQueue([item({ phase: 'am' })])
       const submit = jest.fn().mockResolvedValue({ ok: true, status: 200 })
-      const result = await flushQueuedCheckIn('am', submit)
-      expect(result).toEqual({ outcome: 'sent' })
+      const results = await flushAllQueued(submit)
+      expect(results).toEqual([{ phase: 'am', outcome: 'sent' }])
       expect(readRawQueue()).toHaveLength(0)
     })
 
     it('treats alreadyCheckedIn:true as success', async () => {
       seedRawQueue([item({ phase: 'lunch' })])
       const submit = jest.fn().mockResolvedValue({ ok: true, alreadyCheckedIn: true, status: 200 })
-      const result = await flushQueuedCheckIn('lunch', submit)
-      expect(result).toEqual({ outcome: 'sent' })
+      const results = await flushAllQueued(submit)
+      expect(results).toEqual([{ phase: 'lunch', outcome: 'sent' }])
       expect(readRawQueue()).toHaveLength(0)
     })
 
     it('drops the item on a definitive 4xx and surfaces the server message', async () => {
       seedRawQueue([item({ phase: 'pm' })])
       const submit = jest.fn().mockResolvedValue({ ok: false, status: 422, error: 'Outside afternoon check-in window' })
-      const result = await flushQueuedCheckIn('pm', submit)
-      expect(result).toEqual({ outcome: 'dropped', error: 'Outside afternoon check-in window' })
+      const results = await flushAllQueued(submit)
+      expect(results).toEqual([{ phase: 'pm', outcome: 'dropped', error: 'Outside afternoon check-in window' }])
       expect(readRawQueue()).toHaveLength(0)
     })
 
     it('keeps the item queued on a 5xx', async () => {
       seedRawQueue([item({ phase: 'am' })])
       const submit = jest.fn().mockResolvedValue({ ok: false, status: 500 })
-      const result = await flushQueuedCheckIn('am', submit)
-      expect(result).toEqual({ outcome: 'kept' })
+      const results = await flushAllQueued(submit)
+      expect(results).toEqual([{ phase: 'am', outcome: 'kept' }])
       expect(readRawQueue()).toHaveLength(1)
     })
 
     it('keeps the item queued when submit throws (still offline)', async () => {
       seedRawQueue([item({ phase: 'am' })])
       const submit = jest.fn().mockRejectedValue(new Error('network down'))
-      const result = await flushQueuedCheckIn('am', submit)
-      expect(result).toEqual({ outcome: 'kept' })
+      const results = await flushAllQueued(submit)
+      expect(results).toEqual([{ phase: 'am', outcome: 'kept' }])
       expect(readRawQueue()).toHaveLength(1)
     })
 
-    it('only flushes the requested phase, leaving other queued phases untouched', async () => {
-      seedRawQueue([item({ phase: 'am' }), item({ phase: 'lunch' })])
-      const submit = jest.fn().mockResolvedValue({ ok: true, status: 200 })
-      await flushQueuedCheckIn('am', submit)
-      expect(submit).toHaveBeenCalledTimes(1)
+    it('sweeps every phase in the queue, not just one — this is the fix for the cross-phase orphan bug', async () => {
+      const today = londonDateISO()
+      seedRawQueue([
+        item({ phase: 'am', londonDate: today }),
+        item({ phase: 'lunch', londonDate: today }),
+        item({ phase: 'pm', londonDate: today }),
+      ])
+      const submit = jest.fn(async (queued: QueuedCheckIn): Promise<SubmitResult> => {
+        // AM succeeds, lunch is rejected outright, pm is still 5xx-flaky.
+        if (queued.phase === 'am') return { ok: true, status: 200 }
+        if (queued.phase === 'lunch') return { ok: false, status: 422, error: 'Lunch window closed' }
+        return { ok: false, status: 503 }
+      })
+      const results = await flushAllQueued(submit)
+      expect(submit).toHaveBeenCalledTimes(3)
+      expect(results).toEqual([
+        { phase: 'am', outcome: 'sent' },
+        { phase: 'lunch', outcome: 'dropped', error: 'Lunch window closed' },
+        { phase: 'pm', outcome: 'kept' },
+      ])
+      // am (sent) and lunch (dropped) are gone; pm (kept) remains queued.
       const remaining = readRawQueue()
       expect(remaining).toHaveLength(1)
-      expect(remaining[0].phase).toBe('lunch')
+      expect(remaining[0].phase).toBe('pm')
+    })
+
+    it('prunes a stale item for one phase while still attempting a same-day item for another', async () => {
+      const today = londonDateISO()
+      seedRawQueue([
+        item({ phase: 'am', londonDate: '2020-01-01' }),
+        item({ phase: 'lunch', londonDate: today }),
+      ])
+      const submit = jest.fn().mockResolvedValue({ ok: true, status: 200 })
+      const results = await flushAllQueued(submit)
+      expect(submit).toHaveBeenCalledTimes(1) // only for the same-day lunch item
+      expect(results).toEqual([
+        { phase: 'am', outcome: 'stale' },
+        { phase: 'lunch', outcome: 'sent' },
+      ])
+      expect(readRawQueue()).toHaveLength(0)
+    })
+
+    it('sweeps oldest-first (queue insertion order)', async () => {
+      const today = londonDateISO()
+      seedRawQueue([
+        item({ phase: 'am', londonDate: today, recordedAt: '2026-09-17T07:00:00Z' }),
+        item({ phase: 'lunch', londonDate: today, recordedAt: '2026-09-17T12:00:00Z' }),
+      ])
+      const order: string[] = []
+      const submit = jest.fn(async (queued: QueuedCheckIn) => {
+        order.push(queued.phase)
+        return { ok: true, status: 200 }
+      })
+      await flushAllQueued(submit)
+      expect(order).toEqual(['am', 'lunch'])
     })
   })
 })

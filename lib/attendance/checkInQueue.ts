@@ -19,6 +19,16 @@
  * used elsewhere in this file's neighbourhood for the one-time geo
  * explainer flag) under a single array key, filtered by phase + London date
  * rather than split across many keys — simpler to cap and dedupe.
+ *
+ * The actual retry SWEEP (`flushAllQueued`) is deliberately generic over
+ * every queued phase, not just "today's" — see its doc comment. It is
+ * driven from PhaseDayCard.tsx (mount + browser 'online' event), which is
+ * the one place that can see every phase's queue state at once and route
+ * each result to the right phase's `checkedAt`. InAppCheckIn.tsx only ever
+ * calls `enqueueCheckIn` for its own fresh tap attempt; it does not run its
+ * own retry loop — a per-component retry scoped to whichever phase happens
+ * to be mounted would silently orphan a queued item for any OTHER phase
+ * once the day moves on to the next window.
  */
 
 import type { AttendancePhase } from '@/lib/attendance/phase'
@@ -35,10 +45,11 @@ export type QueuedCheckIn = {
    * Europe/London calendar date (YYYY-MM-DD) the attempt belongs to,
    * captured at enqueue time. The server always stamps a check-in against
    * ITS OWN "today" (`londonDateISO()` at request time) — there is no way
-   * to backdate a submission — so a queued item is only ever safe to flush
+   * to backdate a submission — so a queued item is only ever safe to send
    * while this still matches today's date. Once the London day rolls over,
-   * flushing would silently record it against the wrong day, so it must be
-   * dropped instead (see `flushQueuedCheckIn`'s 'stale' outcome).
+   * sending it would silently record it against the wrong day, so
+   * `flushAllQueued` prunes it instead (its 'stale' outcome) without ever
+   * calling `submit`.
    */
   londonDate: string
 }
@@ -50,12 +61,12 @@ export type SubmitResult = {
   error?: string
 }
 
-export type FlushOutcome =
-  | { outcome: 'none' }
-  | { outcome: 'sent' }
-  | { outcome: 'dropped'; error: string }
-  | { outcome: 'kept' }
-  | { outcome: 'stale' }
+/** One queued item's outcome from a sweep — see `flushAllQueued`. */
+export type SweepResult =
+  | { phase: AttendancePhase; outcome: 'sent' }
+  | { phase: AttendancePhase; outcome: 'dropped'; error: string }
+  | { phase: AttendancePhase; outcome: 'kept' }
+  | { phase: AttendancePhase; outcome: 'stale' }
 
 const QUEUE_KEY = 'checkin_queue_v1'
 const MAX_QUEUE_SIZE = 5
@@ -106,50 +117,59 @@ export function getQueuedPhasesForToday(): AttendancePhase[] {
     .map(q => q.phase)
 }
 
-/** Is there a queued, not-yet-sent check-in for this phase today? */
-export function hasQueuedCheckInToday(phase: AttendancePhase): boolean {
-  return getQueuedPhasesForToday().includes(phase)
-}
-
 /**
- * Attempts to send the queued item for `phase` (today only), via the
- * caller-supplied `submit`. Outcomes:
- *  - 'none'    — nothing queued for this phase today; no-op.
- *  - 'stale'   — a queued item exists but is from a previous London day;
- *                dropped without ever calling `submit` (see `londonDate`
- *                doc above for why it can't be sent).
+ * Sweeps EVERY queued item — any phase, any London date — oldest first,
+ * via the caller-supplied `submit`. Deliberately does not pre-filter to
+ * "today's phase only": a queued item can legitimately sit across a phase
+ * boundary (network drops near the end of the AM window, doesn't recover
+ * until the lunch window has opened and the AM `InAppCheckIn` has already
+ * unmounted) — nothing else in the app will ever revisit that item once
+ * `decidePhase` has moved on, so this sweep has to be the one place that
+ * still looks for it.
+ *
+ * Per item:
+ *  - a previous-London-day item is 'stale' — pruned WITHOUT ever calling
+ *    `submit` (sending it would record against the wrong day server-side,
+ *    since the route always stamps its own "today").
  *  - 'sent'    — success or `alreadyCheckedIn:true`; dropped from the queue.
  *  - 'dropped' — a definitive 4xx rejection; dropped from the queue, the
  *                server's message is returned for display.
  *  - 'kept'    — a 5xx response, or `submit` itself threw (still offline);
- *                left queued for the next flush trigger.
+ *                left queued for the next sweep trigger.
  */
-export async function flushQueuedCheckIn(
-  phase: AttendancePhase,
+export async function flushAllQueued(
   submit: (item: QueuedCheckIn) => Promise<SubmitResult>,
-): Promise<FlushOutcome> {
+): Promise<SweepResult[]> {
   const queue = readQueue()
-  const item = queue.find(q => q.phase === phase)
-  if (!item) return { outcome: 'none' }
+  if (queue.length === 0) return []
 
   const today = londonDateISO()
-  if (item.londonDate !== today) {
-    writeQueue(queue.filter(q => q !== item))
-    return { outcome: 'stale' }
+  const results: SweepResult[] = []
+  const remaining: QueuedCheckIn[] = []
+
+  for (const item of queue) {
+    if (item.londonDate !== today) {
+      results.push({ phase: item.phase, outcome: 'stale' })
+      continue
+    }
+    try {
+      const result = await submit(item)
+      if (result.ok || result.alreadyCheckedIn) {
+        results.push({ phase: item.phase, outcome: 'sent' })
+        continue
+      }
+      if (result.status >= 500) {
+        results.push({ phase: item.phase, outcome: 'kept' })
+        remaining.push(item)
+        continue
+      }
+      results.push({ phase: item.phase, outcome: 'dropped', error: result.error ?? 'Check-in failed' })
+    } catch {
+      results.push({ phase: item.phase, outcome: 'kept' })
+      remaining.push(item)
+    }
   }
 
-  try {
-    const result = await submit(item)
-    if (result.ok || result.alreadyCheckedIn) {
-      writeQueue(readQueue().filter(q => !(q.phase === phase && q.londonDate === today)))
-      return { outcome: 'sent' }
-    }
-    if (result.status >= 500) {
-      return { outcome: 'kept' }
-    }
-    writeQueue(readQueue().filter(q => !(q.phase === phase && q.londonDate === today)))
-    return { outcome: 'dropped', error: result.error ?? 'Check-in failed' }
-  } catch {
-    return { outcome: 'kept' }
-  }
+  writeQueue(remaining)
+  return results
 }

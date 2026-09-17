@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
 import { CheckCircle, AlertCircle, CloudOff, Loader2, Sun, Moon, Utensils, MapPin, type LucideIcon } from 'lucide-react'
 import type { AttendancePhase } from '@/lib/attendance/phase'
 import { getGeoFix, type GeoFix, type GeoDiagnostic } from '@/lib/attendance/getGeoFix'
 import { reportClientError } from '@/lib/reportClientError'
-import { enqueueCheckIn, flushQueuedCheckIn, hasQueuedCheckInToday, type QueuedCheckIn, type SubmitResult } from '@/lib/attendance/checkInQueue'
+import { enqueueCheckIn } from '@/lib/attendance/checkInQueue'
+import { submitTapCheckIn } from '@/lib/attendance/submitTapCheckIn'
 
 type ScanState = 'idle' | 'locating' | 'submitting' | 'success' | 'already' | 'error' | 'queued'
 
@@ -14,60 +14,26 @@ interface Props {
   phase: AttendancePhase
   onSuccess: (checkedAt: string) => void
   /**
-   * Best-effort notification that the offline queue changed (an attempt was
-   * queued, sent, or dropped) — lets PhaseDayCard refresh its "pending"
-   * segment-dot indicator without polling localStorage every render.
+   * Best-effort notification that the offline queue changed (a fresh tap
+   * just got queued) — lets PhaseDayCard refresh its "pending" segment-dot
+   * indicator without waiting for its next sweep.
    */
   onQueueChange?: () => void
-}
-
-/** Normalised outcome of one POST to /api/attendance/tap-checkin. */
-type SubmitOutcome =
-  | { kind: 'success' }
-  | { kind: 'alreadyCheckedIn' }
-  | { kind: 'serverError'; status: number }
-  | { kind: 'rejected'; status: number; error: string }
-
-/**
- * Posts one check-in attempt and classifies the response. A thrown fetch
- * (network genuinely down — DNS failure, no connection, CORS) propagates to
- * the caller unchanged; everything else resolves to a discriminated result
- * so 4xx (definitive rejection: outside fence/window, unauthorised, invalid
- * phase) and 5xx (plausibly transient) can be told apart — both arrive as a
- * normal resolved response, so `res.status` has to be checked explicitly
- * rather than relying on try/catch alone.
- */
-async function submitTapCheckIn(
-  phase: AttendancePhase,
-  geo: { lat: number | null; lng: number | null; accuracy: number | null },
-  geoPermissionDenied: boolean,
-): Promise<SubmitOutcome> {
-  const res = await fetch('/api/attendance/tap-checkin', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      phase,
-      geo_lat: geo.lat,
-      geo_lng: geo.lng,
-      geo_accuracy_m: geo.accuracy,
-      geo_permission_denied: geoPermissionDenied,
-    }),
-  })
-  if (res.status >= 500) return { kind: 'serverError', status: res.status }
-  const json = await res.json()
-  if (json.alreadyCheckedIn) return { kind: 'alreadyCheckedIn' }
-  if (!json.ok) return { kind: 'rejected', status: res.status, error: json.error ?? 'Check-in failed' }
-  return { kind: 'success' }
-}
-
-/** Adapts the richer SubmitOutcome to the queue module's generic SubmitResult shape. */
-function toSubmitResult(outcome: SubmitOutcome): SubmitResult {
-  switch (outcome.kind) {
-    case 'success': return { ok: true, status: 200 }
-    case 'alreadyCheckedIn': return { ok: true, alreadyCheckedIn: true, status: 200 }
-    case 'serverError': return { ok: false, status: outcome.status }
-    case 'rejected': return { ok: false, status: outcome.status, error: outcome.error }
-  }
+  /**
+   * Does THIS phase currently have a check-in saved in the offline queue,
+   * not yet confirmed by the server? Owned by PhaseDayCard (which sweeps
+   * the WHOLE queue, not just this phase — see checkInQueue.ts's
+   * `flushAllQueued` doc comment for why that has to live one level up),
+   * not derived locally, so this component always reflects the sweep's
+   * latest result rather than a one-off mount-time read.
+   */
+  isQueued?: boolean
+  /**
+   * A message from PhaseDayCard's sweep: this phase's queued attempt was
+   * just definitively rejected (4xx — e.g. the window has since closed).
+   * Shown once, the same way a fresh tap's own rejection is.
+   */
+  queueError?: string | null
 }
 
 const PHASE_UI: Record<AttendancePhase, { icon: LucideIcon; button: string; success: string }> = {
@@ -76,8 +42,7 @@ const PHASE_UI: Record<AttendancePhase, { icon: LucideIcon; button: string; succ
   pm:    { icon: Moon,     button: 'End of Day Check-out',  success: 'End of day recorded' },
 }
 
-export function InAppCheckIn({ phase, onSuccess, onQueueChange }: Props) {
-  const router = useRouter()
+export function InAppCheckIn({ phase, onSuccess, onQueueChange, isQueued = false, queueError = null }: Props) {
   const [state, setState] = useState<ScanState>('idle')
   const [error, setError] = useState('')
   const geoRef = useRef<GeoFix | null>(null)
@@ -99,6 +64,31 @@ export function InAppCheckIn({ phase, onSuccess, onQueueChange }: Props) {
       if (fix) geoRef.current = fix
     })
   }, [])
+
+  // Mirror PhaseDayCard's sweep-driven `isQueued` into local state, so this
+  // phase shows "saved on this phone" immediately if it's already queued
+  // (e.g. re-mounted after a previous tap failed), and drops back to idle
+  // once the sweep resolves it — without this component running its own
+  // competing retry loop. Functional updates avoid needing `state` as a
+  // dependency (it changes independently via handleCheckIn).
+  useEffect(() => {
+    setState(prev => {
+      if (isQueued && prev === 'idle') return 'queued'
+      if (!isQueued && prev === 'queued') return 'idle'
+      return prev
+    })
+  }, [isQueued])
+
+  // A sweep just definitively rejected (4xx) this phase's queued attempt —
+  // surface it the same way a fresh tap's own rejection would be. Only
+  // reacts to the message actually changing, so a local "Try again" dismiss
+  // (which doesn't change PhaseDayCard's prop) sticks until a genuinely new
+  // rejection comes in.
+  useEffect(() => {
+    if (!queueError) return
+    setError(queueError)
+    setState('error')
+  }, [queueError])
 
   const handleCheckIn = useCallback(async () => {
     setState('locating')
@@ -138,6 +128,8 @@ export function InAppCheckIn({ phase, onSuccess, onQueueChange }: Props) {
       if (outcome.kind === 'serverError') {
         // Plausibly transient (server-side) rather than a definitive
         // rejection — queue for automatic retry rather than just erroring.
+        // The retry itself happens via PhaseDayCard's sweep (see
+        // checkInQueue.ts), not here.
         enqueueCheckIn({ phase, lat: geo?.lat ?? null, lng: geo?.lng ?? null, accuracy: roundedAccuracy, recordedAt: new Date().toISOString() })
         onQueueChange?.()
         setState('queued')
@@ -155,47 +147,6 @@ export function InAppCheckIn({ phase, onSuccess, onQueueChange }: Props) {
       setState('queued')
     }
   }, [phase, onSuccess, onQueueChange])
-
-  // PhaseDayCard passes fresh onSuccess/onQueueChange closures on every
-  // render (they close over its own state setters) — keep the latest in
-  // refs so the flush effect below only re-runs on an actual phase change,
-  // not on every unrelated parent re-render.
-  const onSuccessRef = useRef(onSuccess)
-  const onQueueChangeRef = useRef(onQueueChange)
-  useEffect(() => { onSuccessRef.current = onSuccess }, [onSuccess])
-  useEffect(() => { onQueueChangeRef.current = onQueueChange }, [onQueueChange])
-
-  // Flush this phase's queued check-in (if any) on mount and whenever the
-  // browser comes back online. Scoped to THIS component's own phase only —
-  // that's the phase whose CTA is currently showing, which is also the one
-  // most likely to have just failed and been queued a moment ago.
-  const flush = useCallback(async () => {
-    if (!hasQueuedCheckInToday(phase)) return
-    setState('queued')
-    const result = await flushQueuedCheckIn(phase, (item: QueuedCheckIn) =>
-      submitTapCheckIn(phase, { lat: item.lat, lng: item.lng, accuracy: item.accuracy }, false).then(toSubmitResult),
-    )
-    onQueueChangeRef.current?.()
-    if (result.outcome === 'sent') {
-      setState('success')
-      onSuccessRef.current(new Date().toISOString())
-      router.refresh()
-    } else if (result.outcome === 'dropped') {
-      setError(result.error)
-      setState('error')
-    } else if (result.outcome === 'kept') {
-      setState('queued')
-    } else {
-      // 'none' or 'stale' — nothing (more) to show for this phase.
-      setState('idle')
-    }
-  }, [phase, router])
-
-  useEffect(() => {
-    flush()
-    window.addEventListener('online', flush)
-    return () => window.removeEventListener('online', flush)
-  }, [flush])
 
   if (state === 'success') {
     return (

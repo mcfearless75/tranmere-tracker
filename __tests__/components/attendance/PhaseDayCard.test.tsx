@@ -1,9 +1,14 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { act, render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { PhaseDayCard } from '@/components/attendance/PhaseDayCard'
 import type { PhaseWindows } from '@/lib/attendance/phase'
 
 jest.mock('@/app/(student)/attendance/InAppCheckIn', () => ({
   InAppCheckIn: ({ phase }: { phase: string }) => <button>Check in — {phase}</button>,
+}))
+
+const mockRefresh = jest.fn()
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: mockRefresh, push: jest.fn(), replace: jest.fn() }),
 }))
 
 const WINDOWS: PhaseWindows = {
@@ -31,7 +36,12 @@ afterEach(() => {
   setPermissions(undefined)
   try { sessionStorage.clear() } catch { /* noop */ }
   try { localStorage.clear() } catch { /* noop */ }
+  mockRefresh.mockClear()
 })
+
+function todayLondonDate(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date())
+}
 
 describe('PhaseDayCard', () => {
   it('shows the CTA copy only for the open, missing phase', async () => {
@@ -112,13 +122,15 @@ describe('PhaseDayCard', () => {
     // The queue module keys "today" off the REAL device clock (it's about
     // when the app is actually opened, not the test's simulated `now` used
     // for window-open decisions) — seed with the real current London date.
-    const todayLondon = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date())
     localStorage.setItem(
       'checkin_queue_v1',
       JSON.stringify([
-        { phase: 'am', lat: 1, lng: 2, accuracy: 10, recordedAt: '2026-09-16T08:00:00Z', londonDate: todayLondon },
+        { phase: 'am', lat: 1, lng: 2, accuracy: 10, recordedAt: '2026-09-16T08:00:00Z', londonDate: todayLondonDate() },
       ]),
     )
+    // The mount-time sweep will attempt this item — keep it "still offline"
+    // so the pending dot is still there to assert on.
+    global.fetch = jest.fn().mockRejectedValue(new TypeError('Failed to fetch')) as unknown as typeof fetch
     setPermissions(queryPermission('granted'))
     render(<PhaseDayCard windows={WINDOWS} daily={null} excusal={null} now={DURING_LUNCH} />)
     expect(await screen.findByLabelText('AM pending')).toBeInTheDocument()
@@ -128,13 +140,13 @@ describe('PhaseDayCard', () => {
   })
 
   it('does not show a pending dot once the phase is actually checked (a real tap wins over a stale queue entry)', () => {
-    const todayLondon = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date())
     localStorage.setItem(
       'checkin_queue_v1',
       JSON.stringify([
-        { phase: 'am', lat: 1, lng: 2, accuracy: 10, recordedAt: '2026-09-16T08:00:00Z', londonDate: todayLondon },
+        { phase: 'am', lat: 1, lng: 2, accuracy: 10, recordedAt: '2026-09-16T08:00:00Z', londonDate: todayLondonDate() },
       ]),
     )
+    global.fetch = jest.fn().mockRejectedValue(new TypeError('Failed to fetch')) as unknown as typeof fetch
     render(
       <PhaseDayCard
         windows={WINDOWS}
@@ -145,5 +157,79 @@ describe('PhaseDayCard', () => {
     )
     expect(screen.getByLabelText('AM done')).toBeInTheDocument()
     expect(screen.queryByLabelText('AM pending')).not.toBeInTheDocument()
+  })
+
+  describe('offline queue sweep (fixes: retry sweep must cover every queued phase, not just the currently-displayed one)', () => {
+    it('sweeps and confirms a queued item for a DIFFERENT, no-longer-displayed phase (AM) even while lunch is the current CTA', async () => {
+      localStorage.setItem(
+        'checkin_queue_v1',
+        JSON.stringify([
+          { phase: 'am', lat: 1, lng: 2, accuracy: 10, recordedAt: '2026-09-16T08:00:00Z', londonDate: todayLondonDate() },
+        ]),
+      )
+      const fetchMock = jest.fn().mockResolvedValue({ status: 200, json: async () => ({ ok: true, success: true, id: 'row-1' }) })
+      global.fetch = fetchMock as unknown as typeof fetch
+      setPermissions(queryPermission('granted'))
+      render(<PhaseDayCard windows={WINDOWS} daily={null} excusal={null} now={DURING_LUNCH} />)
+
+      // Lunch is the open, missing phase — the only CTA the student sees.
+      expect(await screen.findByText('Check in — lunch')).toBeInTheDocument()
+
+      // The AM item queued from earlier still gets swept and confirmed,
+      // even though no AM InAppCheckIn is mounted any more — this is the
+      // cross-phase orphan bug fix (the sweep lives here, not inside a
+      // single InAppCheckIn scoped to just one phase).
+      await waitFor(() => expect(screen.getByLabelText('AM done')).toBeInTheDocument())
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(JSON.parse(localStorage.getItem('checkin_queue_v1') ?? '[]')).toHaveLength(0)
+      expect(mockRefresh).toHaveBeenCalled()
+    })
+
+    it('prunes a stale (previous London day) queued item on mount, instead of leaving it queued forever', async () => {
+      localStorage.setItem(
+        'checkin_queue_v1',
+        JSON.stringify([
+          { phase: 'am', lat: 1, lng: 2, accuracy: 10, recordedAt: '2020-01-01T08:00:00Z', londonDate: '2020-01-01' },
+        ]),
+      )
+      const fetchSpy = jest.fn()
+      global.fetch = fetchSpy as unknown as typeof fetch
+      setPermissions(queryPermission('granted'))
+      render(<PhaseDayCard windows={WINDOWS} daily={null} excusal={null} now={DURING_LUNCH} />)
+
+      await waitFor(() => expect(localStorage.getItem('checkin_queue_v1')).toBe('[]'))
+      // Never even attempted over the network — a previous day's check-in
+      // can't be sent (the server always stamps its own "today").
+      expect(fetchSpy).not.toHaveBeenCalled()
+    })
+
+    it('flushes on the "online" event specifically, not merely because mount already happened to flush it', async () => {
+      localStorage.setItem(
+        'checkin_queue_v1',
+        JSON.stringify([
+          { phase: 'am', lat: 1, lng: 2, accuracy: 10, recordedAt: '2026-09-16T08:00:00Z', londonDate: todayLondonDate() },
+        ]),
+      )
+      const fetchMock = jest.fn()
+      global.fetch = fetchMock as unknown as typeof fetch
+      // Mount-time sweep fails outright (still offline) — the item must
+      // survive that attempt, still queued, before 'online' fires.
+      fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      setPermissions(queryPermission('granted'))
+      render(<PhaseDayCard windows={WINDOWS} daily={null} excusal={null} now={DURING_LUNCH} />)
+
+      await waitFor(() => expect(screen.getByLabelText('AM pending')).toBeInTheDocument())
+      expect(JSON.parse(localStorage.getItem('checkin_queue_v1') ?? '[]')).toHaveLength(1)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+
+      // Network's back — a fresh mock resolves success. Only the 'online'
+      // listener (there has been no second mount) can be the trigger here.
+      fetchMock.mockResolvedValue({ status: 200, json: async () => ({ ok: true, success: true, id: 'row-1' }) })
+      await act(async () => { window.dispatchEvent(new Event('online')) })
+
+      await waitFor(() => expect(screen.getByLabelText('AM done')).toBeInTheDocument())
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(localStorage.getItem('checkin_queue_v1')).toBe('[]')
+    })
   })
 })
