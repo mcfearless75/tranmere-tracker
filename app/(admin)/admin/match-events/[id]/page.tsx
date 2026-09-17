@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, LayoutGrid } from 'lucide-react'
 import { MatchReport } from './MatchReport'
+import { MatchEditForm } from './MatchEditForm'
+import { AddPlayersLater } from './AddPlayersLater'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,10 +19,16 @@ export default async function MatchDetailPage({ params }: { params: { id: string
 
   if (!match) notFound()
 
-  const { data: squad } = await supabase
-    .from('match_squads')
-    .select('id, player_id, status, position, coach_rating, coach_notes, goals, assists, minutes_played, yellow_card, red_card, users:player_id(name, avatar_url, year_group)')
-    .eq('match_id', params.id)
+  const [{ data: squad }, { data: students }] = await Promise.all([
+    supabase
+      .from('match_squads')
+      .select('id, player_id, status, position, coach_rating, coach_notes, goals, assists, minutes_played, yellow_card, red_card, users:player_id(name, avatar_url, year_group)')
+      .eq('match_id', params.id),
+    supabase.from('users').select('id, name').eq('role', 'student').order('name'),
+  ])
+
+  const inSquad = new Set((squad ?? []).map((s: { player_id: string }) => s.player_id))
+  const available = (students ?? []).filter(s => !inSquad.has(s.id))
 
   return (
     <div className="space-y-5">
@@ -36,6 +44,8 @@ export default async function MatchDetailPage({ params }: { params: { id: string
         </Link>
       </div>
 
+      <MatchEditForm match={match} />
+      <AddPlayersLater matchId={match.id} opponent={match.opponent} available={available} />
       <MatchReport match={match} squad={(squad ?? []) as any} />
     </div>
   )
