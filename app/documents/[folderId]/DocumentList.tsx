@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useRef, useState, useTransition, type PointerEvent, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { FileText, FileSpreadsheet, FileImage, File as FileIcon, Trash2, Download, Eye } from 'lucide-react'
 import { deleteDocument } from '../actions'
@@ -55,13 +55,11 @@ export function DocumentList({ documents, isStaff }: { documents: Doc[]; isStaff
   return (
     <div className="rounded-2xl border bg-white divide-y overflow-hidden">
       {error && <p className="text-xs text-red-600 px-3 py-2">{error}</p>}
-      <p className="px-3 pt-2 pb-1 text-[11px] text-muted-foreground sm:hidden">Swipe a file left for View / Download / Delete</p>
       {documents.map(doc => {
         const Icon = iconFor(doc.mime_type)
-        const open = openId === doc.id
         return (
-          <SwipeRow key={doc.id} open={open} onOpen={() => setOpenId(doc.id)} onClose={() => setOpenId(null)}>
-            <div className="flex items-start gap-3 bg-white p-3">
+          <div key={doc.id} className="p-3 space-y-2">
+            <div className="flex items-start gap-3 min-w-0">
               <div className="w-10 h-10 rounded-lg bg-tranmere-blue/10 flex items-center justify-center text-tranmere-blue shrink-0">
                 <Icon size={18} />
               </div>
@@ -70,96 +68,26 @@ export function DocumentList({ documents, isStaff }: { documents: Doc[]; isStaff
                 <p className="text-xs text-muted-foreground">{formatSize(doc.size_bytes)}</p>
               </div>
             </div>
-            <div className="flex h-full items-stretch">
+            <div className="flex flex-wrap items-center gap-2">
               {doc.url && (
                 <>
-                  <a href={doc.url} target="_blank" rel="noreferrer" className="flex w-16 flex-col items-center justify-center gap-0.5 bg-tranmere-blue text-white text-[10px] font-semibold">
-                    <Eye size={16} /> View
+                  <a href={doc.url} target="_blank" rel="noreferrer" aria-label={`View ${doc.name}`} className="inline-flex items-center gap-1.5 rounded-lg border border-tranmere-blue/20 bg-tranmere-blue/5 px-3 py-2 text-xs font-semibold text-tranmere-blue">
+                    <Eye size={14} /> View
                   </a>
-                  <a href={doc.url} download={doc.name} className="flex w-16 flex-col items-center justify-center gap-0.5 bg-gray-700 text-white text-[10px] font-semibold">
-                    <Download size={16} /> Save
+                  <a href={doc.url} download={doc.name} aria-label={`Download ${doc.name}`} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700">
+                    <Download size={14} /> Download
                   </a>
                 </>
               )}
               {isStaff && (
-                <button
-                  type="button"
-                  onClick={() => handleDelete(doc.id, doc.name)}
-                  disabled={pending && removingId === doc.id}
-                  className="flex w-16 flex-col items-center justify-center gap-0.5 bg-red-600 text-white text-[10px] font-semibold disabled:opacity-50"
-                >
-                  <Trash2 size={16} /> Delete
+                <button type="button" onClick={() => handleDelete(doc.id, doc.name)} disabled={pending && removingId === doc.id} aria-label={`Delete ${doc.name}`} className="inline-flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50">
+                  <Trash2 size={14} /> Delete
                 </button>
               )}
             </div>
-          </SwipeRow>
+          </div>
         )
       })}
-    </div>
-  )
-}
-
-function SwipeRow({
-  open,
-  onOpen,
-  onClose,
-  children,
-}: {
-  open: boolean
-  onOpen: () => void
-  onClose: () => void
-  children: [React.ReactNode, React.ReactNode]
-}) {
-  const startX = useRef(0)
-  const startY = useRef(0)
-  const locked = useRef<'h' | 'v' | null>(null)
-  const [dx, setDx] = useState(0)
-  const actions = children[1]
-  const body = children[0]
-  const reveal = 176
-
-  function onPointerDown(e: React.PointerEvent) {
-    startX.current = e.clientX
-    startY.current = e.clientY
-    locked.current = null
-  }
-  function onPointerMove(e: React.PointerEvent) {
-    const x = e.clientX - startX.current
-    const y = e.clientY - startY.current
-    if (!locked.current) {
-      if (Math.abs(x) < 8 && Math.abs(y) < 8) return
-      locked.current = Math.abs(x) > Math.abs(y) ? 'h' : 'v'
-    }
-    if (locked.current !== 'h') return
-    e.preventDefault()
-    const next = open ? -reveal + x : x
-    setDx(Math.max(-reveal - 24, Math.min(24, next)))
-  }
-  function onPointerUp() {
-    if (locked.current === 'h') {
-      const final = open ? -reveal + dx : dx
-      if (final < -56) onOpen()
-      else onClose()
-    }
-    setDx(0)
-    locked.current = null
-  }
-
-  const shift = open ? -reveal + (dx || 0) : dx
-
-  return (
-    <div className="relative overflow-hidden">
-      <div className="absolute inset-y-0 right-0 flex">{actions}</div>
-      <div
-        className="relative bg-white touch-pan-y"
-        style={{ transform: `translateX(${shift}px)`, transition: locked.current === 'h' ? 'none' : 'transform 180ms ease' }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-      >
-        {body}
-      </div>
     </div>
   )
 }
