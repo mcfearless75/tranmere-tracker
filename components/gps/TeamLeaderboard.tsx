@@ -1,8 +1,9 @@
 'use client'
 
+import Link from 'next/link'
 import { Zap, Gauge, Route, Activity } from 'lucide-react'
 
-type Row = { name: string; value: number; display: string }
+type Row = { playerId?: string; name: string; value: number; display: string }
 
 const RANK_STYLE = [
   'bg-gradient-to-r from-yellow-400 to-amber-500 text-white',   // 1st
@@ -38,23 +39,43 @@ function Board({ title, icon, rows, unit }: { title: string; icon: React.ReactNo
         {rows.length === 0 && (
           <p className="py-6 text-center text-xs text-muted-foreground">No data yet</p>
         )}
-        {rows.slice(0, 5).map((r, i) => (
-          <div key={r.name} className="relative overflow-hidden rounded-lg bg-gray-50 p-2">
-            <div
-              className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-100 to-blue-50 transition-all duration-700 ease-out"
-              style={{ width: `${(r.value / max) * 100}%` }}
-            />
-            <div className="relative flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <RankChip rank={i} />
-                <span className="truncate text-sm font-medium">{r.name}</span>
+        {rows.map((r, i) => {
+          const inner = (
+            <>
+              <div
+                className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-100 to-blue-50 transition-all duration-700 ease-out"
+                style={{ width: `${(r.value / max) * 100}%` }}
+              />
+              <div className="relative flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <RankChip rank={i} />
+                  <span className="truncate text-sm font-medium">{r.name}</span>
+                </div>
+                <span className="shrink-0 text-sm font-bold tabular-nums text-tranmere-blue">
+                  {r.display}{unit && <span className="ml-1 text-xs font-normal text-muted-foreground">{unit}</span>}
+                </span>
               </div>
-              <span className="shrink-0 text-sm font-bold tabular-nums text-tranmere-blue">
-                {r.display}{unit && <span className="ml-1 text-xs font-normal text-muted-foreground">{unit}</span>}
-              </span>
+            </>
+          )
+
+          const className = 'relative overflow-hidden rounded-lg bg-gray-50 p-2 block'
+          if (r.playerId) {
+            return (
+              <Link
+                key={`${r.playerId}-${r.name}`}
+                href={`/admin/gps-dashboard/${r.playerId}`}
+                className={`${className} hover:ring-1 hover:ring-tranmere-blue/30 active:bg-blue-50`}
+              >
+                {inner}
+              </Link>
+            )
+          }
+          return (
+            <div key={r.name} className={className}>
+              {inner}
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

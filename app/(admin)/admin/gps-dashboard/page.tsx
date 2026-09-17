@@ -61,11 +61,11 @@ export default async function GpsDashboardPage() {
   const s = (sessions ?? []) as unknown as Sess[]
 
   // Aggregate per player
-  const byPlayer: Record<string, { name: string; distance: number; topSpeed: number; sprints: number; load: number }> = {}
+  const byPlayer: Record<string, { id: string; name: string; distance: number; topSpeed: number; sprints: number; load: number }> = {}
   for (const row of s) {
     if (!row.users?.name) continue
     const id = row.player_id
-    const entry = byPlayer[id] ??= { name: row.users.name, distance: 0, topSpeed: 0, sprints: 0, load: 0 }
+    const entry = byPlayer[id] ??= { id, name: row.users.name, distance: 0, topSpeed: 0, sprints: 0, load: 0 }
     entry.distance += row.total_distance_m ?? 0
     entry.topSpeed = Math.max(entry.topSpeed, row.max_speed_kmh ?? 0)
     entry.sprints += row.sprint_count ?? 0
@@ -75,16 +75,16 @@ export default async function GpsDashboardPage() {
   const entries = Object.values(byPlayer)
 
   const distance = [...entries].sort((a, b) => b.distance - a.distance).map(e => ({
-    name: e.name, value: e.distance, display: (e.distance / 1000).toFixed(2),
+    playerId: e.id, name: e.name, value: e.distance, display: (e.distance / 1000).toFixed(2),
   }))
   const topSpeed = [...entries].sort((a, b) => b.topSpeed - a.topSpeed).map(e => ({
-    name: e.name, value: e.topSpeed, display: e.topSpeed.toFixed(1),
+    playerId: e.id, name: e.name, value: e.topSpeed, display: e.topSpeed.toFixed(1),
   }))
   const sprints = [...entries].sort((a, b) => b.sprints - a.sprints).map(e => ({
-    name: e.name, value: e.sprints, display: e.sprints.toString(),
+    playerId: e.id, name: e.name, value: e.sprints, display: e.sprints.toString(),
   }))
   const load = [...entries].sort((a, b) => b.load - a.load).map(e => ({
-    name: e.name, value: e.load, display: e.load.toFixed(0),
+    playerId: e.id, name: e.name, value: e.load, display: e.load.toFixed(0),
   }))
 
   const totalDistance = entries.reduce((sum, e) => sum + e.distance, 0) / 1000
@@ -97,7 +97,7 @@ export default async function GpsDashboardPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-tranmere-blue">Squad GPS Dashboard</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">Last 7 days · {entries.length} player{entries.length === 1 ? '' : 's'} with data</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">Last 7 days · {entries.length} player{entries.length === 1 ? '' : 's'} with data · tap a player for full stats</p>
         </div>
         <SeedDemoButton />
       </div>
