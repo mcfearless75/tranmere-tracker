@@ -30,6 +30,7 @@ function setPermissions(query: typeof navigator.permissions.query | undefined) {
 afterEach(() => {
   setPermissions(undefined)
   try { sessionStorage.clear() } catch { /* noop */ }
+  try { localStorage.clear() } catch { /* noop */ }
 })
 
 describe('PhaseDayCard', () => {
@@ -105,5 +106,44 @@ describe('PhaseDayCard', () => {
     setPermissions(undefined)
     render(<PhaseDayCard windows={WINDOWS} daily={null} excusal={null} now={DURING_LUNCH} />)
     expect(await screen.findByText("We'll ask for your location")).toBeInTheDocument()
+  })
+
+  it('shows a pending (amber) segment dot for a phase with a check-in queued offline but not yet server-confirmed', async () => {
+    // The queue module keys "today" off the REAL device clock (it's about
+    // when the app is actually opened, not the test's simulated `now` used
+    // for window-open decisions) — seed with the real current London date.
+    const todayLondon = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date())
+    localStorage.setItem(
+      'checkin_queue_v1',
+      JSON.stringify([
+        { phase: 'am', lat: 1, lng: 2, accuracy: 10, recordedAt: '2026-09-16T08:00:00Z', londonDate: todayLondon },
+      ]),
+    )
+    setPermissions(queryPermission('granted'))
+    render(<PhaseDayCard windows={WINDOWS} daily={null} excusal={null} now={DURING_LUNCH} />)
+    expect(await screen.findByLabelText('AM pending')).toBeInTheDocument()
+    // Still missing/not-yet-confirmed server-side, so the lunch CTA (the
+    // real open phase) is unaffected by AM's queued state.
+    expect(screen.getByText('Lunch check-in still needed')).toBeInTheDocument()
+  })
+
+  it('does not show a pending dot once the phase is actually checked (a real tap wins over a stale queue entry)', () => {
+    const todayLondon = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date())
+    localStorage.setItem(
+      'checkin_queue_v1',
+      JSON.stringify([
+        { phase: 'am', lat: 1, lng: 2, accuracy: 10, recordedAt: '2026-09-16T08:00:00Z', londonDate: todayLondon },
+      ]),
+    )
+    render(
+      <PhaseDayCard
+        windows={WINDOWS}
+        daily={{ am_checked_at: '2026-09-16T08:00:00Z', lunch_checked_at: null, pm_checked_at: null }}
+        excusal={null}
+        now={DURING_LUNCH}
+      />,
+    )
+    expect(screen.getByLabelText('AM done')).toBeInTheDocument()
+    expect(screen.queryByLabelText('AM pending')).not.toBeInTheDocument()
   })
 })

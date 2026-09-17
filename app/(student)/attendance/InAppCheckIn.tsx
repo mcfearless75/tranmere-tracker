@@ -1,16 +1,73 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { CheckCircle, AlertCircle, Loader2, Sun, Moon, Utensils, MapPin, type LucideIcon } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { CheckCircle, AlertCircle, CloudOff, Loader2, Sun, Moon, Utensils, MapPin, type LucideIcon } from 'lucide-react'
 import type { AttendancePhase } from '@/lib/attendance/phase'
 import { getGeoFix, type GeoFix, type GeoDiagnostic } from '@/lib/attendance/getGeoFix'
 import { reportClientError } from '@/lib/reportClientError'
+import { enqueueCheckIn, flushQueuedCheckIn, hasQueuedCheckInToday, type QueuedCheckIn, type SubmitResult } from '@/lib/attendance/checkInQueue'
 
-type ScanState = 'idle' | 'locating' | 'submitting' | 'success' | 'already' | 'error'
+type ScanState = 'idle' | 'locating' | 'submitting' | 'success' | 'already' | 'error' | 'queued'
 
 interface Props {
   phase: AttendancePhase
   onSuccess: (checkedAt: string) => void
+  /**
+   * Best-effort notification that the offline queue changed (an attempt was
+   * queued, sent, or dropped) — lets PhaseDayCard refresh its "pending"
+   * segment-dot indicator without polling localStorage every render.
+   */
+  onQueueChange?: () => void
+}
+
+/** Normalised outcome of one POST to /api/attendance/tap-checkin. */
+type SubmitOutcome =
+  | { kind: 'success' }
+  | { kind: 'alreadyCheckedIn' }
+  | { kind: 'serverError'; status: number }
+  | { kind: 'rejected'; status: number; error: string }
+
+/**
+ * Posts one check-in attempt and classifies the response. A thrown fetch
+ * (network genuinely down — DNS failure, no connection, CORS) propagates to
+ * the caller unchanged; everything else resolves to a discriminated result
+ * so 4xx (definitive rejection: outside fence/window, unauthorised, invalid
+ * phase) and 5xx (plausibly transient) can be told apart — both arrive as a
+ * normal resolved response, so `res.status` has to be checked explicitly
+ * rather than relying on try/catch alone.
+ */
+async function submitTapCheckIn(
+  phase: AttendancePhase,
+  geo: { lat: number | null; lng: number | null; accuracy: number | null },
+  geoPermissionDenied: boolean,
+): Promise<SubmitOutcome> {
+  const res = await fetch('/api/attendance/tap-checkin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      phase,
+      geo_lat: geo.lat,
+      geo_lng: geo.lng,
+      geo_accuracy_m: geo.accuracy,
+      geo_permission_denied: geoPermissionDenied,
+    }),
+  })
+  if (res.status >= 500) return { kind: 'serverError', status: res.status }
+  const json = await res.json()
+  if (json.alreadyCheckedIn) return { kind: 'alreadyCheckedIn' }
+  if (!json.ok) return { kind: 'rejected', status: res.status, error: json.error ?? 'Check-in failed' }
+  return { kind: 'success' }
+}
+
+/** Adapts the richer SubmitOutcome to the queue module's generic SubmitResult shape. */
+function toSubmitResult(outcome: SubmitOutcome): SubmitResult {
+  switch (outcome.kind) {
+    case 'success': return { ok: true, status: 200 }
+    case 'alreadyCheckedIn': return { ok: true, alreadyCheckedIn: true, status: 200 }
+    case 'serverError': return { ok: false, status: outcome.status }
+    case 'rejected': return { ok: false, status: outcome.status, error: outcome.error }
+  }
 }
 
 const PHASE_UI: Record<AttendancePhase, { icon: LucideIcon; button: string; success: string }> = {
@@ -19,7 +76,8 @@ const PHASE_UI: Record<AttendancePhase, { icon: LucideIcon; button: string; succ
   pm:    { icon: Moon,     button: 'End of Day Check-out',  success: 'End of day recorded' },
 }
 
-export function InAppCheckIn({ phase, onSuccess }: Props) {
+export function InAppCheckIn({ phase, onSuccess, onQueueChange }: Props) {
+  const router = useRouter()
   const [state, setState] = useState<ScanState>('idle')
   const [error, setError] = useState('')
   const geoRef = useRef<GeoFix | null>(null)
@@ -65,30 +123,79 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
       reportClientError(new Error(`getGeoFix failed: ${JSON.stringify(diagnostic)}`), 'checkin-geo-diagnostic')
     }
 
+    const roundedAccuracy = geo?.accuracy ? Math.round(geo.accuracy) : null
+
     setState('submitting')
     try {
-      const res = await fetch('/api/attendance/tap-checkin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phase,
-          geo_lat:              geo?.lat ?? null,
-          geo_lng:              geo?.lng ?? null,
-          geo_accuracy_m:       geo?.accuracy ? Math.round(geo.accuracy) : null,
-          geo_permission_denied: geoPermissionDenied,
-        }),
-      })
-      const json = await res.json()
+      const outcome = await submitTapCheckIn(
+        phase,
+        { lat: geo?.lat ?? null, lng: geo?.lng ?? null, accuracy: roundedAccuracy },
+        geoPermissionDenied,
+      )
       // Duplicate tap — friendly reassurance, not an error.
-      if (json.alreadyCheckedIn) { setState('already'); return }
-      if (!json.ok) { setError(json.error ?? 'Check-in failed'); setState('error'); return }
+      if (outcome.kind === 'alreadyCheckedIn') { setState('already'); return }
+      if (outcome.kind === 'rejected') { setError(outcome.error); setState('error'); return }
+      if (outcome.kind === 'serverError') {
+        // Plausibly transient (server-side) rather than a definitive
+        // rejection — queue for automatic retry rather than just erroring.
+        enqueueCheckIn({ phase, lat: geo?.lat ?? null, lng: geo?.lng ?? null, accuracy: roundedAccuracy, recordedAt: new Date().toISOString() })
+        onQueueChange?.()
+        setState('queued')
+        return
+      }
       setState('success')
       onSuccess(new Date().toISOString())
     } catch {
-      setError('Network error — check your connection and try again')
-      setState('error')
+      // Thrown fetch — network genuinely down (never reached the server at
+      // all). This is the only case, alongside a resolved 5xx above, that
+      // should enqueue for offline retry; a parsed 4xx JSON error response
+      // never reaches this catch.
+      enqueueCheckIn({ phase, lat: geo?.lat ?? null, lng: geo?.lng ?? null, accuracy: roundedAccuracy, recordedAt: new Date().toISOString() })
+      onQueueChange?.()
+      setState('queued')
     }
-  }, [phase, onSuccess])
+  }, [phase, onSuccess, onQueueChange])
+
+  // PhaseDayCard passes fresh onSuccess/onQueueChange closures on every
+  // render (they close over its own state setters) — keep the latest in
+  // refs so the flush effect below only re-runs on an actual phase change,
+  // not on every unrelated parent re-render.
+  const onSuccessRef = useRef(onSuccess)
+  const onQueueChangeRef = useRef(onQueueChange)
+  useEffect(() => { onSuccessRef.current = onSuccess }, [onSuccess])
+  useEffect(() => { onQueueChangeRef.current = onQueueChange }, [onQueueChange])
+
+  // Flush this phase's queued check-in (if any) on mount and whenever the
+  // browser comes back online. Scoped to THIS component's own phase only —
+  // that's the phase whose CTA is currently showing, which is also the one
+  // most likely to have just failed and been queued a moment ago.
+  const flush = useCallback(async () => {
+    if (!hasQueuedCheckInToday(phase)) return
+    setState('queued')
+    const result = await flushQueuedCheckIn(phase, (item: QueuedCheckIn) =>
+      submitTapCheckIn(phase, { lat: item.lat, lng: item.lng, accuracy: item.accuracy }, false).then(toSubmitResult),
+    )
+    onQueueChangeRef.current?.()
+    if (result.outcome === 'sent') {
+      setState('success')
+      onSuccessRef.current(new Date().toISOString())
+      router.refresh()
+    } else if (result.outcome === 'dropped') {
+      setError(result.error)
+      setState('error')
+    } else if (result.outcome === 'kept') {
+      setState('queued')
+    } else {
+      // 'none' or 'stale' — nothing (more) to show for this phase.
+      setState('idle')
+    }
+  }, [phase, router])
+
+  useEffect(() => {
+    flush()
+    window.addEventListener('online', flush)
+    return () => window.removeEventListener('online', flush)
+  }, [flush])
 
   if (state === 'success') {
     return (
@@ -98,6 +205,16 @@ export function InAppCheckIn({ phase, onSuccess }: Props) {
         <p className="text-xs text-muted-foreground">
           {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
         </p>
+      </div>
+    )
+  }
+
+  if (state === 'queued') {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 gap-3 text-center" data-testid="checkin-queued">
+        <CloudOff size={44} className="text-amber-500" />
+        <p className="text-sm font-semibold text-amber-700">Check-in saved on this phone — will send when you&apos;re back online.</p>
+        <p className="text-xs text-muted-foreground">No need to tap again — this will finish on its own.</p>
       </div>
     )
   }

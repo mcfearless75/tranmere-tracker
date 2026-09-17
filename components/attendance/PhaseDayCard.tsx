@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, MapPin } from 'lucide-react'
 import { PHASE_LABELS, type AttendancePhase, type PhaseWindows } from '@/lib/attendance/phase'
 import { buildStudentDayStatus, describeCardState, dayDots, type Phase } from '@/lib/attendance/dayStatus'
 import { InAppCheckIn } from '@/app/(student)/attendance/InAppCheckIn'
+import { getQueuedPhasesForToday } from '@/lib/attendance/checkInQueue'
 
 export type PhaseDayCardExcusal = { phases: string[] } | null
 
@@ -113,6 +114,24 @@ export function PhaseDayCard({ windows, daily, excusal, now }: Props) {
   // must never mount before we know whether the explainer should show first.
   const [geoStep, setGeoStep] = useState<'checking' | 'explainer' | 'ready'>('checking')
   const [geoDenied, setGeoDenied] = useState(false)
+  // Phases with a check-in saved locally (InAppCheckIn's offline queue) but
+  // not yet confirmed by the server — a distinct "pending" segment state,
+  // separate from dayStatus's own checked/missing/excused/etc. It's read
+  // fresh from localStorage on mount and whenever the queue might have
+  // changed (InAppCheckIn calls onQueueChange after every enqueue/flush
+  // attempt), rather than tracked in dayStatus, since it's purely a
+  // this-device, not-yet-server-confirmed fact.
+  const [pendingPhases, setPendingPhases] = useState<Set<Phase>>(new Set())
+
+  const refreshPending = useCallback(() => {
+    setPendingPhases(new Set(getQueuedPhasesForToday()))
+  }, [])
+
+  useEffect(() => {
+    refreshPending()
+    window.addEventListener('online', refreshPending)
+    return () => window.removeEventListener('online', refreshPending)
+  }, [refreshPending])
 
   const excusedPhases = (excusal?.phases ?? []) as Phase[]
   const status = buildStudentDayStatus(
@@ -154,15 +173,21 @@ export function PhaseDayCard({ windows, daily, excusal, now }: Props) {
 
       {/* Three equal segments */}
       <div className="flex gap-1.5">
-        {(['am', 'lunch', 'pm'] as const).map(phase => (
-          <div key={phase} className="flex-1 space-y-1 text-center">
-            <div
-              aria-label={`${CHIP_LABEL[phase]} ${filled.has(phase) ? 'done' : 'not done'}`}
-              className={`h-1.5 rounded-full ${filled.has(phase) ? 'bg-tranmere-blue' : 'bg-gray-200'}`}
-            />
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{CHIP_LABEL[phase]}</p>
-          </div>
-        ))}
+        {(['am', 'lunch', 'pm'] as const).map(phase => {
+          const isFilled = filled.has(phase)
+          // A real tap always wins over a merely-queued one still waiting
+          // to send — once the server confirms it, `filled` takes over.
+          const isPending = !isFilled && pendingPhases.has(phase)
+          return (
+            <div key={phase} className="flex-1 space-y-1 text-center">
+              <div
+                aria-label={`${CHIP_LABEL[phase]} ${isFilled ? 'done' : isPending ? 'pending' : 'not done'}`}
+                className={`h-1.5 rounded-full ${isFilled ? 'bg-tranmere-blue' : isPending ? 'bg-amber-400' : 'bg-gray-200'}`}
+              />
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{CHIP_LABEL[phase]}</p>
+            </div>
+          )
+        })}
       </div>
 
       {prompt.kind === 'weekend' && (
@@ -201,6 +226,7 @@ export function PhaseDayCard({ windows, daily, excusal, now }: Props) {
             <InAppCheckIn
               phase={prompt.phase as AttendancePhase}
               onSuccess={ts => setCheckedAt(prev => ({ ...prev, [prompt.phase]: ts }))}
+              onQueueChange={refreshPending}
             />
           )}
         </div>
