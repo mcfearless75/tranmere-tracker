@@ -215,11 +215,11 @@ export default async function DashboardPage() {
   // itinerary hero / wellbeing prompt / upcoming-matches sections further
   // down the page (now inside the collapsed "More" disclosure) — no extra
   // queries, just a compact re-derivation of what's already fetched.
-  // `as any` here matches the existing cast further down this file (the
-  // "Upcoming Matches" card's own `.map((entry: any) => ...)`) — Supabase's
-  // generated types treat the `match_events(...)` embed as a one-to-many
-  // array even though match_squads.match_id is actually one-to-one.
-  const nextFixtureRaw = (mySquadEntries[0] as any)?.match_events as
+  // Widened via `unknown` (not `any`) — Supabase's generated types treat
+  // the `match_events(...)` embed as a one-to-many array even though
+  // match_squads.match_id is actually one-to-one, so a direct cast to the
+  // real shape is rejected as an insufficient-overlap error.
+  const nextFixtureRaw = mySquadEntries[0]?.match_events as unknown as
     | { opponent: string; match_date: string; location: string | null }
     | undefined
   const nextUpRows = buildNextUpRows({
