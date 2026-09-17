@@ -3,32 +3,21 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, User, Heart, CalendarDays, CalendarClock, Dumbbell, Target, FolderOpen, ClipboardCheck, MessageSquare, MoreHorizontal, X } from 'lucide-react'
+import { MoreHorizontal, X } from 'lucide-react'
+import { STUDENT_NAV_PRIMARY, resolveStudentNavExtra } from '@/lib/nav/studentNav'
 
 type Props = { showTimetable?: boolean; showCoursework?: boolean }
 
 // Always-visible tabs. Kept to 4 + More so icons/labels stay readable on a
 // narrow phone screen instead of shrinking to fit an ever-growing row.
-const PRIMARY = [
-  { href: '/dashboard', label: 'Home', icon: Home },
-  { href: '/chat',      label: 'Chat', icon: MessageSquare },
-  { href: '/calendar',  label: 'Calendar', icon: CalendarDays },
-  { href: '/profile',   label: 'Profile', icon: User },
-]
+const PRIMARY = STUDENT_NAV_PRIMARY
 
 export function BottomNav({ showTimetable = false, showCoursework = false }: Props) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
 
-  const more = [
-    { href: '/documents',  label: 'Documents', icon: FolderOpen },
-    ...(showTimetable ? [{ href: '/timetable', label: 'Timetable', icon: CalendarClock }] : []),
-    ...(showCoursework ? [{ href: '/coursework', label: 'Coursework', icon: ClipboardCheck }] : []),
-    { href: '/gym',        label: 'Gym',       icon: Dumbbell },
-    { href: '/targets',    label: 'Targets',   icon: Target },
-    { href: '/wellbeing',  label: 'Wellbeing', icon: Heart },
-  ]
-  const moreActive = more.some(({ href }) => pathname === href || pathname.startsWith(href + '/'))
+  const more = resolveStudentNavExtra({ showTimetable, showCoursework })
+  const moreActive = more.some(({ href, external }) => !external && (pathname === href || pathname.startsWith(href + '/')))
 
   useEffect(() => { setOpen(false) }, [pathname])
 
@@ -58,14 +47,16 @@ export function BottomNav({ showTimetable = false, showCoursework = false }: Pro
           </button>
         </div>
         <div className="grid grid-cols-3 gap-1 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-          {more.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href || pathname.startsWith(href + '/')
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={`flex flex-col items-center justify-center gap-1 rounded-xl py-3 text-xs font-medium ${active ? 'text-tranmere-blue bg-tranmere-blue/10' : 'text-gray-500 hover:bg-gray-50'}`}
-              >
+          {more.map(({ href, label, icon: Icon, external }) => {
+            const active = !external && (pathname === href || pathname.startsWith(href + '/'))
+            const className = `flex flex-col items-center justify-center gap-1 rounded-xl py-3 text-xs font-medium ${active ? 'text-tranmere-blue bg-tranmere-blue/10' : 'text-gray-500 hover:bg-gray-50'}`
+            return external ? (
+              <a key={href} href={href} target="_blank" rel="noopener noreferrer" className={className}>
+                <Icon size={20} strokeWidth={1.5} />
+                {label}
+              </a>
+            ) : (
+              <Link key={href} href={href} className={className}>
                 <Icon size={20} strokeWidth={active ? 2.5 : 1.5} />
                 {label}
               </Link>
