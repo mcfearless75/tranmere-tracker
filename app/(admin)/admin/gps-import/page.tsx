@@ -1,34 +1,41 @@
 import { GpsImportForm } from './GpsImportForm'
+import { CatapultCodeRoster } from './CatapultCodeRoster'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
 
 export default async function GpsImportPage() {
   const supabase = createAdminClient()
-  const { data: sessions } = await supabase
-    .from('gps_sessions')
-    .select('id, session_date, session_label, source, total_distance_m, max_speed_kmh, sprint_count, users:player_id (name)')
-    .order('session_date', { ascending: false })
-    .limit(50)
+  const [{ data: sessions }, studentsRes] = await Promise.all([
+    supabase
+      .from('gps_sessions')
+      .select('id, session_date, session_label, source, total_distance_m, max_speed_kmh, sprint_count, users:player_id (name)')
+      .order('session_date', { ascending: false })
+      .limit(50),
+    supabase.from('users').select('id, name, catapult_code').eq('role', 'student').order('name'),
+  ])
+
+  const students = studentsRes.data ?? []
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-tranmere-blue">GPS Import</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Upload a Catapult One session CSV (preferred) or a STATSports export.
+          Map each player to their Catapult code, then upload the session CSV.
         </p>
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm space-y-1">
-        <p className="font-semibold text-blue-800">How to export from Catapult One</p>
+        <p className="font-semibold text-blue-800">Oldham file</p>
         <ol className="list-decimal list-inside text-blue-700 space-y-0.5">
-          <li>Open oneapp.catapultsports.com → Session</li>
-          <li>Select the game → upload icon → Export to CSV</li>
-          <li>On the GPS zapper roster, set each player&apos;s Catapult code (e.g. Tranmere P27)</li>
-          <li>Upload that CSV here. Only <strong>Full Match</strong> rows are imported</li>
+          <li>Save codes below (clipboard P16–P30). Run 074 SQL if the column is missing.</li>
+          <li>In Catapult One export <strong>CSV</strong> (xlsx will not parse yet).</li>
+          <li>Upload here. Only <strong>Full Match</strong> rows are stored on the player.</li>
         </ol>
       </div>
+
+      <CatapultCodeRoster students={students} />
 
       <GpsImportForm />
 
