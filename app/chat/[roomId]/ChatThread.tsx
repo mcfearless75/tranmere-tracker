@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { Send, Paperclip, X, Bot } from 'lucide-react'
+import { Send, Paperclip, X, Bot, SmilePlus } from 'lucide-react'
 import { MessageReactionSheet } from '@/components/chat/MessageReactionSheet'
 import { markRead, notifyRoomMembers } from '../actions'
 
@@ -64,6 +64,7 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
   const [reactions, setReactions] = useState<ChatReaction[]>(initialReactions)
   const [reactingTo, setReactingTo] = useState<string | null>(null)
   const holdTimer = useRef<number | null>(null)
+  const holdStart = useRef<{ x: number; y: number } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -267,13 +268,25 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
   }
 
   function openSheet(id: string) { setReactingTo(id) }
-  function startHold(id: string) {
+  function startHold(id: string, x: number, y: number) {
     if (holdTimer.current) window.clearTimeout(holdTimer.current)
-    holdTimer.current = window.setTimeout(() => openSheet(id), 420)
+    holdStart.current = { x, y }
+    holdTimer.current = window.setTimeout(() => {
+      holdTimer.current = null
+      openSheet(id)
+    }, 380)
+  }
+  function moveHold(x: number, y: number) {
+    const start = holdStart.current
+    if (!start || !holdTimer.current) return
+    const dx = x - start.x
+    const dy = y - start.y
+    if (dx * dx + dy * dy > 16 * 16) cancelHold()
   }
   function cancelHold() {
     if (holdTimer.current) window.clearTimeout(holdTimer.current)
     holdTimer.current = null
+    holdStart.current = null
   }
 
   return (
@@ -315,12 +328,27 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
                   )}
                 </div>
               )}
+              {mine && (
+              <button
+                type="button"
+                aria-label="React to message"
+                onClick={() => openSheet(m.id)}
+                className="mb-1 shrink-0 rounded-full p-1.5 text-tranmere-blue/70 active:bg-gray-100"
+              >
+                <SmilePlus size={16} />
+              </button>
+              )}
               <div
-                className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm break-words select-none ${mine ? 'bg-tranmere-blue text-white rounded-br-md' : 'bg-white border text-gray-900 rounded-bl-md'}`}
+                className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm break-words select-none touch-manipulation ${mine ? 'bg-tranmere-blue text-white rounded-br-md' : 'bg-white border text-gray-900 rounded-bl-md'}`}
                 onContextMenu={e => { e.preventDefault(); openSheet(m.id) }}
-                onTouchStart={() => startHold(m.id)}
-                onTouchEnd={cancelHold}
-                onTouchMove={cancelHold}
+                onPointerDown={e => {
+                  if (e.pointerType === 'mouse' && e.button !== 0) return
+                  startHold(m.id, e.clientX, e.clientY)
+                }}
+                onPointerMove={e => moveHold(e.clientX, e.clientY)}
+                onPointerUp={cancelHold}
+                onPointerCancel={cancelHold}
+                onPointerLeave={cancelHold}
               >
                 {!mine && showAvatar && (
                   <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">{isBot ? 'AI Coach' : (sender?.name ?? '?')}</p>
@@ -350,6 +378,16 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
                   </div>
                 )}
               </div>
+              {!mine && (
+              <button
+                type="button"
+                aria-label="React to message"
+                onClick={() => openSheet(m.id)}
+                className="mb-1 shrink-0 rounded-full p-1.5 text-gray-400 active:bg-gray-100"
+              >
+                <SmilePlus size={16} />
+              </button>
+              )}
             </div>
           )
         })}
