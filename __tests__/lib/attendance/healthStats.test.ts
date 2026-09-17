@@ -166,6 +166,23 @@ describe('computeCheckInHealth', () => {
     expect(stats.phaseCompletion.am).toEqual({ tapped: 0, expected: 0, pct: null })
   })
 
+  it('does not count today\'s still-open lunch window as "missing" for a student who simply hasn\'t tapped yet', () => {
+    // 13:00 London on the 16th — inside the lunch window (11:00-14:30).
+    // AM's window (07:30-10:30) has already closed; PM's (14:30-17:30) hasn't opened.
+    const duringLunchToday = new Date('2026-09-16T12:00:00Z')
+    const records: HealthAttendanceRecord[] = [] // no taps at all today
+    const stats = computeCheckInHealth([students[0]], records, WINDOWS, 1, '2026-09-16', duringLunchToday)
+
+    // AM: window closed, no tap -> genuinely missing (expected, not tapped).
+    expect(stats.phaseCompletion.am).toEqual({ tapped: 0, expected: 1, pct: 0 })
+    // Lunch: window still open right now — not tapped yet, but there's still
+    // time, so this phase/day must be excluded entirely (not "missing").
+    expect(stats.phaseCompletion.lunch).toEqual({ tapped: 0, expected: 0, pct: null })
+    expect(stats.missingRate.lunch).toEqual({ tapped: 0, expected: 0, pct: null })
+    // PM: window not yet open -> not_yet, already excluded before this fix.
+    expect(stats.phaseCompletion.pm).toEqual({ tapped: 0, expected: 0, pct: null })
+  })
+
   it('flags a student with permission-denied on 2+ distinct days in the window as a repeat', () => {
     const records: HealthAttendanceRecord[] = [
       rec({

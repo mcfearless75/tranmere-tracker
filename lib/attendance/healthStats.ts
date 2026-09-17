@@ -9,7 +9,7 @@
 import { shiftDate } from '@/lib/attendance/weeklyReport'
 import { buildStudentDayStatus, type PhaseRecord } from '@/lib/attendance/dayStatus'
 import { londonWallTimeToUTC } from '@/lib/dates'
-import type { AttendancePhase, PhaseWindows } from '@/lib/attendance/phase'
+import { londonMinutes, toMinutes, type AttendancePhase, type PhaseWindows } from '@/lib/attendance/phase'
 
 const PHASES: readonly AttendancePhase[] = ['am', 'lunch', 'pm']
 
@@ -170,6 +170,23 @@ export function computeCheckInHealth(
 
       for (const phase of PHASES) {
         const ps = status.phases[phase]
+
+        // dayStatus.ts's 'missing' fires the instant a window OPENS (right
+        // for the live CTA/exceptions-home use case: "still time to chase
+        // this"). This aggregator needs the brief's stricter rule instead —
+        // "expected and not excused and not tapped, AFTER that window's
+        // end" — so a student who simply hasn't tapped yet, with time still
+        // left before the window closes, isn't already counted as missing.
+        // Every past day's `instant` is already end-of-day (closed), so this
+        // only ever fires for `dateISO === todayISO` with a window still
+        // open right now. Skip the phase entirely for this student/day —
+        // same "not yet decided" exclusion weeklyReport.ts applies to a
+        // `isFuture` day (excluded from both numerator and denominator,
+        // never counted as absent).
+        if (dateISO === todayISO && ps.state === 'missing' && londonMinutes(now) < toMinutes(windows[phase].end)) {
+          continue
+        }
+
         const tapped = ps.state === 'checked' || ps.state === 'flagged'
         // "expected" excludes excused (never due) and not_yet (window hasn't
         // opened/resolved yet) — matches missingStudents()/isExpectedToday's
