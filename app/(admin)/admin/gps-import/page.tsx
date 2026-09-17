@@ -14,20 +14,19 @@ export default async function GpsImportPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-tranmere-blue">GPS Import — STATSports</h1>
+        <h1 className="text-2xl font-bold text-tranmere-blue">GPS Import</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Export a session CSV from the STATSports app or web platform, then upload it here.
+          Upload a Catapult One session CSV (preferred) or a STATSports export.
         </p>
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm space-y-1">
-        <p className="font-semibold text-blue-800">How to export from STATSports</p>
+        <p className="font-semibold text-blue-800">How to export from Catapult One</p>
         <ol className="list-decimal list-inside text-blue-700 space-y-0.5">
-          <li>Open the STATSports app or web platform</li>
-          <li>Go to the session you want → tap Export / Download</li>
-          <li>Choose <strong>CSV</strong> format (not PDF)</li>
-          <li>Make sure player names match exactly what&apos;s in this app</li>
-          <li>Upload the CSV below</li>
+          <li>Open oneapp.catapultsports.com → Session</li>
+          <li>Select the game → upload icon → Export to CSV</li>
+          <li>On the GPS zapper roster, set each player&apos;s Catapult code (e.g. Tranmere P27)</li>
+          <li>Upload that CSV here. Only <strong>Full Match</strong> rows are imported</li>
         </ol>
       </div>
 
@@ -43,6 +42,7 @@ export default async function GpsImportPage() {
                   <th className="px-3 py-2 text-left">Player</th>
                   <th className="px-3 py-2 text-left">Date</th>
                   <th className="px-3 py-2 text-left">Session</th>
+                  <th className="px-3 py-2 text-left">Source</th>
                   <th className="px-3 py-2 text-right">Distance</th>
                   <th className="px-3 py-2 text-right">Top Speed</th>
                   <th className="px-3 py-2 text-right">Sprints</th>
@@ -56,6 +56,7 @@ export default async function GpsImportPage() {
                       {new Date(s.session_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                     </td>
                     <td className="px-3 py-2">{s.session_label ?? '—'}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{s.source ?? '—'}</td>
                     <td className="px-3 py-2 text-right">
                       {s.total_distance_m ? `${(s.total_distance_m / 1000).toFixed(2)} km` : '—'}
                     </td>

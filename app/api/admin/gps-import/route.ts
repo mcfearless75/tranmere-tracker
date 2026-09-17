@@ -1,11 +1,14 @@
 import { requireStaff } from '@/lib/auth/requireRole'
 import { NextResponse } from 'next/server'
+import {
+  isCatapultCsv,
+  normalizeCatapultCode,
+  parseCatapultCsv,
+} from '@/lib/gps/parseCatapultCsv'
 
 export const dynamic = 'force-dynamic'
 
 // ─── STATSports column aliases ───────────────────────────────────────────────
-// Covers APEX, APEX Pro, Vivo, and generic exports.
-// Keys are what we store; values are possible column header names (lowercased).
 const COLUMN_MAP: Record<string, string[]> = {
   player_name:       ['name', 'player name', 'athlete', 'athlete name', 'player'],
   session_date:      ['date', 'session date', 'match date', 'training date'],
@@ -26,7 +29,7 @@ const COLUMN_MAP: Record<string, string[]> = {
   zone2_m:           ['distance zone 2 (m)', 'zone 2 distance (m)', 'zone 2 (m)', 'velocity band 2 distance (m)'],
   zone3_m:           ['distance zone 3 (m)', 'zone 3 distance (m)', 'zone 3 (m)', 'velocity band 3 distance (m)'],
   zone4_m:           ['distance zone 4 (m)', 'zone 4 distance (m)', 'zone 4 (m)', 'velocity band 4 distance (m)'],
-  zone5_m:           ['distance zone 5 (m)', 'zone 5 distance (m)', 'zone 5 (m)', 'velocity band 5 distance (m)', 'velocity band 6 distance (m)'],
+  zone5_m:           ['distance zone 5 (m)', 'zone 5 distance (m)', 'zone 5 (m)', 'velocity band 6 distance (m)'],
 }
 
 function mapHeader(raw: string): string | null {
@@ -44,7 +47,6 @@ function parseNum(v: string): number | null {
 
 function parseDate(v: string): string | null {
   if (!v) return null
-  // Try DD/MM/YYYY, YYYY-MM-DD, MM/DD/YYYY
   const parts = v.trim().split(/[\/\-]/)
   if (parts.length === 3) {
     if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`
@@ -52,6 +54,32 @@ function parseDate(v: string): string | null {
     return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`
   }
   return null
+}
+
+function buildStudentMaps(students: { id: string; name: string; catapult_code: string | null }[]) {
+  const byName: Record<string, string> = {}
+  const byCode: Record<string, string> = {}
+  for (const s of students) {
+    byName[s.name.toLowerCase().trim()] = s.id
+    if (s.catapult_code) {
+      for (const key of normalizeCatapultCode(s.catapult_code)) {
+        byCode[key] = s.id
+      }
+    }
+  }
+  return { byName, byCode }
+}
+
+function resolvePlayerId(
+  rawName: string,
+  maps: { byName: Record<string, string>; byCode: Record<string, string> }
+): string | undefined {
+  const nameKey = rawName.toLowerCase().trim()
+  if (maps.byName[nameKey]) return maps.byName[nameKey]
+  for (const key of normalizeCatapultCode(rawName)) {
+    if (maps.byCode[key]) return maps.byCode[key]
+  }
+  return undefined
 }
 
 export async function POST(request: Request) {
@@ -62,10 +90,6 @@ export async function POST(request: Request) {
   const form = await request.formData()
   const file = form.get('file') as File | null
   const sessionLabel = (form.get('session_label') as string) || 'Training'
-  // Only the human-typed form fallback is capped — a CSV row's own
-  // session_label column is third-party export data, not someone typing a
-  // message into a name box, so it's left as-is (matches this route's
-  // existing tolerant parsing of imperfect export data).
   if (sessionLabel.length > 60) {
     return NextResponse.json({ error: 'Session label must be 60 characters or fewer' }, { status: 400 })
   }
@@ -76,7 +100,83 @@ export async function POST(request: Request) {
   const lines = text.split(/\r?\n/).filter(l => l.trim())
   if (lines.length < 2) return NextResponse.json({ error: 'CSV appears empty' }, { status: 400 })
 
-  // Parse headers
+  const { data: students } = await adminClient
+    .from('users')
+    .select('id, name, catapult_code')
+    .eq('role', 'student')
+
+  const maps = buildStudentMaps(students ?? [])
+
+  const inserted: string[] = []
+  const unmatched: string[] = []
+  const skipped: string[] = []
+
+  if (isCatapultCsv(lines[0])) {
+    const parsed = parseCatapultCsv(text)
+    if (parsed.length === 0) {
+      return NextResponse.json({
+        error: 'Catapult CSV parsed but no Full Match rows with distance were found.',
+      }, { status: 400 })
+    }
+
+    for (const row of parsed) {
+      const playerId = resolvePlayerId(row.playerName, maps)
+      if (!playerId) {
+        unmatched.push(row.playerName)
+        continue
+      }
+
+      const label = row.sessionLabel || sessionLabel
+
+      await adminClient
+        .from('gps_sessions')
+        .delete()
+        .eq('player_id', playerId)
+        .eq('session_date', row.sessionDate)
+        .eq('session_label', label)
+        .eq('source', 'catapult')
+
+      const { error } = await adminClient.from('gps_sessions').insert({
+        player_id:         playerId,
+        session_date:      row.sessionDate,
+        session_label:     label,
+        source:            'catapult',
+        total_distance_m:  row.total_distance_m,
+        hsr_distance_m:    row.hsr_distance_m,
+        sprint_distance_m: row.sprint_distance_m,
+        max_speed_ms:      row.max_speed_ms,
+        max_speed_kmh:     row.max_speed_kmh,
+        accel_count:       row.accel_count,
+        decel_count:       row.decel_count,
+        player_load:       row.player_load,
+        hr_max:            row.hr_max && row.hr_max > 0 ? row.hr_max : null,
+        duration_mins:     row.duration_mins,
+        zone1_m:           row.zone1_m,
+        zone2_m:           row.zone2_m,
+        zone3_m:           row.zone3_m,
+        zone4_m:           row.zone4_m,
+        zone5_m:           row.zone5_m,
+        imported_by:       user.id,
+      })
+
+      if (error) {
+        skipped.push(`${row.playerName}: ${error.message}`)
+        continue
+      }
+      inserted.push(row.playerName)
+    }
+
+    return NextResponse.json({
+      success: true,
+      imported: inserted.length,
+      unmatched: unmatched.length ? unmatched : undefined,
+      skipped: skipped.length ? skipped : undefined,
+      message: `Imported ${inserted.length} Catapult Full Match row(s).` +
+        (unmatched.length ? ` Unmapped codes: ${[...new Set(unmatched)].join(', ')} — set Catapult code on the roster.` : '') +
+        (skipped.length ? ` ${skipped.length} row(s) failed to save.` : ''),
+    })
+  }
+
   const rawHeaders = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''))
   const fieldMap: Record<number, string> = {}
   rawHeaders.forEach((h, i) => {
@@ -84,7 +184,6 @@ export async function POST(request: Request) {
     if (field) fieldMap[i] = field
   })
 
-  // Parse rows
   const rows = lines.slice(1).map(line => {
     const cells = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
     const row: Record<string, string> = {}
@@ -96,20 +195,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No player rows found. Check the CSV has a "Name" or "Player Name" column.' }, { status: 400 })
   }
 
-  // Deliberately NOT filtered to is_active — GPS files can be uploaded well
-  // after the session they record, and a player who has since left should
-  // still match against their historical data rather than being silently
-  // dropped as "unmatched".
-  const { data: students } = await adminClient.from('users').select('id, name').eq('role', 'student')
-  const studentMap: Record<string, string> = {}
-  students?.forEach(s => { studentMap[s.name.toLowerCase().trim()] = s.id })
-
-  const inserted: string[] = []
-  const unmatched: string[] = []
-
   for (const row of rows) {
-    const nameKey = row.player_name?.toLowerCase().trim()
-    const playerId = studentMap[nameKey]
+    const playerId = resolvePlayerId(row.player_name, maps)
     if (!playerId) { unmatched.push(row.player_name); continue }
 
     const sessionDate = parseDate(row.session_date) ?? new Date().toISOString().slice(0, 10)

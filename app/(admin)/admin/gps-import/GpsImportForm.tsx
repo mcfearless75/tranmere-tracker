@@ -43,9 +43,9 @@ export function GpsImportForm() {
   return (
     <div className="bg-white rounded-xl border p-5 space-y-4 max-w-xl">
       <div>
-        <label className="text-xs font-medium text-muted-foreground">Session label (optional)</label>
+        <label className="text-xs font-medium text-muted-foreground">Session label fallback (optional)</label>
         <Input
-          placeholder="e.g. Tuesday Training, vs Everton"
+          placeholder="Only used if the CSV has no session title"
           value={label}
           onChange={e => setLabel(e.target.value)}
           maxLength={60}
@@ -53,7 +53,6 @@ export function GpsImportForm() {
         />
       </div>
 
-      {/* Drop zone */}
       <div
         onDrop={handleDrop}
         onDragOver={e => e.preventDefault()}
@@ -65,7 +64,7 @@ export function GpsImportForm() {
           <p className="text-sm font-medium text-tranmere-blue">{file.name}</p>
         ) : (
           <>
-            <p className="text-sm font-medium">Drop STATSports CSV here</p>
+            <p className="text-sm font-medium">Drop Catapult or STATSports CSV here</p>
             <p className="text-xs text-muted-foreground mt-1">or click to browse</p>
           </>
         )}
