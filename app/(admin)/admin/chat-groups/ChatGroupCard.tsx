@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, ChevronUp, X, UserPlus, Users, MessageSquare, Pencil, Check } from 'lucide-react'
-import { addGroupMembers, removeGroupMember, renameGroupChat, joinGroupChat } from '@/app/chat/actions'
+import { ChevronDown, ChevronUp, X, UserPlus, Users, MessageSquare, Pencil, Check, Trash2 } from 'lucide-react'
+import { addGroupMembers, removeGroupMember, renameGroupChat, joinGroupChat, deleteGroupChat } from '@/app/chat/actions'
 
 type Person = { id: string; name: string | null; role: string }
 
@@ -74,10 +74,6 @@ export function ChatGroupCard({
 
   function handleOpen() {
     start(async () => {
-      // Idempotent: this page lists every group chat whether or not the
-      // viewing staff member is already in it, so "Open" joins first if
-      // needed — otherwise there'd be no way to actually read one you'd
-      // never been added to.
       await joinGroupChat(roomId)
       router.push(`/chat/${roomId}`)
     })
@@ -102,6 +98,17 @@ export function ChatGroupCard({
       } else {
         setRenameError(res.error ?? 'Failed to rename')
       }
+    })
+  }
+
+  function handleDelete() {
+    setError(null)
+    const ok = window.confirm(`Delete “${roomName}”? Messages in this group will be removed. This cannot be undone.`)
+    if (!ok) return
+    start(async () => {
+      const res = await deleteGroupChat(roomId)
+      if (res.ok) router.refresh()
+      else setError(res.error ?? 'Failed to delete group')
     })
   }
 
@@ -143,6 +150,15 @@ export function ChatGroupCard({
           className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 shrink-0"
         >
           <Pencil size={14} />
+        </button>
+        <button
+          onClick={handleDelete}
+          disabled={pending}
+          aria-label="Delete group"
+          title="Delete group"
+          className="p-2 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 shrink-0"
+        >
+          <Trash2 size={14} />
         </button>
         <button
           onClick={() => setExpanded(e => !e)}
@@ -193,10 +209,6 @@ export function ChatGroupCard({
               .slice()
               .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
               .map(m => {
-                // Matches the server-side rule in removeGroupMember: a
-                // student's spot in an auto-synced roster is trigger-managed,
-                // not manually editable. Staff can still be removed even from
-                // a synced room.
                 const canRemove = !(syncYearGroup && m.role === 'student')
                 return (
                   <div key={m.id} className="flex items-center gap-2 text-sm py-1 bg-white rounded-lg px-2.5">
