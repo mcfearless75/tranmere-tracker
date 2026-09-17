@@ -17,24 +17,28 @@ export default async function DocumentFolderPage({ params }: { params: { folderI
 
   const admin = createAdminClient()
 
-  const { data: folder } = await admin.from('document_folders').select('id, name, parent_id').eq('id', params.folderId).maybeSingle()
+  let folder: { id: string; name: string; parent_id?: string | null } | null = null
+  const nested = await admin.from('document_folders').select('id, name, parent_id').eq('id', params.folderId).maybeSingle()
+  if (nested.error) {
+    const flat = await admin.from('document_folders').select('id, name').eq('id', params.folderId).maybeSingle()
+    folder = flat.data
+  } else {
+    folder = nested.data
+  }
   if (!folder) notFound()
 
   const { data: me } = await admin.from('users').select('role').eq('id', user.id).maybeSingle()
   const isStaff = !!me && ['admin', 'coach', 'teacher'].includes(me.role)
 
-  const [{ data: rows }, { data: children }] = await Promise.all([
-    admin
-      .from('documents')
-      .select('id, name, mime_type, size_bytes, storage_path, created_at')
-      .eq('folder_id', params.folderId)
-      .order('created_at', { ascending: false }),
-    admin
-      .from('document_folders')
-      .select('id, name')
-      .eq('parent_id', params.folderId)
-      .order('name'),
-  ])
+  const { data: rows } = await admin
+    .from('documents')
+    .select('id, name, mime_type, size_bytes, storage_path, created_at')
+    .eq('folder_id', params.folderId)
+    .order('created_at', { ascending: false })
+
+  let children: { id: string; name: string }[] = []
+  const childQuery = await admin.from('document_folders').select('id, name').eq('parent_id', params.folderId).order('name')
+  if (!childQuery.error) children = childQuery.data ?? []
 
   const documents = await Promise.all(
     (rows ?? []).map(async d => {
@@ -64,9 +68,9 @@ export default async function DocumentFolderPage({ params }: { params: { folderI
       {isStaff && <CreateFolderButton parentId={params.folderId} />}
       {isStaff && <UploadDropzone folderId={params.folderId} />}
 
-      {(children ?? []).length > 0 && (
+      {children.length > 0 && (
         <div className="rounded-2xl border bg-white divide-y">
-          {(children ?? []).map(child => (
+          {children.map(child => (
             <Link key={child.id} href={`/documents/${child.id}`} className="flex items-center gap-3 p-3 active:bg-gray-50">
               <div className="w-10 h-10 rounded-full bg-tranmere-blue/10 text-tranmere-blue flex items-center justify-center shrink-0">
                 <Folder size={18} />

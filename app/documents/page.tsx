@@ -17,15 +17,24 @@ export default async function DocumentsPage() {
   const { data: me } = await admin.from('users').select('role').eq('id', user.id).maybeSingle()
   const isStaff = !!me && ['admin', 'coach', 'teacher'].includes(me.role)
 
-  const [{ data: folders }, { data: allDocs }] = await Promise.all([
-    admin.from('document_folders').select('id, name, created_at, parent_id').order('name'),
-    admin.from('documents').select('folder_id'),
-  ])
+  let folderRows: { id: string; name: string; created_at?: string; parent_id?: string | null }[] | null = null
+  const nested = await admin.from('document_folders').select('id, name, created_at, parent_id').order('name')
+  if (nested.error) {
+    const flat = await admin.from('document_folders').select('id, name, created_at').order('name')
+    folderRows = flat.data
+  } else {
+    folderRows = nested.data
+  }
 
-  const roots = (folders ?? []).filter(f => !f.parent_id)
+  const { data: allDocs } = await admin.from('documents').select('folder_id')
+
+  const hasParent = (folderRows ?? []).some(f => 'parent_id' in f)
+  const roots = hasParent ? (folderRows ?? []).filter(f => !f.parent_id) : (folderRows ?? [])
   const childCount: Record<string, number> = {}
-  for (const f of folders ?? []) {
-    if (f.parent_id) childCount[f.parent_id] = (childCount[f.parent_id] ?? 0) + 1
+  if (hasParent) {
+    for (const f of folderRows ?? []) {
+      if (f.parent_id) childCount[f.parent_id] = (childCount[f.parent_id] ?? 0) + 1
+    }
   }
   const fileCount: Record<string, number> = {}
   for (const d of allDocs ?? []) fileCount[d.folder_id] = (fileCount[d.folder_id] ?? 0) + 1
