@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { FolderPlus, X } from 'lucide-react'
 import { createFolder } from './actions'
 
-export function CreateFolderButton() {
+export function CreateFolderButton({ parentId }: { parentId?: string }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
@@ -16,7 +16,7 @@ export function CreateFolderButton() {
     setError(null)
     if (!name.trim()) { setError('Give the folder a name'); return }
     setSubmitting(true)
-    const res = await createFolder(name.trim())
+    const res = await createFolder(name.trim(), parentId)
     setSubmitting(false)
     if (typeof res === 'string') {
       setName('')
@@ -30,10 +30,11 @@ export function CreateFolderButton() {
   if (!open) {
     return (
       <button
+        type="button"
         onClick={() => setOpen(true)}
         className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-tranmere-blue text-tranmere-blue px-4 py-2.5 text-sm font-semibold hover:bg-tranmere-blue/5"
       >
-        <FolderPlus size={14} /> New folder
+        <FolderPlus size={14} /> {parentId ? 'New subfolder' : 'New folder'}
       </button>
     )
   }
@@ -45,23 +46,24 @@ export function CreateFolderButton() {
           autoFocus
           value={name}
           onChange={e => setName(e.target.value)}
-          placeholder="Folder name (e.g. Bursary Information)"
+          placeholder={parentId ? 'Subfolder name' : 'Folder name (e.g. Bursary Information)'}
           maxLength={60}
           className="flex-1 px-3 py-2 border rounded-lg text-sm"
           onKeyDown={e => { if (e.key === 'Enter') submit() }}
         />
-        <button onClick={() => setOpen(false)} className="p-2 rounded-lg hover:bg-gray-100" aria-label="Close">
+        <button type="button" onClick={() => setOpen(false)} className="p-2 rounded-lg hover:bg-gray-100" aria-label="Close">
           <X size={14} />
         </button>
       </div>
       <p className="text-[11px] text-muted-foreground">Just a short name ({name.length}/60).</p>
       {error && <p className="text-xs text-red-600">{error}</p>}
       <button
+        type="button"
         onClick={submit}
         disabled={submitting}
         className="w-full rounded-xl bg-gradient-to-r from-tranmere-blue to-blue-700 text-white px-4 py-2.5 text-sm font-semibold shadow disabled:opacity-50"
       >
-        {submitting ? 'Creating…' : 'Create folder'}
+        {submitting ? 'Creating…' : parentId ? 'Create subfolder' : 'Create folder'}
       </button>
     </div>
   )

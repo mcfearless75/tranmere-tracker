@@ -18,16 +18,17 @@ export default async function DocumentsPage() {
   const isStaff = !!me && ['admin', 'coach', 'teacher'].includes(me.role)
 
   const [{ data: folders }, { data: allDocs }] = await Promise.all([
-    admin.from('document_folders').select('id, name, created_at').order('name'),
-    // Unfiltered per-file fetch to compute counts client-side. PostgREST caps
-    // result sets at the project's db-max-rows (default 1000) — past that,
-    // counts silently under-report. Fine at this app's scale; revisit with a
-    // count-aggregate view/RPC if the repository grows into the thousands.
+    admin.from('document_folders').select('id, name, created_at, parent_id').order('name'),
     admin.from('documents').select('folder_id'),
   ])
 
-  const countByFolder: Record<string, number> = {}
-  for (const d of allDocs ?? []) countByFolder[d.folder_id] = (countByFolder[d.folder_id] ?? 0) + 1
+  const roots = (folders ?? []).filter(f => !f.parent_id)
+  const childCount: Record<string, number> = {}
+  for (const f of folders ?? []) {
+    if (f.parent_id) childCount[f.parent_id] = (childCount[f.parent_id] ?? 0) + 1
+  }
+  const fileCount: Record<string, number> = {}
+  for (const d of allDocs ?? []) fileCount[d.folder_id] = (fileCount[d.folder_id] ?? 0) + 1
 
   return (
     <div className="w-full max-w-3xl mx-auto p-4 md:p-8 pb-24 md:pb-8 space-y-3">
@@ -39,29 +40,30 @@ export default async function DocumentsPage() {
 
       {isStaff && <CreateFolderButton />}
 
-      {(folders ?? []).length === 0 ? (
+      {roots.length === 0 ? (
         <div className="rounded-2xl border bg-white p-8 text-center text-sm text-muted-foreground">
           No folders yet.
         </div>
       ) : (
         <div className="rounded-2xl border bg-white divide-y">
-          {(folders ?? []).map(f => (
-            <Link
-              key={f.id}
-              href={`/documents/${f.id}`}
-              className="flex items-center gap-3 p-3 hover:bg-gray-50 active:bg-gray-100"
-            >
-              <div className="w-11 h-11 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 flex items-center justify-center text-white shrink-0">
-                <Folder size={18} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold line-clamp-2 break-words">{f.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {countByFolder[f.id] ?? 0} file{countByFolder[f.id] === 1 ? '' : 's'}
-                </p>
-              </div>
-            </Link>
-          ))}
+          {roots.map(f => {
+            const files = fileCount[f.id] ?? 0
+            const subs = childCount[f.id] ?? 0
+            return (
+              <Link key={f.id} href={`/documents/${f.id}`} className="flex items-center gap-3 p-3 hover:bg-gray-50 active:bg-gray-100">
+                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 flex items-center justify-center text-white shrink-0">
+                  <Folder size={18} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold line-clamp-2 break-words">{f.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {subs > 0 ? `${subs} folder${subs === 1 ? '' : 's'} · ` : ''}
+                    {files} file{files === 1 ? '' : 's'}
+                  </p>
+                </div>
+              </Link>
+            )
+          })}
         </div>
       )}
     </div>
