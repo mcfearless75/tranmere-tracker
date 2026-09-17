@@ -62,11 +62,11 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
 
   let reactions: { id: string; message_id: string; user_id: string; emoji: string }[] = []
   if (messageIds.length) {
-    const { data: reactionRows } = await admin
+    const { data: reactionRows, error: reactionErr } = await admin
       .from('chat_message_reactions')
       .select('id, message_id, user_id, emoji')
       .in('message_id', messageIds)
-    reactions = (reactionRows ?? []) as any
+    if (!reactionErr) reactions = (reactionRows ?? []) as any
   }
 
   let title = room.name
