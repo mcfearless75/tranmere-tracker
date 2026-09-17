@@ -12,11 +12,10 @@ import { buildStudentDayStatus, missingStudents, exceptionsWindowPhase, type Pha
 import { mondayOf, shiftDate } from '@/lib/attendance/weeklyReport'
 import { buildWellbeingFlags } from '@/lib/wellbeing/wellbeingUtils'
 import { buildReviewsDue } from '@/lib/staff/exceptionsHome'
-import { MissingRowActions } from '@/components/attendance/MissingRowActions'
+import { MissingBatchList } from '@/components/attendance/MissingBatchList'
 
 export const dynamic = 'force-dynamic'
 
-const MISSING_CAP = 20
 const WELLBEING_CAP = 10
 const SAFEGUARDING_CAP = 10
 
@@ -49,7 +48,6 @@ export default async function StaffHomePage() {
   const nameById = new Map((students ?? []).map(s => [s.id, s.name]))
   const windowPhase = exceptionsWindowPhase(windows, now)
 
-  // ── Block 1: missing this window ──────────────────────────────────────
   let missing: { studentId: string; name: string }[] = []
   if (windowPhase) {
     const [{ data: records }, { data: excusals }] = await Promise.all([
@@ -80,9 +78,9 @@ export default async function StaffHomePage() {
     })
     missing = missingStudents(roster, windowPhase)
       .map(s => ({ studentId: s.studentId, name: nameById.get(s.studentId) ?? 'Unknown' }))
+      .sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  // ── Block 2: wellbeing flags ───────────────────────────────────────────
   const monday = mondayOf(today)
   const { data: surveys } = await admin
     .from('wellbeing_surveys')
@@ -97,7 +95,6 @@ export default async function StaffHomePage() {
     }))
   )
 
-  // ── Block 3: reviews due (next 14 days, overdue included) ─────────────
   const horizon = shiftDate(today, 14)
   const { data: reviews } = await admin
     .from('learner_reviews')
@@ -115,7 +112,6 @@ export default async function StaffHomePage() {
     today,
   )
 
-  // ── Block 4: open safeguarding cases (cheap status filter — no new table) ──
   const { data: concerns } = await admin
     .from('safeguarding_concerns')
     .select('id, student_id, category, severity, users!student_id(name)')
@@ -132,21 +128,29 @@ export default async function StaffHomePage() {
         </div>
       </div>
 
-      <ExceptionBlock
-        icon={<ClipboardList size={15} className="text-tranmere-blue" />}
-        title={windowPhase ? `Missing this window — ${PHASE_LABELS[windowPhase]}` : 'Missing this window'}
-        items={missing.slice(0, MISSING_CAP).map(m => ({
-          key: m.studentId,
-          label: m.name,
-          actions: windowPhase
-            ? <MissingRowActions studentId={m.studentId} studentName={m.name} date={today} phase={windowPhase} />
-            : undefined,
-        }))}
-        total={missing.length}
-        cap={MISSING_CAP}
-        viewAllHref="/admin/attendance"
-        emptyLabel={windowPhase ? 'All clear' : 'No check-in window active'}
-      />
+      <div className="rounded-2xl border bg-white p-4 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold flex items-center gap-2">
+            <ClipboardList size={15} className="text-tranmere-blue" />
+            {windowPhase ? `Missing this window — ${PHASE_LABELS[windowPhase]}` : 'Missing this window'}
+          </p>
+          {missing.length > 0 && <span className="text-xs font-bold text-muted-foreground">{missing.length}</span>}
+        </div>
+        {!windowPhase ? (
+          <p className="flex items-center gap-1.5 text-sm text-green-700">
+            <CheckCircle2 size={15} /> No check-in window active
+          </p>
+        ) : missing.length === 0 ? (
+          <p className="flex items-center gap-1.5 text-sm text-green-700">
+            <CheckCircle2 size={15} /> All clear
+          </p>
+        ) : (
+          <MissingBatchList date={today} phase={windowPhase} students={missing} />
+        )}
+        <Link href="/admin/attendance" className="flex items-center gap-1 text-xs font-semibold text-tranmere-blue">
+          Full register <ChevronRight size={12} />
+        </Link>
+      </div>
 
       <ExceptionBlock
         icon={<Heart size={15} className="text-rose-600" />}
@@ -190,7 +194,6 @@ export default async function StaffHomePage() {
         emptyLabel="All clear"
       />
 
-      {/* Footer — the sitemap; the top is exceptions */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-2">
         <ToolLink href="/admin/gps-dashboard" icon={<Satellite size={18} />} label="GPS" />
         <ToolLink href="/admin/attendance/calendar" icon={<CalendarDays size={18} />} label="Calendar" />
