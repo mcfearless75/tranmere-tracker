@@ -4,6 +4,7 @@ import './globals.css'
 import { SplashScreen } from '@/components/SplashScreen'
 import { PushNavigationListener } from '@/components/PushNavigationListener'
 import { ServiceWorkerUpdateReload } from '@/components/ServiceWorkerUpdateReload'
+import { PullToRefresh } from '@/components/layout/PullToRefresh'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SplashScreen />
         <PushNavigationListener />
         <ServiceWorkerUpdateReload />
+        <PullToRefresh />
         {children}
       </body>
     </html>

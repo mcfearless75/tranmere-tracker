@@ -11,9 +11,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // .maybeSingle(): a genuinely-missing profile row must not crash the
-  // layout — .single() throwing here is what a layout-level crash (which
-  // no nested error.tsx can catch, only the root boundary) looks like.
   const adminClient = createAdminClient()
   const { data: profile } = await adminClient
     .from('users')
@@ -27,15 +24,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const userName = profile.name ?? 'Admin'
   const avatarUrl = profile.avatar_url ?? null
-  // Shown here (once, for every admin/coach/teacher page) instead of on any
-  // single page — a staff account created with an admin-chosen PIN should
-  // get this nudge no matter which /admin/* page they land on first.
   const mustChangePin = profile.must_change_pin === true
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50 relative overflow-hidden">
+    <div className="min-h-[100dvh] bg-gray-50 relative overflow-x-hidden">
       <InstallGuide />
-      {/* Watermark */}
       <div className="pointer-events-none fixed inset-0 flex items-center justify-center z-0 opacity-[0.035]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -45,10 +38,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         />
       </div>
 
-      {/* Mobile top bar + drawer */}
       <MobileAdminBar userName={userName} avatarUrl={avatarUrl} role={profile.role} />
 
-      {/* Desktop layout */}
       <div className="md:flex md:min-h-screen">
         <div className="hidden md:block">
           <AdminSidebar userName={userName} avatarUrl={avatarUrl} role={profile.role} />
