@@ -26,12 +26,13 @@ export default async function TrialEventsPage() {
 
   if (!profile || !STAFF_ROLES.includes(profile.role)) redirect('/admin/home')
 
-  const { data: eventRows } = await admin
-    .from('trial_events')
-    .select('*')
-    .order('event_date', { ascending: false })
+  const [{ data: eventRows }, { data: staffRows }] = await Promise.all([
+    admin.from('trial_events').select('*').order('event_date', { ascending: false }),
+    admin.from('users').select('id, name').in('role', STAFF_ROLES).eq('is_active', true).order('name'),
+  ])
 
   const events = (eventRows ?? []) as TrialEventRow[]
+  const staff = (staffRows ?? []).map(s => ({ id: s.id as string, name: (s.name as string) || 'Staff' }))
 
   return (
     <div className="space-y-5 p-4">
@@ -49,7 +50,7 @@ export default async function TrialEventsPage() {
         <p className="text-sm text-muted-foreground">Schedule trials and track attendance</p>
       </div>
 
-      <TrialEventForm />
+      <TrialEventForm staff={staff} />
 
       {events.length === 0 ? (
         <p className="text-sm text-muted-foreground">No trial events yet.</p>

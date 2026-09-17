@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { AttendeeRow } from '@/components/admin/recruitment/AttendeeRow'
 import { AddAttendeeForm, ProspectOption } from '@/components/admin/recruitment/AddAttendeeForm'
+import { TrialStaffEditor } from '@/components/admin/recruitment/TrialStaffEditor'
 import { TrialEventRow, TrialAttendeeRow } from '@/components/admin/recruitment/types'
 import { formatDate } from '@/components/admin/recruitment/formatters'
 
@@ -44,14 +45,20 @@ export default async function TrialEventDetailPage({
   if (!eventRow) notFound()
   const event = eventRow as TrialEventRow
 
-  const { data: attendeeRows } = await admin
-    .from('trial_attendees')
-    .select('*, recruitment_prospects(first_name, last_name)')
-    .eq('trial_event_id', params.trialId)
+  const [{ data: attendeeRows }, { data: staffRows }, staffAssignRes] = await Promise.all([
+    admin
+      .from('trial_attendees')
+      .select('*, recruitment_prospects(first_name, last_name)')
+      .eq('trial_event_id', params.trialId),
+    admin.from('users').select('id, name').in('role', STAFF_ROLES).eq('is_active', true).order('name'),
+    admin.from('trial_event_staff').select('user_id').eq('trial_event_id', params.trialId),
+  ])
 
   const attendees = (attendeeRows ?? []) as unknown as AttendeeJoinRow[]
+  const staff = (staffRows ?? []).map(s => ({ id: s.id as string, name: (s.name as string) || 'Staff' }))
+  const assignedIds = new Set((staffAssignRes.data ?? []).map(r => r.user_id as string))
+  const assigned = staff.filter(s => assignedIds.has(s.id))
 
-  // Prospects not yet attached to this trial, for the add form
   const attachedIds = new Set(attendees.map(a => a.prospect_id))
   const { data: prospectRows } = await admin
     .from('recruitment_prospects')
@@ -84,6 +91,8 @@ export default async function TrialEventDetailPage({
           <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700">{event.notes}</p>
         )}
       </div>
+
+      <TrialStaffEditor trialEventId={event.id} assigned={assigned} staff={staff} />
 
       <AddAttendeeForm trialEventId={event.id} options={options} />
 

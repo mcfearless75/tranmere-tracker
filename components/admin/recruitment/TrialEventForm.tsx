@@ -3,14 +3,22 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-export function TrialEventForm() {
+export type StaffOption = { id: string; name: string }
+
+export function TrialEventForm({ staff }: { staff: StaffOption[] }) {
   const router = useRouter()
   const [title, setTitle] = useState('')
   const [eventDate, setEventDate] = useState('')
   const [location, setLocation] = useState('')
   const [notes, setNotes] = useState('')
+  const [staffIds, setStaffIds] = useState<string[]>([])
+  const [notify, setNotify] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  function toggleStaff(id: string) {
+    setStaffIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -33,6 +41,8 @@ export function TrialEventForm() {
           event_date: eventDate,
           location: location.trim() === '' ? null : location.trim(),
           notes: notes.trim() === '' ? null : notes.trim(),
+          staff_ids: staffIds,
+          notify: notify && staffIds.length > 0,
         }),
       })
       if (!res.ok) {
@@ -44,6 +54,7 @@ export function TrialEventForm() {
       setEventDate('')
       setLocation('')
       setNotes('')
+      setStaffIds([])
       router.refresh()
     } catch {
       setError('Network error — please try again.')
@@ -102,6 +113,38 @@ export function TrialEventForm() {
           className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
         />
       </div>
+
+      <fieldset className="space-y-1.5">
+        <legend className="block text-xs font-semibold text-gray-700">Staff on this event</legend>
+        {staff.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No staff accounts found.</p>
+        ) : (
+          <ul className="max-h-40 overflow-y-auto space-y-1 rounded-xl border border-gray-200 p-2">
+            {staff.map(s => (
+              <li key={s.id}>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={staffIds.includes(s.id)}
+                    onChange={() => toggleStaff(s.id)}
+                    className="h-4 w-4 accent-tranmere-blue"
+                  />
+                  {s.name}
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={notify}
+            onChange={e => setNotify(e.target.checked)}
+            className="h-4 w-4 accent-tranmere-blue"
+          />
+          Notify selected staff now
+        </label>
+      </fieldset>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
 
