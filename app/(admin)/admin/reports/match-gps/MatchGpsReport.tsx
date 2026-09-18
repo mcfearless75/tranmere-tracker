@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { downloadHoaPack } from '@/lib/gps/buildHoaPack'
 
 type Row = {
   id: string
@@ -42,12 +43,33 @@ export function MatchGpsReport({
   const router = useRouter()
   const [date, setDate] = useState(initialDate)
   const [q, setQ] = useState(initialQ)
+  const [busy, setBusy] = useState(false)
 
   const distances = rows.map((r) => Number(r.total_distance_m) || 0)
   const speeds = rows.map((r) => Number(r.max_speed_kmh) || 0).filter((v) => v > 0)
   const totalDist = distances.reduce((a, b) => a + b, 0)
   const avgDist = rows.length ? totalDist / rows.length : 0
   const maxSp = speeds.length ? Math.max(...speeds) : 0
+
+  async function handlePack() {
+    if (!rows.length) return
+    setBusy(true)
+    try {
+      await downloadHoaPack({
+        date,
+        opposition: q || 'Opposition',
+        players: rows.map((r) => ({
+          name: nameOf(r),
+          distanceM: Number(r.total_distance_m) || 0,
+          sprintM: Number(r.sprint_distance_m ?? r.hsr_distance_m) || 0,
+          maxKmh: Number(r.max_speed_kmh) || 0,
+          load: Number(r.player_load) || 0,
+        })),
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <>
@@ -71,6 +93,14 @@ export function MatchGpsReport({
         </button>
         <button type="button" onClick={() => window.print()} className="rounded-xl bg-tranmere-yellow text-gray-900 px-4 py-2 text-sm font-semibold">
           Print / PDF
+        </button>
+        <button
+          type="button"
+          disabled={!rows.length || busy}
+          onClick={handlePack}
+          className="rounded-xl bg-gray-900 text-white px-4 py-2 text-sm font-semibold disabled:opacity-40"
+        >
+          {busy ? 'Building pack…' : 'Download HoA pack'}
         </button>
       </form>
 
