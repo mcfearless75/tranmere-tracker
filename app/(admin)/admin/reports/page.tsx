@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Activity, Heart, Wrench, ArrowRight, Sparkles } from 'lucide-react'
+import { Activity, Heart, Wrench, ArrowRight, Sparkles, Satellite } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
@@ -12,6 +12,14 @@ export default async function ReportsHubPage() {
     .select('*', { count: 'exact', head: true })
 
   const tiles = [
+    {
+      href: '/admin/reports/match-gps?date=2026-09-16&q=Oldham',
+      icon: Satellite,
+      title: 'Match GPS Report',
+      desc: 'One-tap report for a game: distance, HSR, max speed, load. Print or save PDF.',
+      gradient: 'from-sky-500 to-blue-700',
+      stat: 'Start with Oldham 16 Sep',
+    },
     {
       href: '/admin/reports/ai-cohort',
       icon: Sparkles,
