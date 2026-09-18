@@ -38,7 +38,7 @@ export function InviteParentForm({
   }
 
   const text = invite
-    ? `Tranmere Tracker parent login\nSite: https://hesolarcampus.com/login\nLogin: ${invite.login}\nPIN: ${invite.pin}\nLinked to ${invite.studentName}`
+    ? `Tranmere Tracker parent login\nSite: https://app.thesolarcampus.com/login\nLogin: ${invite.login}\nPIN: ${invite.pin}\nLinked to ${invite.studentName}`
     : ''
 
   return (
