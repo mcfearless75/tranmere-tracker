@@ -1,16 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
-import { Megaphone } from 'lucide-react'
+import Link from 'next/link'
+import { MessageSquare } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
-
-interface BroadcastMessage {
-  id: string
-  content: string
-  created_at: string
-  sender: { name: string | null } | null
-}
 
 export default async function ParentMessagesPage() {
   const supabase = createClient()
@@ -18,68 +12,32 @@ export default async function ParentMessagesPage() {
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
+  const { data: memberships } = await admin
+    .from('chat_members')
+    .select('room_id, chat_rooms(id, kind, name, last_message_at)')
+    .eq('user_id', user.id)
 
-  // Fetch broadcast chat rooms and their latest messages
-  const { data: broadcastRooms } = await admin
-    .from('chat_rooms')
-    .select('id, name')
-    .eq('kind', 'broadcast')
-    .order('created_at', { ascending: false })
-    .limit(5)
-
-  const roomIds = (broadcastRooms ?? []).map(r => r.id as string)
-
-  let messages: BroadcastMessage[] = []
-
-  if (roomIds.length > 0) {
-    const { data: rawMessages } = await admin
-      .from('chat_messages')
-      .select('id, body, created_at, sender_id, users(name)')
-      .in('room_id', roomIds)
-      .order('created_at', { ascending: false })
-      .limit(20)
-
-    messages = (rawMessages ?? []).map(m => ({
-      id: m.id as string,
-      content: m.body as string,
-      created_at: m.created_at as string,
-      sender: (Array.isArray(m.users) ? m.users[0] as { name: string | null } : m.users as { name: string | null } | null) ?? null,
-    }))
-  }
+  const rooms = (memberships ?? [])
+    .map((m: any) => m.chat_rooms)
+    .filter((r: any) => r && ['parent', 'dm'].includes(r.kind))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <h1 className="text-xl font-bold text-tranmere-blue">Messages</h1>
-      <p className="text-sm text-gray-500">Academy broadcast messages — read only.</p>
-
-      {messages.length > 0 ? (
-        <div className="space-y-3">
-          {messages.map(msg => (
-            <div key={msg.id} className="bg-white border rounded-xl p-4 space-y-2">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-tranmere-blue/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <Megaphone size={14} className="text-tranmere-blue" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <p className="text-xs font-semibold text-gray-700">{msg.sender?.name ?? 'Academy'}</p>
-                    <time className="text-xs text-gray-400 shrink-0">
-                      {new Date(msg.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      {' '}
-                      {new Date(msg.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
-                    </time>
-                  </div>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{msg.content}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+      <p className="text-sm text-muted-foreground">Academy Parents group and private messages with staff.</p>
+      {rooms.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-8 text-center">No chats yet. Staff will invite you into the Parents group.</p>
       ) : (
-        <div className="bg-white border rounded-xl p-8 text-center">
-          <Megaphone size={32} className="mx-auto text-gray-200 mb-3" />
-          <p className="text-gray-500 font-medium">No messages yet</p>
-          <p className="text-sm text-gray-400 mt-1">Academy broadcast messages will appear here.</p>
+        <div className="bg-white rounded-xl border divide-y">
+          {rooms.map((r: any) => (
+            <Link key={r.id} href={`/chat/${r.id}`} className="flex items-center gap-3 p-4">
+              <MessageSquare size={18} className="text-tranmere-blue" />
+              <div>
+                <p className="font-semibold text-sm">{r.kind === 'parent' ? (r.name ?? 'Parents') : (r.name ?? 'Private message')}</p>
+                <p className="text-xs text-muted-foreground">{r.kind === 'parent' ? 'Whole parent group' : 'With academy staff'}</p>
+              </div>
+            </Link>
+          ))}
         </div>
       )}
     </div>
