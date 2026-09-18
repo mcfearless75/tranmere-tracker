@@ -31,15 +31,14 @@ export default async function AdminSafeguardingPage() {
 
   if (!profile || profile.role !== 'admin') redirect('/admin/home')
 
-  // Existing concerns
   const { data: concernRows } = await admin
     .from('safeguarding_concerns')
     .select('*')
+    .neq('category', 'attendance')
     .order('created_at', { ascending: false })
 
   const concerns = (concernRows ?? []) as SafeguardingConcern[]
 
-  // Student name lookup
   const studentNames: Record<string, string> = {}
   const studentIds = Array.from(new Set(concerns.map(c => c.student_id)))
   if (studentIds.length > 0) {
@@ -52,7 +51,6 @@ export default async function AdminSafeguardingPage() {
     }
   }
 
-  // Suggested concerns from recent low wellbeing scores (most recent survey per student)
   const { data: surveyRows } = await admin
     .from('wellbeing_surveys')
     .select('student_id, sent_at, users!student_id(name), wellbeing_responses(question_key, score)')
@@ -87,7 +85,7 @@ export default async function AdminSafeguardingPage() {
           <h1 className="flex items-center gap-2 text-xl font-bold text-tranmere-blue">
             <ShieldAlert size={20} /> Safeguarding
           </h1>
-          <p className="text-sm text-muted-foreground">Track and manage safeguarding concerns</p>
+          <p className="text-sm text-muted-foreground">Manual concerns only. Missed taps stay on the register.</p>
         </div>
         <Link
           href="/admin/safeguarding/new"
