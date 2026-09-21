@@ -5,6 +5,7 @@ import { AdminActions } from './AdminActions'
 import { AiInsights } from './AiInsights'
 import { PlayerAttributesForm } from '@/components/PlayerAttributesForm'
 import { MarkReviewCompleteButton } from './MarkReviewCompleteButton'
+import { StudentIdentityForm } from './StudentIdentityForm'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +16,7 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
   // Student profile
   const { data: student } = await supabase
     .from('users')
-    .select('id, name, email, avatar_url, role, course_id, courses(name), date_of_birth, position, height_cm, weight_kg, build, dominant_foot')
+    .select('id, name, email, avatar_url, role, year_group, course_id, courses(name), date_of_birth, position, height_cm, weight_kg, build, dominant_foot')
     .eq('id', studentId)
     .single()
 
@@ -78,6 +79,16 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
           <p className="text-xs sm:text-sm text-muted-foreground truncate">{courseName} · <span className="capitalize">{student.role}</span></p>
         </div>
       </div>
+
+      {/* Name/year group: every role lands on this page from the Users list,
+          and a name is editable for all of them. Year group is students-only —
+          the form hides it for staff, matching updateUserYearGroup. */}
+      <StudentIdentityForm
+        userId={student.id}
+        name={student.name ?? ''}
+        yearGroup={(student as any).year_group ?? null}
+        isStudent={student.role === 'student'}
+      />
 
       {/* Student-only: AI Insights, coursework, GPS, matches */}
       {student.role === 'student' && (

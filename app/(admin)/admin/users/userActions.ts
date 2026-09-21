@@ -1,6 +1,7 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { requireStaffAction } from '@/lib/auth/requireRole'
+import { USER_NAME_MAX } from '@/lib/users/types'
 
 /**
  * Server actions behind the Users table.
@@ -60,4 +61,30 @@ export async function updateUserYearGroup(userId: string, yearGroup: number) {
 
   await admin.from('users').update({ year_group: yearGroup }).eq('id', userId)
   revalidatePath('/admin/users')
+  revalidatePath(`/admin/students/${userId}`)
+}
+
+/**
+ * Renames a user.
+ *
+ * users.name is set once by handle_new_user() from the signup metadata (or,
+ * failing that, the local part of the email address) and had no write path
+ * anywhere in the app — so a typo, a missing surname, or a name imported from
+ * the wrong column was permanent. Staff-editable here, alongside year group.
+ *
+ * The name is what identifies a student in the roster, chat, squads and every
+ * printed report, so it is trimmed and length-checked rather than stored raw.
+ */
+export async function updateUserName(userId: string, name: string) {
+  const { admin } = await requireStaffAction()
+
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error('Name cannot be empty')
+  if (trimmed.length > USER_NAME_MAX) {
+    throw new Error(`Name cannot be longer than ${USER_NAME_MAX} characters`)
+  }
+
+  await admin.from('users').update({ name: trimmed }).eq('id', userId)
+  revalidatePath('/admin/users')
+  revalidatePath(`/admin/students/${userId}`)
 }
