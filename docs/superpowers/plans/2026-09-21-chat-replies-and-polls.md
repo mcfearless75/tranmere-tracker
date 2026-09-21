@@ -18,7 +18,7 @@
 - **Components live in `components/`**, not inline in page files.
 - **Every new feature needs Jest tests** in `__tests__/`.
 - **Task review runs `npm run build`**, not only `tsc` and `jest`. `next.config.js` ignores lint and typecheck during builds, so CI is the only enforcement and a lint error can pass tests while failing Vercel.
-- **Migration numbering:** this work is `080`. `079` is taken by `079_users_role_check_repair.sql`.
+- **Migration numbering:** this work is `082`. `079` is `users_role_check_repair` on master; `080_trial_event_staff` and `081_document_folder_parent` are on the in-flight branch `fix/migration-number-collisions`. That branch exists *because* this repo has already had duplicate migration numbers, so re-colliding would be careless. **Before starting Task 1, re-check `ls supabase/migrations/` on the current master** — if that branch has merged and pushed the number further, take the next free one and update every reference in this plan.
 - **Migrations are not applied by CI.** Writing the file is not applying it. Task 1 applies and verifies against production.
 - **Poll limits, exact:** question 1–200 chars, option label 1–80 chars, 2–6 options per poll. These values appear in the DB check constraints, the shared constants, the form `maxLength`, and the server-action validation — they must match in all four places.
 - **"Staff" in poll code always means `public.is_chat_staff()`** (admin/coach/teacher), never `public.is_staff()` (admin/coach only).
@@ -30,7 +30,7 @@
 
 | File | Responsibility |
 |---|---|
-| `supabase/migrations/080_chat_replies_and_polls.sql` | Schema, `is_chat_staff()`, vote-count trigger, RLS, realtime publication |
+| `supabase/migrations/082_chat_replies_and_polls.sql` | Schema, `is_chat_staff()`, vote-count trigger, RLS, realtime publication |
 | `lib/chat/types.ts` | Shared types and poll limit constants, imported by server page, actions and client components |
 | `components/chat/MessageBubble.tsx` | One message's bubble — extracted from `ChatThread.tsx`, then extended |
 | `components/chat/ReplyQuote.tsx` | The quoted strip, used above the composer and inside bubbles |
@@ -43,10 +43,10 @@
 
 ---
 
-## Task 1: Migration 080 — schema, helper, trigger, RLS
+## Task 1: Migration 082 — schema, helper, trigger, RLS
 
 **Files:**
-- Create: `supabase/migrations/080_chat_replies_and_polls.sql`
+- Create: `supabase/migrations/082_chat_replies_and_polls.sql`
 
 **Interfaces:**
 - Consumes: existing `public.is_chat_member(uuid)` and `public.is_staff()` from migrations `011` and `068`.
@@ -54,7 +54,7 @@
 
 - [ ] **Step 1: Write the migration file**
 
-Create `supabase/migrations/080_chat_replies_and_polls.sql`:
+Create `supabase/migrations/082_chat_replies_and_polls.sql`:
 
 ```sql
 -- Message replies + staff-created single-choice polls.
@@ -235,12 +235,12 @@ end $$;
 
 - [ ] **Step 2: Apply the migration to production**
 
-Use the Supabase MCP `apply_migration` tool with name `080_chat_replies_and_polls` and the file's contents as the query.
+Use the Supabase MCP `apply_migration` tool with name `082_chat_replies_and_polls` and the file's contents as the query.
 
 If the Supabase MCP tool is unavailable in the session, fall back to:
 
 ```bash
-supabase db query --linked --file supabase/migrations/080_chat_replies_and_polls.sql
+supabase db query --linked --file supabase/migrations/082_chat_replies_and_polls.sql
 ```
 
 - [ ] **Step 3: Verify it actually landed**
@@ -316,7 +316,7 @@ rollback;
 - [ ] **Step 5: Commit**
 
 ```bash
-git add supabase/migrations/080_chat_replies_and_polls.sql
+git add supabase/migrations/082_chat_replies_and_polls.sql
 git commit -m "feat(chat): schema for message replies and polls
 
 Adds chat_polls/chat_poll_options/chat_poll_votes, reply_to_id and
@@ -410,7 +410,7 @@ Expected: FAIL — cannot find module `@/lib/chat/types`
 Create `lib/chat/types.ts`:
 
 ```ts
-/** Limits mirrored by the DB check constraints in migration 080 and by the
+/** Limits mirrored by the DB check constraints in migration 082 and by the
  *  CreatePollSheet maxLength attributes. Change all three together. */
 export const POLL_QUESTION_MAX = 200
 export const POLL_OPTION_MAX = 80
@@ -1422,7 +1422,7 @@ Append to `app/chat/actions.ts`:
 ```ts
 /** Create a poll, its options and the carrier chat message.
  *  Uses the USER's client, not the admin client, so the staff-only insert
- *  policy from migration 080 is what actually enforces permission. */
+ *  policy from migration 082 is what actually enforces permission. */
 export async function createPoll(
   roomId: string,
   question: string,
@@ -2076,7 +2076,7 @@ Implements docs/superpowers/specs/2026-09-21-chat-replies-and-polls-design.md
 
 - Reply to a specific message, via the existing long-press sheet
 - Staff-created single-choice polls with live tallies
-- Migration 080, applied and verified against production
+- Migration 082, applied and verified against production
 
 Vote privacy is enforced in RLS: students can read only their own vote
 row. Tallies live in chat_poll_options.vote_count, maintained by a
