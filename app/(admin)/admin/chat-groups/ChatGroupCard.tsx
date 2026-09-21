@@ -226,6 +226,15 @@ export function ChatGroupCard({
             </button>
           ) : (
             <div className="border rounded-xl p-2 space-y-2 bg-white">
+              {/* Students are filtered out of `addable` on a synced room, so
+                  searching for a learner here silently returns "No match".
+                  Explain that up front rather than leaving staff guessing. */}
+              {syncYearGroup && (
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  Only staff can be added here. Learners join automatically from their year
+                  group — to add one, set their year group to {syncYearGroup} on their profile.
+                </p>
+              )}
               <div className="flex items-center gap-2">
                 <input
                   autoFocus
@@ -244,7 +253,11 @@ export function ChatGroupCard({
               </div>
 
               <div className="max-h-32 overflow-y-auto space-y-1">
-                {filtered.length === 0 && <p className="text-xs text-muted-foreground text-center py-2">No match</p>}
+                {filtered.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-2">
+                    {addable.length === 0 ? 'Everyone who can be added is already in' : 'No match'}
+                  </p>
+                )}
                 {filtered.map(p => {
                   const checked = selected.has(p.id)
                   return (

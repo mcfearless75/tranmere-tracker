@@ -40,6 +40,23 @@ describe('GroupMembers', () => {
     expect(screen.queryByLabelText(/Remove/)).not.toBeInTheDocument()
   })
 
+  it('explains why a synced roster has no add button, naming the year group', () => {
+    render(<GroupMembers roomId="r1" members={members} currentUserId="me" isStaff={true} syncYearGroup={1} />)
+    expect(screen.getByText(/Learners join this chat automatically/)).toBeInTheDocument()
+    expect(screen.getByText(/set their year group to 1/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Chat Group Membership' })).toHaveAttribute('href', '/admin/chat-groups')
+  })
+
+  it('does not show the staff explanation to a learner', () => {
+    render(<GroupMembers roomId="r1" members={members} currentUserId="u2" isStaff={false} syncYearGroup={1} />)
+    expect(screen.queryByText(/Learners join this chat automatically/)).not.toBeInTheDocument()
+  })
+
+  it('shows no sync explanation on a manually-managed group', () => {
+    render(<GroupMembers roomId="r1" members={members} currentUserId="me" isStaff={true} syncYearGroup={null} />)
+    expect(screen.queryByText(/Learners join this chat automatically/)).not.toBeInTheDocument()
+  })
+
   it('calls removeGroupMember with the room and user id on click', () => {
     removeGroupMemberMock.mockResolvedValue({ ok: true })
     render(<GroupMembers roomId="r1" members={members} currentUserId="me" isStaff={true} syncYearGroup={null} />)

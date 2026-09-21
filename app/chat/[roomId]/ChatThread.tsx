@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Send, Paperclip, X, Bot, Trash2 } from 'lucide-react'
 import { markRead, notifyRoomMembers } from '../actions'
+import { MessageBody } from '@/components/chat/MessageBody'
 
 type Message = {
   id: string
@@ -356,7 +357,7 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
                     📎 {decodeURIComponent(m.attachment_url.split('/').pop()?.split('?')[0] ?? 'file')}
                   </a>
                 )}
-                {m.body && <p className="whitespace-pre-wrap">{m.body}</p>}
+                {m.body && <MessageBody body={m.body} mine={mine} />}
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <p className={`text-[10px] ${mine ? 'text-blue-200' : 'text-gray-400'}`}>
                     {new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
@@ -425,7 +426,7 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
 
       {canSend ? (
         <div className="bg-white border-t p-2 flex items-end gap-2 shrink-0 safe-bottom">
-          <input ref={fileInputRef} type="file" accept="image/*,application/pdf,.doc,.docx" className="hidden" onChange={handleFileSelect} />
+          <input ref={fileInputRef} type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv" className="hidden" onChange={handleFileSelect} />
           <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-400 hover:text-tranmere-blue shrink-0 active:scale-95 transition-transform" type="button" aria-label="Attach file">
             <Paperclip size={18} />
           </button>
