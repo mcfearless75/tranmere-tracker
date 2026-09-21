@@ -63,6 +63,12 @@ bash scripts/migration-replay/replay.sh
 
 Requires Docker. Exits non-zero with the number of failed migrations.
 
+The **`Migration replay`** CI job runs the same script on every PR, against a
+Postgres service container, and blocks the merge if any migration fails. That
+job exists because `Supabase Preview` is an external check that went red for
+weeks while four PRs merged straight over it — this one is in-repo and
+blocking, so the same breakage cannot slip through again.
+
 ## Migrations are not applied by CI
 
 Nothing in this repo applies migrations. **A committed migration is not an
