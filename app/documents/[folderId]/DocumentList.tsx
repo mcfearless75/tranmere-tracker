@@ -119,16 +119,16 @@ export function DocumentList({ documents, isStaff, destinations }: { documents: 
             <div className="flex flex-wrap items-center gap-2">
               {doc.url && (
                 <>
-                  <a href={doc.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-tranmere-blue/20 bg-tranmere-blue/5 px-3 py-2 text-xs font-semibold text-tranmere-blue">
+                  <a href={doc.url} target="_blank" rel="noreferrer" aria-label={`View ${doc.name}`} className="inline-flex items-center gap-1.5 rounded-lg border border-tranmere-blue/20 bg-tranmere-blue/5 px-3 py-2 text-xs font-semibold text-tranmere-blue">
                     <Eye size={14} /> View
                   </a>
-                  <a href={doc.url} download={doc.name} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700">
+                  <a href={doc.url} download={doc.name} aria-label={`Download ${doc.name}`} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700">
                     <Download size={14} /> Download
                   </a>
                 </>
               )}
               {isStaff && destinations.length > 0 && (
-                <button type="button" onClick={() => setMovingId(moving ? null : doc.id)} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700">
+                <button type="button" onClick={() => setMovingId(moving ? null : doc.id)} aria-label={`Move ${doc.name}`} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700">
                   <FolderInput size={14} /> Move
                 </button>
               )}
@@ -142,12 +142,12 @@ export function DocumentList({ documents, isStaff, destinations }: { documents: 
                   </button>
                 </>
               ) : (
-                <button type="button" onClick={() => { setEditingId(doc.id); setEditValue(doc.name) }} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700">
+                <button type="button" onClick={() => { setEditingId(doc.id); setEditValue(doc.name) }} aria-label={`Rename ${doc.name}`} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700">
                   <Pencil size={14} /> Rename
                 </button>
               ))}
               {isStaff && (
-                <button type="button" onClick={() => handleDelete(doc.id, doc.name)} disabled={pending && removingId === doc.id} className="inline-flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50">
+                <button type="button" onClick={() => handleDelete(doc.id, doc.name)} disabled={pending && removingId === doc.id} aria-label={`Delete ${doc.name}`} className="inline-flex items-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50">
                   <Trash2 size={14} /> Delete
                 </button>
               )}
