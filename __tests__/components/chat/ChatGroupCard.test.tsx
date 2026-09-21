@@ -123,7 +123,7 @@ describe('ChatGroupCard', () => {
     fireEvent.click(screen.getByText('Year 2 Students'))
     fireEvent.click(screen.getByText('Add people'))
     expect(screen.getByText(/Only staff can be added here/)).toBeInTheDocument()
-    expect(screen.getByText(/set their year group to 2/)).toBeInTheDocument()
+    expect(screen.getByText(/set their year to 2/)).toBeInTheDocument()
   })
 
   it('shows no sync explanation in the add panel of a manually-managed group', () => {

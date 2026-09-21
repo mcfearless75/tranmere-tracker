@@ -190,7 +190,7 @@ export function ChatGroupCard({
               {syncYearGroup && (
                 <p className="text-[11px] leading-snug text-muted-foreground">
                   Only staff can be added here. Learners join automatically from their year
-                  group — to add one, set their year group to {syncYearGroup} on their profile.
+                  group — to add one, set their year to {syncYearGroup} on the Users page.
                 </p>
               )}
               <div className="flex items-center gap-2">

@@ -11,13 +11,22 @@ export async function POST(request: Request) {
   if (!auth.ok) return auth.response
   const { role: callerRole, admin: adminClient } = auth.ctx
 
-  const { username, name, role, courseId, pin } = await request.json()
+  const { username, name, role, courseId, pin, yearGroup } = await request.json()
 
   if (!username || !name || !role || !pin) {
     return NextResponse.json({ error: 'username, name, role and pin are required' }, { status: 400 })
   }
   if (!CREATABLE_ROLES.includes(role)) {
     return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
+  }
+
+  // year_group DEFAULTs to 1 in the DB, so a Year 2 joiner used to land in
+  // Year 1 silently — wrong timetable, wrong calendar, and the wrong
+  // auto-synced chat. Students now carry it from the create form; anything
+  // else is rejected rather than quietly coerced.
+  const year = role === 'student' ? (yearGroup ?? 1) : null
+  if (year !== null && year !== 1 && year !== 2) {
+    return NextResponse.json({ error: 'Year group must be 1 or 2' }, { status: 400 })
   }
   // Privilege-escalation guard: only an admin may create staff/admin accounts.
   if (STAFF_TARGET_ROLES.has(role) && callerRole !== 'admin') {
@@ -62,6 +71,7 @@ export async function POST(request: Request) {
       name,
       role,
       course_id: courseId || null,
+      ...(year === null ? {} : { year_group: year }),
       // Whoever set this recovery PIN chose it directly (same as a fresh
       // create below) — prompt them to personalize it on first login too.
       must_change_pin: true,
@@ -91,6 +101,7 @@ export async function POST(request: Request) {
     name,
     role,
     course_id: courseId || null,
+    ...(year === null ? {} : { year_group: year }),
     // The admin just chose this PIN directly (visible on their own screen
     // while typing it) — prompt the new owner to set their own on first
     // login, same nudge already shown to the shared-default-PIN cohort.

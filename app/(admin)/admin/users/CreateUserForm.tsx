@@ -19,6 +19,11 @@ export function CreateUserForm({ courses }: Props) {
   const [pin, setPin] = useState('')
   const [role, setRole] = useState<'student' | 'coach' | 'teacher' | 'admin'>('student')
   const [courseId, setCourseId] = useState('')
+  // Asked for at creation because users.year_group DEFAULTs to 1: before
+  // this existed a Year 2 joiner silently became a Year 1 student, with the
+  // wrong timetable and the wrong auto-synced chat, and nothing in the UI
+  // could correct it afterwards.
+  const [yearGroup, setYearGroup] = useState<1 | 2>(1)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null)
 
@@ -37,7 +42,8 @@ export function CreateUserForm({ courses }: Props) {
     const res = await fetch('/api/admin/create-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, name, role, courseId: courseId || null, pin }),
+      body: JSON.stringify({ username, name, role, courseId: courseId || null, pin,
+        yearGroup: role === 'student' ? yearGroup : null }),
     })
     const data = await res.json()
     if (data.error) {
@@ -87,6 +93,17 @@ export function CreateUserForm({ courses }: Props) {
           <option value="admin">Admin</option>
         </select>
       </div>
+      {role === 'student' && (
+        <select
+          value={yearGroup}
+          onChange={e => setYearGroup(Number(e.target.value) as 1 | 2)}
+          aria-label="Year group"
+          className="w-full text-sm border rounded-lg px-3 py-2 bg-white"
+        >
+          <option value={1}>Year 1</option>
+          <option value={2}>Year 2</option>
+        </select>
+      )}
       {role === 'student' && (
         <select
           value={courseId}
