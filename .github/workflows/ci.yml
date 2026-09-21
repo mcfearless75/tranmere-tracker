@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Blocking. Everything here passes on master today, so a red build means
+  # something genuinely broke rather than a pre-existing debt.
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # `npm ci` also runs the postinstall patch for the background-geolocation
+      # plugin, which exits non-zero if upstream changes its Package.swift out
+      # from under us — that is deliberate and should fail the run.
+      - run: npm ci
+      # No Supabase/Anthropic/VAPID secrets: the build does not read them at
+      # build time and Jest mocks every client, so CI stays secret-free.
+      - run: npm run build
+      - run: npm test -- --ci
+
+  # Advisory, not blocking. next.config.js sets eslint.ignoreDuringBuilds and
+  # typescript.ignoreBuildErrors (e10ef33), so neither of these gates anything
+  # anywhere right now, and master currently carries ~4 lint errors and ~12
+  # type errors. Surfacing them here makes new ones visible without painting
+  # the whole board red on day one. Once the backlog is cleared, drop the
+  # continue-on-error lines and this becomes a real gate.
+  quality:
+    name: Lint and typecheck (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+        continue-on-error: true
+      - run: npx tsc --noEmit
+        continue-on-error: true
