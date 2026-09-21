@@ -45,7 +45,7 @@ export async function createFolder(name: string, parentId?: string): Promise<str
   if (error || !folder) {
     const msg = error?.message ?? 'Could not create folder'
     if (msg.includes('parent_id') || msg.includes('schema cache')) {
-      return { error: 'Run supabase/migrations/046_document_folder_parent.sql in the Supabase SQL editor, then try again.' }
+      return { error: 'Run supabase/migrations/081_document_folder_parent.sql in the Supabase SQL editor, then try again.' }
     }
     return { error: msg }
   }

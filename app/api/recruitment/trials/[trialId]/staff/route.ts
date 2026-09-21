@@ -56,7 +56,7 @@ export async function PUT(
   if (delErr) {
     return NextResponse.json({
       error: delErr.message.includes('schema cache') || delErr.message.includes('does not exist')
-        ? 'Run supabase/migrations/040_trial_event_staff.sql in the Supabase SQL editor first.'
+        ? 'Run supabase/migrations/080_trial_event_staff.sql in the Supabase SQL editor first.'
         : delErr.message,
     }, { status: 500 })
   }
