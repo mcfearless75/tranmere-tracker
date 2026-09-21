@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { sendPushNotification } from '@/lib/webpush'
 import { sendFcmBatch } from '@/lib/firebase-admin'
+import { validatePollInput } from '@/lib/chat/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 /** True if userId is a member of roomId. Guards actions that touch a room. */
@@ -424,6 +425,90 @@ export async function nudgeRoom(roomId: string): Promise<{ ok: boolean; error?: 
     await sendFcmBatch(tokens, notification)
   }
 
+  return { ok: true }
+}
+
+/** Create a poll, its options and the carrier chat message.
+ *  Deliberately uses the USER's client, not the admin client — migration 082's
+ *  staff-only insert policy on chat_polls (public.is_chat_staff()) is what
+ *  actually enforces "staff only", not an `if` here. Using the admin client
+ *  would bypass RLS entirely and leave permission resting on this function
+ *  alone, one refactor away from a hole.
+ *  Rolls the poll row back if the options insert or the carrier message
+ *  insert fails — an orphaned poll (no options, or no message to render it
+ *  in) is invisible garbage in the timeline, same reasoning as the room
+ *  rollback in getOrCreateDM/createGroupChat. */
+export async function createPoll(
+  roomId: string,
+  question: string,
+  options: string[],
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+
+  const invalid = validatePollInput(question, options)
+  if (invalid) return { ok: false, error: invalid }
+
+  const q = question.trim()
+  const labels = options.map(o => o.trim()).filter(Boolean)
+
+  const { data: poll, error: pollError } = await supabase
+    .from('chat_polls')
+    .insert({ room_id: roomId, created_by: user.id, question: q })
+    .select('id')
+    .single()
+
+  if (pollError || !poll) {
+    // Includes the RLS rejection a non-staff caller gets back — surface it
+    // rather than reporting fake success.
+    return { ok: false, error: pollError?.message ?? 'Could not create the poll' }
+  }
+
+  const { error: optionsError } = await supabase
+    .from('chat_poll_options')
+    .insert(labels.map((label, position) => ({ poll_id: poll.id, label, position })))
+
+  if (optionsError) {
+    await supabase.from('chat_polls').delete().eq('id', poll.id)
+    return { ok: false, error: optionsError.message }
+  }
+
+  const { error: messageError } = await supabase
+    .from('chat_messages')
+    .insert({ room_id: roomId, sender_id: user.id, body: null, poll_id: poll.id })
+
+  if (messageError) {
+    await supabase.from('chat_polls').delete().eq('id', poll.id)
+    return { ok: false, error: messageError.message }
+  }
+
+  await notifyRoomMembers(roomId, '', `📊 ${q}`).catch(() => {})
+  revalidatePath(`/chat/${roomId}`)
+  return { ok: true }
+}
+
+/** Close a poll so no further votes can be cast.
+ *  Staff-only is enforced by the update policy on chat_polls, not by an `if`
+ *  here — same reasoning as createPoll. Uses .maybeSingle(), not .single():
+ *  an RLS-blocked update returns zero rows (not a thrown error), which is a
+ *  legitimate "not found, or you're not allowed" case, not a crash. */
+export async function closePoll(pollId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+
+  const { data, error } = await supabase
+    .from('chat_polls')
+    .update({ closed_at: new Date().toISOString() })
+    .eq('id', pollId)
+    .select('room_id')
+    .maybeSingle()
+
+  if (error) return { ok: false, error: error.message }
+  if (!data) return { ok: false, error: 'Poll not found, or you cannot close it' }
+
+  revalidatePath(`/chat/${data.room_id}`)
   return { ok: true }
 }
 
