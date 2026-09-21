@@ -11,7 +11,12 @@ jest.mock('@/lib/auth/requireRole', () => ({
 }))
 jest.mock('next/cache', () => ({ revalidatePath: jest.fn() }))
 
-import { updateUserRole, updateUserYearGroup } from '@/app/(admin)/admin/users/userActions'
+import {
+  updateUserRole,
+  updateUserYearGroup,
+  updateUserName,
+} from '@/app/(admin)/admin/users/userActions'
+import { USER_NAME_MAX } from '@/lib/users/types'
 
 function ctx(role: string) {
   return {
@@ -75,5 +80,37 @@ describe('users server actions are guarded', () => {
     maybeSingleMock.mockResolvedValue({ data: { role: 'coach' } } as any)
     await expect(updateUserYearGroup('c1', 2)).rejects.toThrow(/students only/i)
     expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a rename from a caller who is not staff, and writes nothing', async () => {
+    requireStaffActionMock.mockRejectedValue(new Error('Unauthorised'))
+    await expect(updateUserName('s1', 'Javan Moussa')).rejects.toThrow('Unauthorised')
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('renames a user, trimming surrounding whitespace', async () => {
+    requireStaffActionMock.mockResolvedValue(ctx('coach'))
+    await updateUserName('s1', '  Javan Moussa  ')
+    expect(updateMock).toHaveBeenCalledWith({ name: 'Javan Moussa' })
+  })
+
+  it('rejects an empty or whitespace-only name', async () => {
+    requireStaffActionMock.mockResolvedValue(ctx('admin'))
+    await expect(updateUserName('s1', '   ')).rejects.toThrow(/empty/i)
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  // Rejected, never truncated — a silently shortened name is the failure mode
+  // that bit the chat/folder name fields.
+  it('rejects an over-long name rather than truncating it', async () => {
+    requireStaffActionMock.mockResolvedValue(ctx('admin'))
+    await expect(updateUserName('s1', 'x'.repeat(USER_NAME_MAX + 1))).rejects.toThrow(/longer than/i)
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts a name exactly at the limit', async () => {
+    requireStaffActionMock.mockResolvedValue(ctx('admin'))
+    await updateUserName('s1', 'x'.repeat(USER_NAME_MAX))
+    expect(updateMock).toHaveBeenCalledWith({ name: 'x'.repeat(USER_NAME_MAX) })
   })
 })
