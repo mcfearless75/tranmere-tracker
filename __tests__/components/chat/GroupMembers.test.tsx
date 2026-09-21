@@ -43,7 +43,7 @@ describe('GroupMembers', () => {
   it('explains why a synced roster has no add button, naming the year group', () => {
     render(<GroupMembers roomId="r1" members={members} currentUserId="me" isStaff={true} syncYearGroup={1} />)
     expect(screen.getByText(/Learners join this chat automatically/)).toBeInTheDocument()
-    expect(screen.getByText(/set their year group to 1/)).toBeInTheDocument()
+    expect(screen.getByText(/set their year to 1/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Chat Group Membership' })).toHaveAttribute('href', '/admin/chat-groups')
   })
 

@@ -60,8 +60,11 @@ export function GroupMembers({
       {syncYearGroup && isStaff && (
         <p className="text-[11px] leading-snug text-muted-foreground">
           Learners join this chat automatically from their year group, so there&apos;s no add
-          button here. To add a learner, set their year group to {syncYearGroup} on their
-          profile. Staff can be added under{' '}
+          button here. To add a learner, set their year to {syncYearGroup} in{' '}
+          <Link href="/admin/users" className="text-tranmere-blue underline">
+            Users
+          </Link>
+          . Staff can be added under{' '}
           <Link href="/admin/chat-groups" className="text-tranmere-blue underline">
             Chat Group Membership
           </Link>

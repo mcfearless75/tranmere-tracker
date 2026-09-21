@@ -2,7 +2,7 @@
 import { useTransition } from 'react'
 import Link from 'next/link'
 import { Eye } from 'lucide-react'
-import { updateUserRole, updateUserCourse } from './userActions'
+import { updateUserRole, updateUserCourse, updateUserYearGroup } from './userActions'
 
 interface Course { id: string; name: string }
 interface Props {
@@ -45,8 +45,23 @@ export function UserRow({ user, courses }: Props) {
       </td>
       <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
         {/* year_group defaults to 1 at the DB level for every row, staff
-            included — it's only a meaningful field for students. */}
-        {user.role === 'student' && user.year_group ? `Year ${user.year_group}` : '—'}
+            included — it's only a meaningful field for students, so staff
+            still render as a dash. For students this is now editable: it was
+            read-only text until 2026-09-21, which meant a Year 2 joiner was
+            stuck on the default of 1 with no way to correct it. Changing it
+            also moves them between the auto-synced Year 1/2 chats, via the
+            sync_year_group_chat trigger. */}
+        {user.role === 'student' ? (
+          <select
+            aria-label={`Year group for ${user.name}`}
+            defaultValue={user.year_group ?? 1}
+            onChange={e => startTransition(() => updateUserYearGroup(user.id, Number(e.target.value)))}
+            className="text-xs border rounded px-1 py-0.5 bg-white cursor-pointer"
+          >
+            <option value={1}>Year 1</option>
+            <option value={2}>Year 2</option>
+          </select>
+        ) : '—'}
       </td>
       <td className="px-4 py-3">
         <select
