@@ -23,6 +23,7 @@ export type MessageBubbleProps = {
   replyParent?: ReplyParent | null
   replyParentName?: string
   onJumpToMessage?: (messageId: string) => void
+  pollSlot?: React.ReactNode
 }
 
 export function MessageBubble({
@@ -39,6 +40,7 @@ export function MessageBubble({
   replyParent = null,
   replyParentName = '',
   onJumpToMessage,
+  pollSlot,
 }: MessageBubbleProps) {
   const holdTimer = useRef<number | null>(null)
   const holdStart = useRef<{ x: number; y: number } | null>(null)
@@ -89,7 +91,7 @@ export function MessageBubble({
       </button>
       )}
       <div
-        className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm break-words select-none touch-manipulation ${mine ? 'bg-tranmere-blue text-white rounded-br-md' : 'bg-white border text-gray-900 rounded-bl-md'}`}
+        className={`${pollSlot ? 'max-w-full w-full' : 'max-w-[75%]'} px-3 py-2 rounded-2xl text-sm break-words select-none touch-manipulation ${mine ? 'bg-tranmere-blue text-white rounded-br-md' : 'bg-white border text-gray-900 rounded-bl-md'}`}
         onContextMenu={e => { e.preventDefault(); openSheet(m.id) }}
         onPointerDown={e => {
           if (e.pointerType === 'mouse' && e.button !== 0) return
@@ -122,7 +124,7 @@ export function MessageBubble({
             {decodeURIComponent(m.attachment_url.split('/').pop()?.split('?')[0] ?? 'file')}
           </a>
         )}
-        {m.body && <MessageBody body={m.body} mine={mine} />}
+        {pollSlot ? pollSlot : (m.body && <MessageBody body={m.body} mine={mine} />)}
         <p className={`text-[10px] mt-0.5 ${mine ? 'text-blue-200' : 'text-gray-400'}`}>
           {new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
         </p>

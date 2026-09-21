@@ -6,7 +6,7 @@ import { ArrowLeft } from 'lucide-react'
 import { ChatThread } from './ChatThread'
 import { GroupMembers } from './GroupMembers'
 import { AddGroupMembers } from './AddGroupMembers'
-import type { ReplyParent } from '@/lib/chat/types'
+import type { Poll, PollOption, PollVote, ReplyParent } from '@/lib/chat/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,6 +88,32 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
     if (!reactionErr) reactions = (reactionRows ?? []) as any
   }
 
+  const pollIds = messages
+    .map((m: any) => m.poll_id)
+    .filter((id: string | null): id is string => !!id)
+
+  let polls: Poll[] = []
+  let pollOptions: PollOption[] = []
+  let myVotes: PollVote[] = []
+
+  if (pollIds.length) {
+    // Only the viewer's own votes are fetched here — this query runs through
+    // the admin client, which bypasses RLS entirely. Fetching every vote
+    // would ship the whole room's ballot to every student in the initial
+    // HTML no matter how tight the RLS policies on chat_poll_votes are.
+    // Staff load the full voter list later, from the client, where their
+    // RLS policy actually applies (see loadVoters in ChatThread).
+    const [{ data: pollRows }, { data: optionRows }, { data: voteRows }] = await Promise.all([
+      admin.from('chat_polls').select('*').in('id', pollIds),
+      admin.from('chat_poll_options').select('*').in('poll_id', pollIds).order('position'),
+      admin.from('chat_poll_votes').select('id, poll_id, option_id, user_id')
+        .in('poll_id', pollIds).eq('user_id', user.id),
+    ])
+    polls = (pollRows ?? []) as Poll[]
+    pollOptions = (optionRows ?? []) as PollOption[]
+    myVotes = (voteRows ?? []) as PollVote[]
+  }
+
   let title = room.name
   if (room.kind === 'dm') {
     const other = (members ?? []).find((m: any) => m.user_id !== user.id)
@@ -132,6 +158,10 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
         initialMessages={(messages ?? []) as any}
         initialReactions={reactions}
         initialReplyParents={replyParents}
+        initialPolls={polls}
+        initialPollOptions={pollOptions}
+        initialMyVotes={myVotes}
+        isChatStaff={!!isStaff}
         members={(members ?? []) as any}
         canSend={canSend}
       />

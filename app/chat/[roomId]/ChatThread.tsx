@@ -3,12 +3,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { Send, Paperclip, X, Bot } from 'lucide-react'
+import { Send, Paperclip, X, Bot, BarChart3 } from 'lucide-react'
 import { MessageReactionSheet } from '@/components/chat/MessageReactionSheet'
 import { MessageBubble } from '@/components/chat/MessageBubble'
 import { ReplyQuote } from '@/components/chat/ReplyQuote'
-import { markRead, notifyRoomMembers } from '../actions'
-import type { ChatMessage, ReplyParent } from '@/lib/chat/types'
+import { PollCard } from '@/components/chat/PollCard'
+import { CreatePollSheet } from '@/components/chat/CreatePollSheet'
+import { markRead, notifyRoomMembers, createPoll, closePoll } from '../actions'
+import type { ChatMessage, Poll, PollOption, PollVote, ReplyParent } from '@/lib/chat/types'
+import type { PollVoter } from '@/components/chat/PollCard'
 
 type Member = { user_id: string; users: { id: string; name: string | null; avatar_url: string | null } | null }
 export type ChatReaction = { id: string; message_id: string; user_id: string; emoji: string }
@@ -37,7 +40,20 @@ export async function fetchBotReplyAfter(
   }
 }
 
-export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, members, canSend = true, initialReactions = [], initialReplyParents = [] }: {
+export function ChatThread({
+  roomId,
+  roomKind,
+  currentUserId,
+  initialMessages,
+  members,
+  canSend = true,
+  initialReactions = [],
+  initialReplyParents = [],
+  initialPolls = [],
+  initialPollOptions = [],
+  initialMyVotes = [],
+  isChatStaff = false,
+}: {
   roomId: string
   roomKind: string
   currentUserId: string
@@ -46,6 +62,10 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
   canSend?: boolean
   initialReactions?: ChatReaction[]
   initialReplyParents?: ReplyParent[]
+  initialPolls?: Poll[]
+  initialPollOptions?: PollOption[]
+  initialMyVotes?: PollVote[]
+  isChatStaff?: boolean
 }) {
   const supabase = createClient()
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
@@ -63,6 +83,13 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
   const [replyParents, setReplyParents] = useState<Record<string, ReplyParent>>(
     Object.fromEntries(initialReplyParents.map(p => [p.id, p]))
   )
+  const [polls, setPolls] = useState<Poll[]>(initialPolls)
+  const [pollOptions, setPollOptions] = useState<PollOption[]>(initialPollOptions)
+  const [myVotes, setMyVotes] = useState<PollVote[]>(initialMyVotes)
+  const [creatingPoll, setCreatingPoll] = useState(false)
+  // Not in the brief's state block verbatim — a defect in Step 4, which uses
+  // votersByPoll in loadVoters and pollSlot without ever declaring it.
+  const [votersByPoll, setVotersByPoll] = useState<Record<string, PollVoter[]>>({})
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -112,6 +139,18 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_message_reactions' }, payload => {
         const row = payload.old as { id?: string }
         if (row.id) setReactions(prev => prev.filter(r => r.id !== row.id))
+      })
+      // Tallies live on chat_poll_options.vote_count, maintained by a DB
+      // trigger — chat_poll_votes is deliberately not in the realtime
+      // publication (migration 082), so vote rows never cross the wire.
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_poll_options' }, payload => {
+        const row = payload.new as PollOption
+        if (!row?.id) return
+        setPollOptions(prev => prev.map(o => (o.id === row.id ? row : o)))
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_polls' }, payload => {
+        const row = payload.new as Poll
+        setPolls(prev => prev.map(p => (p.id === row.id ? row : p)))
       })
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState<{ userId: string; name: string; typing: boolean }>()
@@ -246,6 +285,55 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
     return Object.values(grouped)
   }
 
+  // Optimistic so the bar moves before the round-trip. Voting is gated on
+  // room membership, never on `canSend` — students in a broadcast room can't
+  // post but they can vote, which is deliberate (see page.tsx / brief).
+  async function vote(pollId: string, optionId: string) {
+    const previous = myVotes.find(v => v.poll_id === pollId) ?? null
+    if (previous?.option_id === optionId) return
+
+    setMyVotes(prev => [
+      ...prev.filter(v => v.poll_id !== pollId),
+      { id: previous?.id ?? `local-${pollId}`, poll_id: pollId, option_id: optionId, user_id: currentUserId },
+    ])
+
+    const { error } = await supabase
+      .from('chat_poll_votes')
+      .upsert(
+        { poll_id: pollId, option_id: optionId, user_id: currentUserId },
+        { onConflict: 'poll_id,user_id' },
+      )
+
+    if (error) {
+      // Roll the optimistic change back exactly — including back to "no
+      // selection" when there was no previous vote at all. A closed poll
+      // rejects the write at the database.
+      setMyVotes(prev => (previous
+        ? [...prev.filter(v => v.poll_id !== pollId), previous]
+        : prev.filter(v => v.poll_id !== pollId)))
+      alert(`Could not record your vote: ${error.message}`)
+    }
+  }
+
+  // Staff-only voter list, loaded on demand from the client — this is where
+  // the RLS policy on chat_poll_votes actually applies, unlike the server
+  // page's admin-client fetch which only ever loads the viewer's own vote.
+  async function loadVoters(pollId: string) {
+    const { data } = await supabase
+      .from('chat_poll_votes')
+      .select('user_id, option_id')
+      .eq('poll_id', pollId)
+    if (!data) return
+    setVotersByPoll(prev => ({
+      ...prev,
+      [pollId]: data.map((v: { user_id: string; option_id: string }) => ({
+        userId: v.user_id,
+        name: memberById[v.user_id]?.users?.name ?? 'Unknown',
+        optionId: v.option_id,
+      })),
+    }))
+  }
+
   function handleDraftChange(value: string) {
     setDraft(value)
     if (roomKind === 'bot' || !canSend) return
@@ -360,6 +448,22 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
           // initialReplyParents or the lazy fetch lives outside `messages`
           // and has nowhere to scroll to.
           const canJumpToParent = !!m.reply_to_id && messages.some(msg => msg.id === m.reply_to_id)
+          const pollSlot = m.poll_id ? (() => {
+            const poll = polls.find(p => p.id === m.poll_id)
+            if (!poll) return null
+            return (
+              <PollCard
+                poll={poll}
+                options={pollOptions.filter(o => o.poll_id === poll.id).sort((a, b) => a.position - b.position)}
+                myOptionId={myVotes.find(v => v.poll_id === poll.id)?.option_id ?? null}
+                isChatStaff={isChatStaff}
+                voters={votersByPoll[poll.id]}
+                onVote={optionId => vote(poll.id, optionId)}
+                onClose={() => closePoll(poll.id)}
+                onShowVoters={() => loadVoters(poll.id)}
+              />
+            )
+          })() : undefined
           return (
             <MessageBubble
               key={m.id}
@@ -376,6 +480,7 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
               replyParent={replyParent}
               replyParentName={replyParentName}
               onJumpToMessage={canJumpToParent ? jumpToMessage : undefined}
+              pollSlot={pollSlot ?? undefined}
             />
           )
         })}
@@ -424,6 +529,9 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
       {canSend ? (
         <div className="bg-white border-t p-2 flex items-end gap-2 shrink-0 safe-bottom">
           <input ref={fileInputRef} type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv" className="hidden" onChange={handleFileSelect} />
+          {isChatStaff && (
+            <button onClick={() => setCreatingPoll(true)} className="p-2 text-gray-400 hover:text-tranmere-blue shrink-0" type="button" aria-label="New poll"><BarChart3 size={18} /></button>
+          )}
           <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-400 hover:text-tranmere-blue shrink-0" type="button" aria-label="Attach file"><Paperclip size={18} /></button>
           <textarea ref={textareaRef} value={draft} onChange={e => handleDraftChange(e.target.value)} onKeyDown={e => {
             if (e.key !== 'Enter' || e.shiftKey) return
@@ -433,7 +541,20 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
           <button onClick={send} disabled={(!draft.trim() && !attachment) || sending} aria-label="Send message" className="rounded-full bg-tranmere-blue text-white w-10 h-10 flex items-center justify-center shrink-0 disabled:opacity-50"><Send size={16} /></button>
         </div>
       ) : (
-        <div className="bg-gray-50 border-t p-3 text-center text-xs text-muted-foreground safe-bottom">This is a broadcast channel — only staff can post.</div>
+        <div className="bg-gray-50 border-t p-3 flex items-center justify-center gap-3 text-xs text-muted-foreground safe-bottom">
+          <span>This is a broadcast channel — only staff can post.</span>
+          {isChatStaff && (
+            <button onClick={() => setCreatingPoll(true)} className="shrink-0 text-tranmere-blue font-medium flex items-center gap-1" type="button" aria-label="New poll">
+              <BarChart3 size={16} /> New poll
+            </button>
+          )}
+        </div>
+      )}
+      {creatingPoll && (
+        <CreatePollSheet
+          onSubmit={(q, o) => createPoll(roomId, q, o)}
+          onClose={() => setCreatingPoll(false)}
+        />
       )}
       {reactingTo && (
         <MessageReactionSheet
