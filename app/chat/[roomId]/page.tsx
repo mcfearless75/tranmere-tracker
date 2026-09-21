@@ -22,11 +22,17 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
 
   const { data: members } = await admin
     .from('chat_members')
-    .select('user_id, role, users:user_id(id, name, avatar_url, role)')
+    .select('user_id, role, users:user_id(id, name, avatar_url, role, is_active)')
     .eq('room_id', params.roomId)
 
   const me = (members ?? []).find((m: any) => m.user_id === user.id)
-  const isStaff = me && ['admin', 'coach', 'teacher'].includes((me as any).users?.role ?? '')
+  // Must match is_chat_staff() in migration 082 exactly — role list AND
+  // is_active. Dropping the is_active clause here would show a deactivated
+  // coach a "New poll" / "Close poll" UI the database then silently refuses.
+  const meUser = (me as any)?.users
+  const isStaff = !!meUser
+    && ['admin', 'coach', 'teacher'].includes(meUser.role ?? '')
+    && meUser.is_active === true
   const canSend = room.kind !== 'broadcast' || !!isStaff
   if (!me) {
     return (
@@ -72,10 +78,18 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
 
   let replyParents: ReplyParent[] = []
   if (missingParentIds.length) {
+    // room_id is not optional. This runs on the admin client, which bypasses
+    // RLS, and reply_to_id is attacker-controlled: migration 011's insert
+    // policy only checks room membership and sender_id, and its update
+    // policy has no WITH CHECK at all, so a sender can point their own
+    // message's reply_to_id at any message id in the database. Without this
+    // constraint, quoting a message id lifted from a private DM would render
+    // that message's text and author to the whole room.
     const { data } = await admin
       .from('chat_messages')
-      .select('id, sender_id, body, attachment_kind, deleted_at')
+      .select('id, sender_id, body, attachment_kind, deleted_at, poll_id')
       .in('id', missingParentIds)
+      .eq('room_id', params.roomId)
     replyParents = (data ?? []) as ReplyParent[]
   }
 
@@ -97,21 +111,35 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
   let myVotes: PollVote[] = []
 
   if (pollIds.length) {
-    // Only the viewer's own votes are fetched here — this query runs through
-    // the admin client, which bypasses RLS entirely. Fetching every vote
-    // would ship the whole room's ballot to every student in the initial
-    // HTML no matter how tight the RLS policies on chat_poll_votes are.
-    // Staff load the full voter list later, from the client, where their
-    // RLS policy actually applies (see loadVoters in ChatThread).
-    const [{ data: pollRows }, { data: optionRows }, { data: voteRows }] = await Promise.all([
-      admin.from('chat_polls').select('*').in('id', pollIds),
-      admin.from('chat_poll_options').select('*').in('poll_id', pollIds).order('position'),
-      admin.from('chat_poll_votes').select('id, poll_id, option_id, user_id')
-        .in('poll_id', pollIds).eq('user_id', user.id),
-    ])
+    // Same admin-client hazard as the reply-parent fetch above: poll_id is
+    // attacker-controlled, so the poll lookup is constrained to this room.
+    // Options and votes then key off the ids that survived that filter, so a
+    // poll belonging to another room can never contribute its labels or its
+    // live tallies to this page.
+    const { data: pollRows } = await admin
+      .from('chat_polls')
+      .select('*')
+      .in('id', pollIds)
+      .eq('room_id', params.roomId)
     polls = (pollRows ?? []) as Poll[]
-    pollOptions = (optionRows ?? []) as PollOption[]
-    myVotes = (voteRows ?? []) as PollVote[]
+
+    const roomPollIds = polls.map(p => p.id)
+    if (roomPollIds.length) {
+      // Only the viewer's own votes are fetched here — this query runs
+      // through the admin client, which bypasses RLS entirely. Fetching
+      // every vote would ship the whole room's ballot to every student in
+      // the initial HTML no matter how tight the RLS policies on
+      // chat_poll_votes are. Staff load the full voter list later, from the
+      // client, where their RLS policy actually applies (see loadVoters in
+      // ChatThread).
+      const [{ data: optionRows }, { data: voteRows }] = await Promise.all([
+        admin.from('chat_poll_options').select('*').in('poll_id', roomPollIds).order('position'),
+        admin.from('chat_poll_votes').select('id, poll_id, option_id, user_id')
+          .in('poll_id', roomPollIds).eq('user_id', user.id),
+      ])
+      pollOptions = (optionRows ?? []) as PollOption[]
+      myVotes = (voteRows ?? []) as PollVote[]
+    }
   }
 
   let title = room.name

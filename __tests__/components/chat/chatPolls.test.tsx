@@ -7,11 +7,14 @@ import type { ChatMessage, Poll, PollOption } from '@/lib/chat/types'
 // test — a plain environment shim so rendering doesn't throw.
 Element.prototype.scrollTo = jest.fn()
 
+const closePollMock = jest.fn((_pollId: string) =>
+  Promise.resolve<{ ok: boolean; error?: string }>({ ok: true }))
+
 jest.mock('@/app/chat/actions', () => ({
   markRead: jest.fn(),
   notifyRoomMembers: jest.fn(() => Promise.resolve()),
   createPoll: jest.fn(() => Promise.resolve({ ok: true })),
-  closePoll: jest.fn(() => Promise.resolve({ ok: true })),
+  closePoll: (...args: [string]) => closePollMock(...args),
 }))
 
 // `on` and `subscribe` return the channel itself (real supabase-js builder
@@ -36,15 +39,28 @@ const channelMock: ChannelMock = {
   presenceState: jest.fn(() => ({})),
 }
 
+function findHandler(table: string, event?: string) {
+  const call = channelMock.on.mock.calls.find(c => {
+    if (c[0] !== 'postgres_changes') return false
+    const cfg = c[1] as { table?: string; event?: string }
+    return cfg?.table === table && (event === undefined || cfg?.event === event)
+  })
+  return call?.[2] as ((payload: Record<string, unknown>) => void) | undefined
+}
+
 // Finds the handler ChatThread registered for the chat_poll_options
 // subscription and fires it with an UPDATE-shaped payload, so a test can
 // simulate the realtime tally update without a real socket.
 function firePollOptionsUpdate(row: PollOption) {
-  const call = channelMock.on.mock.calls.find(
-    c => c[0] === 'postgres_changes' && (c[1] as { table?: string })?.table === 'chat_poll_options',
-  )
-  const handler = call?.[2] as ((payload: { new: PollOption }) => void) | undefined
+  const handler = findHandler('chat_poll_options')
   if (!handler) throw new Error('chat_poll_options handler was not registered')
+  handler({ new: row })
+}
+
+// Drives a brand-new message in over realtime, exactly as the socket would.
+function fireMessageInsert(row: ChatMessage) {
+  const handler = findHandler('chat_messages', 'INSERT')
+  if (!handler) throw new Error('chat_messages INSERT handler was not registered')
   handler({ new: row })
 }
 
@@ -52,6 +68,16 @@ const voteUpsertMock = jest.fn(() => Promise.resolve({ error: null }))
 
 const insertMock = jest.fn(() => ({
   select: () => ({ single: () => Promise.resolve({ data: null, error: null }) }),
+}))
+
+// What the client-side "resolve a poll I don't have" fetch returns. Set per
+// test; empty by default so no existing test accidentally gains a poll.
+let fetchedPolls: Poll[] = []
+let fetchedOptions: PollOption[] = []
+
+const pollsSelectInMock = jest.fn(() => Promise.resolve({ data: fetchedPolls }))
+const optionsSelectInMock = jest.fn(() => ({
+  order: jest.fn(() => Promise.resolve({ data: fetchedOptions })),
 }))
 
 function makeChatMessagesFrom() {
@@ -76,7 +102,12 @@ function makeChatMessagesFrom() {
 function makeChatPollVotesFrom() {
   return {
     upsert: voteUpsertMock,
-    select: jest.fn(() => ({ eq: jest.fn(() => Promise.resolve({ data: [] })) })),
+    select: jest.fn(() => ({
+      // loadVoters: .select(...).eq('poll_id', id)
+      eq: jest.fn(() => Promise.resolve({ data: [] })),
+      // the unknown-poll fetch: .select(...).in('poll_id', ids).eq('user_id', me)
+      in: jest.fn(() => ({ eq: jest.fn(() => Promise.resolve({ data: [] })) })),
+    })),
     delete: jest.fn(() => ({ eq: jest.fn(() => Promise.resolve({ error: null })) })),
   }
 }
@@ -88,6 +119,8 @@ jest.mock('@/lib/supabase/client', () => ({
     from: (table: string) => {
       if (table === 'chat_messages') return makeChatMessagesFrom()
       if (table === 'chat_poll_votes') return makeChatPollVotesFrom()
+      if (table === 'chat_polls') return { select: jest.fn(() => ({ in: pollsSelectInMock })) }
+      if (table === 'chat_poll_options') return { select: jest.fn(() => ({ in: optionsSelectInMock })) }
       throw new Error(`Unexpected table: ${table}`)
     },
     storage: { from: () => ({ createSignedUrl: jest.fn() }) },
@@ -147,6 +180,12 @@ describe('polls in the thread', () => {
   beforeEach(() => {
     voteUpsertMock.mockClear()
     channelMock.on.mockClear()
+    closePollMock.mockClear()
+    closePollMock.mockImplementation(() => Promise.resolve({ ok: true }))
+    pollsSelectInMock.mockClear()
+    optionsSelectInMock.mockClear()
+    fetchedPolls = []
+    fetchedOptions = []
   })
 
   it('renders a poll message as a PollCard instead of a text bubble', async () => {
@@ -183,5 +222,175 @@ describe('polls in the thread', () => {
     expect(screen.getByText(/only staff can post/i)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Yes/ }))
     await waitFor(() => expect(voteUpsertMock).toHaveBeenCalled())
+  })
+
+  // The safety-critical property of this feature is that a student can never
+  // learn how another student voted. One of the four layers holding it up is
+  // a deliberate OMISSION — chat_poll_votes is not in the realtime
+  // publication and nothing subscribes to it — which no other test records.
+  // Adding a subscription here would leak every vote row to every client the
+  // moment Realtime started publishing that table.
+  it('never subscribes to chat_poll_votes over realtime', async () => {
+    await act(async () => { renderThreadWithPoll() })
+    const tables = channelMock.on.mock.calls
+      .filter(c => c[0] === 'postgres_changes')
+      .map(c => (c[1] as { table?: string })?.table)
+    expect(tables.length).toBeGreaterThan(0)
+    expect(tables).not.toContain('chat_poll_votes')
+  })
+
+  // Regression for the "empty grey bubble" bug: a poll created after page
+  // load arrives only as a carrier chat_messages INSERT whose body is null.
+  // Seeded through initialPolls this bug is invisible, so it is deliberately
+  // NOT seeded here.
+  describe('a poll created after page load', () => {
+    const newPoll: Poll = {
+      id: 'poll-2',
+      room_id: 'room-1',
+      created_by: 'u2',
+      question: 'Boots or trainers?',
+      closed_at: null,
+      created_at: '2026-09-21T18:00:00.000Z',
+    }
+    const newOptions: PollOption[] = [
+      { id: 'n1', poll_id: 'poll-2', label: 'Boots', position: 0, vote_count: 0 },
+      { id: 'n2', poll_id: 'poll-2', label: 'Trainers', position: 1, vote_count: 0 },
+    ]
+    const carrier: ChatMessage = {
+      id: 'm9',
+      sender_id: 'u2',
+      body: null,
+      attachment_url: null,
+      attachment_kind: null,
+      created_at: '2026-09-21T18:00:00.000Z',
+      reply_to_id: null,
+      poll_id: 'poll-2',
+    }
+
+    it('renders with its options when it arrives over realtime', async () => {
+      fetchedPolls = [newPoll]
+      fetchedOptions = newOptions
+      await act(async () => {
+        renderThreadWithPoll({ initialMessages: [], initialPolls: [], initialPollOptions: [] })
+      })
+      expect(screen.queryByText('Boots or trainers?')).not.toBeInTheDocument()
+
+      await act(async () => { fireMessageInsert(carrier) })
+
+      await waitFor(() => expect(screen.getByText('Boots or trainers?')).toBeInTheDocument())
+      expect(screen.getByRole('button', { name: /Boots/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Trainers/ })).toBeInTheDocument()
+    })
+
+    it('still resolves when the option rows arrive over realtime before the fetch returns', async () => {
+      fetchedPolls = [newPoll]
+      fetchedOptions = []
+      await act(async () => {
+        renderThreadWithPoll({ initialMessages: [], initialPolls: [], initialPollOptions: [] })
+      })
+      await act(async () => {
+        // Options first, poll second — the opposite order to the test above.
+        firePollOptionsUpdate(newOptions[0])
+        firePollOptionsUpdate(newOptions[1])
+        fireMessageInsert(carrier)
+      })
+      await waitFor(() => expect(screen.getByText('Boots or trainers?')).toBeInTheDocument())
+      expect(screen.getByRole('button', { name: /Boots/ })).toBeInTheDocument()
+    })
+
+    it('fetches an unresolvable poll exactly once — no retry loop', async () => {
+      fetchedPolls = []
+      fetchedOptions = []
+      await act(async () => {
+        renderThreadWithPoll({ initialMessages: [], initialPolls: [], initialPollOptions: [] })
+      })
+      await act(async () => { fireMessageInsert(carrier) })
+      await waitFor(() => expect(pollsSelectInMock).toHaveBeenCalledTimes(1))
+      expect(pollsSelectInMock).toHaveBeenCalledWith('id', ['poll-2'])
+
+      await act(async () => {
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(pollsSelectInMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('closing a poll', () => {
+    it('surfaces the error when closePoll fails instead of doing nothing', async () => {
+      const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {})
+      closePollMock.mockImplementation(() =>
+        Promise.resolve({ ok: false, error: 'Poll not found, or you cannot close it' }))
+      await act(async () => { renderThreadWithPoll() })
+
+      await act(async () => { fireEvent.click(screen.getByText('Close poll')) })
+
+      expect(closePollMock).toHaveBeenCalledWith('poll-1')
+      expect(alertSpy).toHaveBeenCalledWith(
+        'Could not close the poll: Poll not found, or you cannot close it')
+      // Still open — a failed close must not look like a successful one.
+      expect(screen.getByText('Close poll')).toBeInTheDocument()
+      alertSpy.mockRestore()
+    })
+
+    it('marks the poll closed on success', async () => {
+      const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {})
+      await act(async () => { renderThreadWithPoll() })
+      await act(async () => { fireEvent.click(screen.getByText('Close poll')) })
+      expect(alertSpy).not.toHaveBeenCalled()
+      await waitFor(() => expect(screen.getByText('Poll closed')).toBeInTheDocument())
+      alertSpy.mockRestore()
+    })
+  })
+
+  // A double tap used to fire two upserts. The second one captured
+  // `previous` as the synthetic `local-${pollId}` row the first one wrote,
+  // so a rollback restored a fake vote id.
+  it('disables the poll options while a vote is in flight', async () => {
+    let release: (value: { error: null }) => void = () => {}
+    voteUpsertMock.mockImplementationOnce(() => new Promise(res => { release = res }))
+    await act(async () => { renderThreadWithPoll() })
+
+    const yes = screen.getByRole('button', { name: /Yes/ })
+    await act(async () => { fireEvent.click(yes) })
+
+    expect(screen.getByRole('button', { name: /Yes/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /^No/ })).toBeDisabled()
+
+    await act(async () => { release({ error: null }) })
+    await waitFor(() => expect(screen.getByRole('button', { name: /^No/ })).not.toBeDisabled())
+  })
+
+  // Spec §2 lists the AI Coach bot room as out of scope for both features.
+  describe('the AI Coach bot room', () => {
+    it('offers neither the New poll control nor Reply', async () => {
+      await act(async () => {
+        renderThreadWithPoll({ roomKind: 'bot', initialMessages: [pollMessage] })
+      })
+      expect(screen.queryByLabelText('New poll')).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getAllByLabelText('React to message')[0])
+      expect(screen.queryByText('Reply')).not.toBeInTheDocument()
+    })
+  })
+
+  // A poll carrier has body === null and attachment_kind === null, which the
+  // quote used to render as "Message deleted".
+  it('quotes a reply to a poll as "Poll", not as a deleted message', async () => {
+    const replyToPoll: ChatMessage = {
+      id: 'm2',
+      sender_id: 'student-1',
+      body: 'Count me in',
+      attachment_url: null,
+      attachment_kind: null,
+      created_at: '2026-09-21T17:05:00.000Z',
+      reply_to_id: 'm1',
+      poll_id: null,
+    }
+    await act(async () => {
+      renderThreadWithPoll({ initialMessages: [pollMessage, replyToPoll] })
+    })
+    expect(screen.getByText('Poll')).toBeInTheDocument()
+    expect(screen.queryByText('Message deleted')).not.toBeInTheDocument()
   })
 })

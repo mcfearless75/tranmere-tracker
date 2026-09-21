@@ -17,13 +17,18 @@ export type ChatMessage = {
 }
 
 /** A message quoted by a reply. Kept deliberately narrow — a quote shows a
- *  name and one line, never the full message. */
+ *  name and one line, never the full message.
+ *  `poll_id` is carried purely so the quote can read "Poll" rather than
+ *  falling through to the "Message deleted" stub: a poll carrier message has
+ *  a null body AND a null attachment_kind, which is otherwise
+ *  indistinguishable from a message whose content is gone. */
 export type ReplyParent = {
   id: string
   sender_id: string
   body: string | null
   attachment_kind: string | null
   deleted_at: string | null
+  poll_id: string | null
 }
 
 export type Poll = {

@@ -87,6 +87,10 @@ export function ChatThread({
   const [pollOptions, setPollOptions] = useState<PollOption[]>(initialPollOptions)
   const [myVotes, setMyVotes] = useState<PollVote[]>(initialMyVotes)
   const [creatingPoll, setCreatingPoll] = useState(false)
+  // The poll with a write in flight (a vote or a close). Passed to PollCard
+  // as `busy` so a double tap cannot fire two upserts — the second would
+  // roll back to the synthetic `local-${pollId}` row the first one wrote.
+  const [busyPollId, setBusyPollId] = useState<string | null>(null)
   // Not in the brief's state block verbatim — a defect in Step 4, which uses
   // votersByPoll in loadVoters and pollSlot without ever declaring it.
   const [votersByPoll, setVotersByPoll] = useState<Record<string, PollVoter[]>>({})
@@ -101,6 +105,11 @@ export function ChatThread({
   // denies it, or it was hard-deleted) would be recomputed as still-missing
   // on every render, refire the fetch, and loop forever.
   const attemptedParentIds = useRef<Set<string>>(new Set())
+  // Same guard, for polls: a poll id we've already tried to resolve is never
+  // tried again, whether or not the fetch found anything. Without it, a
+  // poll_id the client cannot read (RLS, or a deleted poll) would be
+  // recomputed as still-missing on every render and refetch forever.
+  const attemptedPollIds = useRef<Set<string>>(new Set())
 
   const memberById: Record<string, Member> = {}
   for (const m of members) memberById[m.user_id] = m
@@ -146,7 +155,13 @@ export function ChatThread({
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_poll_options' }, payload => {
         const row = payload.new as PollOption
         if (!row?.id) return
-        setPollOptions(prev => prev.map(o => (o.id === row.id ? row : o)))
+        // Upsert, not map: an option row for a poll created after this page
+        // loaded is not in state yet, and a plain map would silently drop
+        // it. Order-independent — the row may arrive before or after the
+        // poll it belongs to (see the resolve-unknown-poll effect below).
+        setPollOptions(prev => (prev.some(o => o.id === row.id)
+          ? prev.map(o => (o.id === row.id ? row : o))
+          : [...prev, row]))
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_polls' }, payload => {
         const row = payload.new as Poll
@@ -204,6 +219,9 @@ export function ChatThread({
         body: inWindow.body,
         attachment_kind: inWindow.attachment_kind,
         deleted_at: null,
+        // Carried through, or a reply to a poll in the loaded window quotes
+        // it as "Message deleted" (a poll carrier has no body).
+        poll_id: inWindow.poll_id,
       }
     }
     return replyParents[message.reply_to_id] ?? null
@@ -225,7 +243,7 @@ export function ChatThread({
     let cancelled = false
     supabase
       .from('chat_messages')
-      .select('id, sender_id, body, attachment_kind, deleted_at')
+      .select('id, sender_id, body, attachment_kind, deleted_at, poll_id')
       .in('id', missing)
       .then(({ data }: { data: ReplyParent[] | null }) => {
         if (cancelled || !data || data.length === 0) return
@@ -237,6 +255,54 @@ export function ChatThread({
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, replyParents, supabase])
+
+  // A poll created after this page loaded arrives as a carrier chat_messages
+  // INSERT over realtime. Its body is null by design, so without the poll in
+  // state the bubble renders as an empty grey box that nobody can vote in.
+  // `initialPolls` does not rescue this even for the poll's own creator:
+  // createPoll's revalidatePath re-renders the same ChatThread instance, so
+  // the useState initialisers never re-run.
+  //
+  // Resolving it from `messages` rather than from inside the realtime
+  // handler makes this order-independent — it does not matter whether the
+  // carrier message, the chat_polls row or the chat_poll_options rows reach
+  // this client first, or whether the poll/option realtime events arrive at
+  // all. The fetch runs on the USER'S client, under RLS, and constrains the
+  // vote query to the viewer's own row exactly as page.tsx does; no other
+  // student's ballot is ever fetched here.
+  useEffect(() => {
+    const missing = Array.from(new Set(messages
+      .map(m => m.poll_id)
+      .filter((id): id is string =>
+        !!id && !polls.some(p => p.id === id) && !attemptedPollIds.current.has(id))))
+    if (missing.length === 0) return
+    // Marked attempted before the request fires (a ref, so this doesn't
+    // retrigger the effect) — same loop guard as attemptedParentIds above.
+    for (const id of missing) attemptedPollIds.current.add(id)
+    let cancelled = false
+    Promise.all([
+      supabase.from('chat_polls').select('*').in('id', missing),
+      supabase.from('chat_poll_options').select('*').in('poll_id', missing).order('position'),
+      supabase.from('chat_poll_votes').select('id, poll_id, option_id, user_id')
+        .in('poll_id', missing).eq('user_id', currentUserId),
+    ]).then(([pollRes, optionRes, voteRes]) => {
+      if (cancelled) return
+      const newPolls = (pollRes?.data ?? []) as Poll[]
+      const newOptions = (optionRes?.data ?? []) as PollOption[]
+      const newVotes = (voteRes?.data ?? []) as PollVote[]
+      if (newPolls.length) {
+        setPolls(prev => [...prev.filter(p => !newPolls.some(n => n.id === p.id)), ...newPolls])
+      }
+      if (newOptions.length) {
+        setPollOptions(prev => [...prev.filter(o => !newOptions.some(n => n.id === o.id)), ...newOptions])
+      }
+      if (newVotes.length) {
+        setMyVotes(prev => [...prev.filter(v => !newVotes.some(n => n.poll_id === v.poll_id)), ...newVotes])
+      }
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, polls, supabase, currentUserId])
 
   function jumpToMessage(messageId: string) {
     const el = document.getElementById(`msg-${messageId}`)
@@ -289,9 +355,11 @@ export function ChatThread({
   // room membership, never on `canSend` — students in a broadcast room can't
   // post but they can vote, which is deliberate (see page.tsx / brief).
   async function vote(pollId: string, optionId: string) {
+    if (busyPollId === pollId) return
     const previous = myVotes.find(v => v.poll_id === pollId) ?? null
     if (previous?.option_id === optionId) return
 
+    setBusyPollId(pollId)
     setMyVotes(prev => [
       ...prev.filter(v => v.poll_id !== pollId),
       { id: previous?.id ?? `local-${pollId}`, poll_id: pollId, option_id: optionId, user_id: currentUserId },
@@ -304,6 +372,8 @@ export function ChatThread({
         { onConflict: 'poll_id,user_id' },
       )
 
+    setBusyPollId(prev => (prev === pollId ? null : prev))
+
     if (error) {
       // Roll the optimistic change back exactly — including back to "no
       // selection" when there was no previous vote at all. A closed poll
@@ -313,6 +383,24 @@ export function ChatThread({
         : prev.filter(v => v.poll_id !== pollId)))
       alert(`Could not record your vote: ${error.message}`)
     }
+  }
+
+  // closePoll's { ok, error } must not be dropped on the floor. A
+  // deactivated coach with a live session fails is_chat_staff() at the
+  // database, so the update matches no row and the action returns
+  // ok: false — with the promise discarded that reads as "the button does
+  // nothing, forever". Surfaced the same way vote() surfaces its failure.
+  async function handleClosePoll(pollId: string) {
+    setBusyPollId(pollId)
+    const result = await closePoll(pollId)
+    setBusyPollId(prev => (prev === pollId ? null : prev))
+    if (!result?.ok) {
+      alert(`Could not close the poll: ${result?.error ?? 'Unknown error'}`)
+      return
+    }
+    setPolls(prev => prev.map(p => (
+      p.id === pollId && !p.closed_at ? { ...p, closed_at: new Date().toISOString() } : p
+    )))
   }
 
   // Staff-only voter list, loaded on demand from the client — this is where
@@ -418,6 +506,12 @@ export function ChatThread({
 
   function openSheet(id: string) { setReactingTo(id) }
 
+  // Spec §2 puts the AI Coach bot room out of scope for both polls and
+  // replies — there is only ever one other participant and it is a bot.
+  const isBotRoom = roomKind === 'bot'
+  const canUsePolls = isChatStaff && !isBotRoom
+  const canReply = !isBotRoom
+
   return (
     <>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4 space-y-2">
@@ -458,8 +552,9 @@ export function ChatThread({
                 myOptionId={myVotes.find(v => v.poll_id === poll.id)?.option_id ?? null}
                 isChatStaff={isChatStaff}
                 voters={votersByPoll[poll.id]}
+                busy={busyPollId === poll.id}
                 onVote={optionId => vote(poll.id, optionId)}
-                onClose={() => closePoll(poll.id)}
+                onClose={() => handleClosePoll(poll.id)}
                 onShowVoters={() => loadVoters(poll.id)}
               />
             )
@@ -520,6 +615,7 @@ export function ChatThread({
             body: replyingTo.body,
             attachment_kind: replyingTo.attachment_kind,
             deleted_at: null,
+            poll_id: replyingTo.poll_id,
           }}
           senderName={replyingTo.sender_id === BOT_USER_ID ? 'AI Coach' : (memberById[replyingTo.sender_id]?.users?.name ?? '?')}
           variant="composer"
@@ -529,7 +625,7 @@ export function ChatThread({
       {canSend ? (
         <div className="bg-white border-t p-2 flex items-end gap-2 shrink-0 safe-bottom">
           <input ref={fileInputRef} type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv" className="hidden" onChange={handleFileSelect} />
-          {isChatStaff && (
+          {canUsePolls && (
             <button onClick={() => setCreatingPoll(true)} className="p-2 text-gray-400 hover:text-tranmere-blue shrink-0" type="button" aria-label="New poll"><BarChart3 size={18} /></button>
           )}
           <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-400 hover:text-tranmere-blue shrink-0" type="button" aria-label="Attach file"><Paperclip size={18} /></button>
@@ -543,7 +639,7 @@ export function ChatThread({
       ) : (
         <div className="bg-gray-50 border-t p-3 flex items-center justify-center gap-3 text-xs text-muted-foreground safe-bottom">
           <span>This is a broadcast channel — only staff can post.</span>
-          {isChatStaff && (
+          {canUsePolls && (
             <button onClick={() => setCreatingPoll(true)} className="shrink-0 text-tranmere-blue font-medium flex items-center gap-1" type="button" aria-label="New poll">
               <BarChart3 size={16} /> New poll
             </button>
@@ -560,6 +656,7 @@ export function ChatThread({
         <MessageReactionSheet
           mine={messages.find(m => m.id === reactingTo)?.sender_id === currentUserId}
           deleting={deletingId === reactingTo}
+          canReply={canReply}
           onPick={emoji => { toggleReaction(reactingTo, emoji); setReactingTo(null) }}
           onReply={() => { setReplyingTo(messages.find(m => m.id === reactingTo) ?? null); setReactingTo(null) }}
           onDelete={() => { deleteMessage(reactingTo); setReactingTo(null) }}

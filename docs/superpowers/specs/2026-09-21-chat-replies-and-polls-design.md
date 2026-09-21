@@ -158,9 +158,11 @@ Handles all three cases: INSERT increments the chosen option; DELETE decrements;
 
 | Table | select | insert | update | delete |
 |---|---|---|---|---|
-| `chat_polls` | room member | staff **and** room member | staff (sets `closed_at` only) | — |
+| `chat_polls` | room member | staff **and** room member | staff **and** room member (any column — see below) | — |
 | `chat_poll_options` | room member | staff **and** room member | — (trigger only) | — |
 | `chat_poll_votes` | own row, or staff | room member, own `user_id`, poll open | own row, poll open | own row |
+
+The `chat_polls` update policy is column-blind: Postgres RLS gates rows, not columns, so "chat staff close polls" permits room staff to update **any** column on a poll in their room, including `question` — `closePoll` only ever sets `closed_at` because that is all the server action writes, not because the policy forbids the rest. That is accepted: the same people can create the poll in the first place, so editing its wording grants them nothing new. It is written down here so nobody later reads the table as a column-level guarantee.
 
 RLS is enforced even though `createPoll` runs server-side, because the server action uses the *user's* client for these writes rather than the admin client. Using the admin client would bypass the policies and leave the staff-only rule resting on a single `if` statement.
 

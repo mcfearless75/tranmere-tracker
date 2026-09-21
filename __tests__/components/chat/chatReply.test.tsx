@@ -113,7 +113,7 @@ describe('chat replies', () => {
   })
 
   it('renders a quote for a parent outside the window from initialReplyParents', async () => {
-    const older: ReplyParent = { id: 'm0', sender_id: 'u2', body: 'Old news', attachment_kind: null, deleted_at: null }
+    const older: ReplyParent = { id: 'm0', sender_id: 'u2', body: 'Old news', attachment_kind: null, deleted_at: null, poll_id: null }
     await act(async () => {
       renderThread({
         initialMessages: [{ ...messages[1], reply_to_id: 'm0' }],
@@ -124,7 +124,7 @@ describe('chat replies', () => {
   })
 
   it('renders the deleted stub when the parent was soft-deleted', async () => {
-    const deleted: ReplyParent = { id: 'm0', sender_id: 'u2', body: 'Old news', attachment_kind: null, deleted_at: '2026-09-21T18:00:00.000Z' }
+    const deleted: ReplyParent = { id: 'm0', sender_id: 'u2', body: 'Old news', attachment_kind: null, deleted_at: '2026-09-21T18:00:00.000Z', poll_id: null }
     await act(async () => {
       renderThread({
         initialMessages: [{ ...messages[1], reply_to_id: 'm0' }],
@@ -217,7 +217,7 @@ describe('chat replies', () => {
     })
 
     it('is NOT tappable when the parent came from initialReplyParents (outside the loaded window)', async () => {
-      const older: ReplyParent = { id: 'm0', sender_id: 'u2', body: 'Old news', attachment_kind: null, deleted_at: null }
+      const older: ReplyParent = { id: 'm0', sender_id: 'u2', body: 'Old news', attachment_kind: null, deleted_at: null, poll_id: null }
       await act(async () => {
         renderThread({
           initialMessages: [{ ...messages[1], reply_to_id: 'm0' }],

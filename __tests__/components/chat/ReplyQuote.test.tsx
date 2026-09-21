@@ -8,6 +8,7 @@ const parent: ReplyParent = {
   body: 'Training moved to 6pm',
   attachment_kind: null,
   deleted_at: null,
+  poll_id: null,
 }
 
 describe('ReplyQuote', () => {
@@ -70,6 +71,32 @@ describe('ReplyQuote', () => {
     render(
       <ReplyQuote
         parent={{ ...parent, body: null, attachment_kind: null }}
+        senderName="Coach Phil"
+        variant="bubble"
+      />
+    )
+    expect(screen.getByText('Message deleted')).toBeInTheDocument()
+  })
+
+  // A poll carrier message has body === null AND attachment_kind === null,
+  // which is byte-identical to a message with nothing left to show. Without
+  // the poll_id branch, replying to a live open poll quoted it as deleted.
+  it('describes a poll parent as "Poll", not as a deleted message', () => {
+    render(
+      <ReplyQuote
+        parent={{ ...parent, body: null, attachment_kind: null, poll_id: 'poll-1' }}
+        senderName="Coach Phil"
+        variant="bubble"
+      />
+    )
+    expect(screen.getByText('Poll')).toBeInTheDocument()
+    expect(screen.queryByText('Message deleted')).not.toBeInTheDocument()
+  })
+
+  it('still shows the deleted stub for a soft-deleted poll parent', () => {
+    render(
+      <ReplyQuote
+        parent={{ ...parent, body: null, attachment_kind: null, poll_id: 'poll-1', deleted_at: '2026-09-21T18:00:00.000Z' }}
         senderName="Coach Phil"
         variant="bubble"
       />

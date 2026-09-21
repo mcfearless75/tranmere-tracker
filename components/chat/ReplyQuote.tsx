@@ -20,6 +20,10 @@ function excerpt(parent: ReplyParent | null): string {
   if (parent.body?.trim()) return parent.body.trim()
   if (parent.attachment_kind === 'image') return 'Photo'
   if (parent.attachment_kind === 'file') return 'Attachment'
+  // A poll carrier message has no body and no attachment. Without this
+  // branch it would fall through to "Message deleted" and a reply to a live
+  // open poll would permanently quote it as gone.
+  if (parent.poll_id) return 'Poll'
   return 'Message deleted'
 }
 
