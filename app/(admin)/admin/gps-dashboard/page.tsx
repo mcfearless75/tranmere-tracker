@@ -1,10 +1,14 @@
+import { unstable_noStore as noStore } from 'next/cache'
+import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TeamLeaderboard } from '@/components/gps/TeamLeaderboard'
-import { SeedDemoButton } from '@/components/gps/SeedDemoButton'
+import { GpsRefreshButton } from '@/components/gps/GpsRefreshButton'
 import { GpsAiAnalysis } from '@/components/gps/GpsAiAnalysis'
-import { Trophy, Route, Zap, Gauge, Activity } from 'lucide-react'
+import { Trophy, Route, Zap, Gauge, Activity, Upload } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
 
 type Sess = {
   player_id: string
@@ -17,9 +21,9 @@ type Sess = {
 }
 
 export default async function GpsDashboardPage() {
+  noStore()
   const supabase = createAdminClient()
 
-  // Last 7 days of sessions — wrapped so any failure shows the migration prompt
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10)
   let sessions: any[] | null = null
   let sessErr: { message?: string } | null = null
@@ -29,30 +33,32 @@ export default async function GpsDashboardPage() {
       .select('player_id, total_distance_m, max_speed_kmh, sprint_count, player_load, session_date, users:player_id(name)')
       .gte('session_date', weekAgo)
       .order('session_date', { ascending: false })
-      .limit(1000) // safety cap: ~30 players x 7 days x multiple sessions still fits
+      .limit(1000)
     sessions = res.data
     sessErr = res.error as any
   } catch (err: any) {
     sessErr = { message: String(err?.message ?? err) }
   }
 
-  // Migration not run yet (or any DB failure)
+  const headerActions = (
+    <div className="flex items-center gap-2">
+      <Link href="/admin/gps-import" className="inline-flex items-center gap-1.5 rounded-xl bg-tranmere-blue text-white px-3 py-2 text-sm font-semibold">
+        <Upload size={16} /> Import GPS
+      </Link>
+      <GpsRefreshButton />
+    </div>
+  )
+
   if (sessErr || !sessions) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-tranmere-blue">Squad GPS Dashboard</h1>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <h1 className="text-2xl font-bold text-tranmere-blue">Squad GPS Dashboard</h1>
+          {headerActions}
+        </div>
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-          <p className="font-semibold text-amber-800">⚠️ Database migration needed</p>
-          <p className="text-sm text-amber-700 mt-2">
-            Run these migrations in the Supabase SQL Editor (in order):
-          </p>
-          <ol className="text-sm text-amber-700 mt-2 list-decimal list-inside space-y-1">
-            <li><code className="bg-amber-100 px-1.5 py-0.5 rounded">supabase/migrations/003_gps_sessions.sql</code></li>
-            <li><code className="bg-amber-100 px-1.5 py-0.5 rounded">supabase/migrations/004_gps_zones.sql</code></li>
-          </ol>
-          <p className="text-xs text-amber-600 mt-3">
-            Open Supabase → SQL Editor → paste each file → Run. Then refresh this page.
-          </p>
+          <p className="font-semibold text-amber-800">Database migration needed</p>
+          <p className="text-sm text-amber-700 mt-2">Run the GPS migrations in the Supabase SQL Editor, then try Import GPS.</p>
         </div>
       </div>
     )
@@ -60,12 +66,11 @@ export default async function GpsDashboardPage() {
 
   const s = (sessions ?? []) as unknown as Sess[]
 
-  // Aggregate per player
-  const byPlayer: Record<string, { name: string; distance: number; topSpeed: number; sprints: number; load: number }> = {}
+  const byPlayer: Record<string, { id: string; name: string; distance: number; topSpeed: number; sprints: number; load: number }> = {}
   for (const row of s) {
     if (!row.users?.name) continue
     const id = row.player_id
-    const entry = byPlayer[id] ??= { name: row.users.name, distance: 0, topSpeed: 0, sprints: 0, load: 0 }
+    const entry = byPlayer[id] ??= { id, name: row.users.name, distance: 0, topSpeed: 0, sprints: 0, load: 0 }
     entry.distance += row.total_distance_m ?? 0
     entry.topSpeed = Math.max(entry.topSpeed, row.max_speed_kmh ?? 0)
     entry.sprints += row.sprint_count ?? 0
@@ -75,16 +80,16 @@ export default async function GpsDashboardPage() {
   const entries = Object.values(byPlayer)
 
   const distance = [...entries].sort((a, b) => b.distance - a.distance).map(e => ({
-    name: e.name, value: e.distance, display: (e.distance / 1000).toFixed(2),
+    playerId: e.id, name: e.name, value: e.distance, display: (e.distance / 1000).toFixed(2),
   }))
   const topSpeed = [...entries].sort((a, b) => b.topSpeed - a.topSpeed).map(e => ({
-    name: e.name, value: e.topSpeed, display: e.topSpeed.toFixed(1),
+    playerId: e.id, name: e.name, value: e.topSpeed, display: e.topSpeed.toFixed(1),
   }))
   const sprints = [...entries].sort((a, b) => b.sprints - a.sprints).map(e => ({
-    name: e.name, value: e.sprints, display: e.sprints.toString(),
+    playerId: e.id, name: e.name, value: e.sprints, display: e.sprints.toString(),
   }))
   const load = [...entries].sort((a, b) => b.load - a.load).map(e => ({
-    name: e.name, value: e.load, display: e.load.toFixed(0),
+    playerId: e.id, name: e.name, value: e.load, display: e.load.toFixed(0),
   }))
 
   const totalDistance = entries.reduce((sum, e) => sum + e.distance, 0) / 1000
@@ -97,12 +102,11 @@ export default async function GpsDashboardPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-tranmere-blue">Squad GPS Dashboard</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">Last 7 days · {entries.length} player{entries.length === 1 ? '' : 's'} with data</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">Last 7 days · {entries.length} player{entries.length === 1 ? '' : 's'} with data · tap a player for full stats</p>
         </div>
-        <SeedDemoButton />
+        {headerActions}
       </div>
 
-      {/* TEAM TOTALS HERO */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <TotalCard icon={<Route size={16} />}   label="Team Distance"  value={totalDistance.toFixed(1)} suffix=" km" colour="blue" />
         <TotalCard icon={<Gauge size={16} />}   label="Fastest Player" value={highestSpeed.toFixed(1)}  suffix=" km/h" colour="orange" />
@@ -118,9 +122,9 @@ export default async function GpsDashboardPage() {
             <Trophy size={28} />
           </div>
           <p className="font-semibold">No GPS data in the last 7 days</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Import STATSports sessions from <a href="/admin/gps-import" className="text-tranmere-blue underline">GPS Import</a> to populate the leaderboard.
-          </p>
+          <Link href="/admin/gps-import" className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-tranmere-blue text-white px-4 py-2.5 text-sm font-semibold">
+            <Upload size={16} /> Import GPS
+          </Link>
         </div>
       ) : (
         <TeamLeaderboard distance={distance} topSpeed={topSpeed} sprints={sprints} load={load} />

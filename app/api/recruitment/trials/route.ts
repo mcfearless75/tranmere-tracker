@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendPushNotificationToUser } from '@/lib/webpush'
 
 export const dynamic = 'force-dynamic'
 
 const STAFF_ROLES = ['admin', 'coach', 'teacher']
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 async function requireStaff(): Promise<string | null> {
   const supabase = createClient()
@@ -34,7 +36,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { title, event_date: eventDate, location, notes } = (body ?? {}) as Record<string, unknown>
+  const { title, event_date: eventDate, location, notes, staff_ids: staffIdsRaw, notify } = (body ?? {}) as Record<string, unknown>
 
   if (typeof title !== 'string' || title.trim() === '') {
     return NextResponse.json({ error: 'title is required' }, { status: 400 })
@@ -52,6 +54,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'notes must be a string' }, { status: 400 })
   }
 
+  const staffIds = Array.isArray(staffIdsRaw)
+    ? [...new Set(staffIdsRaw.filter((id): id is string => typeof id === 'string' && UUID_PATTERN.test(id)))]
+    : []
+
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('trial_events')
@@ -65,6 +71,36 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  if (staffIds.length > 0) {
+    const { data: validStaff } = await admin
+      .from('users')
+      .select('id, name')
+      .in('id', staffIds)
+      .in('role', STAFF_ROLES)
+      .eq('is_active', true)
+
+    const rows = (validStaff ?? []).map(s => ({ trial_event_id: data.id, user_id: s.id }))
+    if (rows.length) {
+      const { error: staffErr } = await admin.from('trial_event_staff').insert(rows)
+      if (staffErr) {
+        console.error('[trials] trial_event_staff insert failed:', staffErr.message)
+      } else if (notify === true) {
+        const where = [eventDate, data.location].filter(Boolean).join(' · ')
+        await Promise.allSettled(
+          rows.map(r =>
+            sendPushNotificationToUser(
+              admin,
+              r.user_id,
+              'Trial event',
+              `${data.title} — ${where}`,
+              `/admin/recruitment/trials/${data.id}`,
+            ),
+          ),
+        )
+      }
+    }
+  }
 
   return NextResponse.json({ event: data }, { status: 201 })
 }

@@ -30,7 +30,7 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
   if (!me) {
     return (
       <div className="p-6 text-center">
-        <p className="text-sm text-muted-foreground">You&apos;re not a member of this conversation.</p>
+        <p className="text-sm text-muted-foreground">You're not a member of this conversation.</p>
         <Link href="/chat" className="text-tranmere-blue underline mt-2 inline-block">Back</Link>
       </div>
     )
@@ -38,8 +38,6 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
 
   const isGroupRoom = room.kind === 'custom'
 
-  // For staff on a manually-managed group, load who could still be added —
-  // everyone except parents and everyone already a member.
   let addable: { id: string; name: string | null; role: string }[] = []
   if (isGroupRoom && isStaff && !room.sync_year_group) {
     const memberIds = (members ?? []).map((m: any) => m.user_id)
@@ -51,9 +49,6 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
     addable = (candidates ?? []).filter(c => !memberIds.includes(c.id))
   }
 
-  // Most recent 100 messages only — long-lived rooms accumulate unbounded
-  // history and loading it all blows up server render time and payload size.
-  // Query newest-first + limit, then reverse for oldest→newest display order.
   const { data: recentMessages } = await admin
     .from('chat_messages')
     .select('id, sender_id, body, attachment_url, attachment_kind, created_at')
@@ -63,8 +58,17 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
     .limit(100)
 
   const messages = (recentMessages ?? []).slice().reverse()
+  const messageIds = messages.map((m: any) => m.id)
 
-  // Room title
+  let reactions: { id: string; message_id: string; user_id: string; emoji: string }[] = []
+  if (messageIds.length) {
+    const { data: reactionRows, error: reactionErr } = await admin
+      .from('chat_message_reactions')
+      .select('id, message_id, user_id, emoji')
+      .in('message_id', messageIds)
+    if (!reactionErr) reactions = (reactionRows ?? []) as any
+  }
+
   let title = room.name
   if (room.kind === 'dm') {
     const other = (members ?? []).find((m: any) => m.user_id !== user.id)
@@ -80,11 +84,6 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
           <ArrowLeft size={18} />
         </Link>
         <div className="flex-1 min-w-0">
-          {/* Wraps rather than truncating — a broadcast channel's name has
-              no length cap at the DB layer, and older rooms exist whose
-              "name" is a full paragraph (created before CreateBroadcastForm
-              gained a maxLength). Truncating here left no way to ever read
-              the rest of it. */}
           <p className="font-semibold break-words">{title}</p>
           <p className="text-[11px] text-muted-foreground capitalize">
             {room.kind === 'dm' ? 'Direct message' : `${members?.length ?? 0} members`}
@@ -112,6 +111,7 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
         roomKind={room.kind}
         currentUserId={user.id}
         initialMessages={(messages ?? []) as any}
+        initialReactions={reactions}
         members={(members ?? []) as any}
         canSend={canSend}
       />

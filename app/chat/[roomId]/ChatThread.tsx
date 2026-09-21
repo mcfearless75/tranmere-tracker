@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { Send, Paperclip, X, Bot, Trash2 } from 'lucide-react'
-import { markRead, notifyRoomMembers } from '../actions'
+import { Send, Paperclip, X, Bot, SmilePlus } from 'lucide-react'
+import { MessageReactionSheet } from '@/components/chat/MessageReactionSheet'
+import { ChatImage } from '@/components/chat/ChatImage'
 import { MessageBody } from '@/components/chat/MessageBody'
+import { markRead, notifyRoomMembers } from '../actions'
 
 type Message = {
   id: string
@@ -16,22 +18,11 @@ type Message = {
   created_at: string
 }
 type Member = { user_id: string; users: { id: string; name: string | null; avatar_url: string | null } | null }
+export type ChatReaction = { id: string; message_id: string; user_id: string; emoji: string }
 
 const BOT_USER_ID = '00000000-0000-0000-0000-000000000099'
-
-// How long to wait for the AI's reply via Realtime before falling back to a
-// direct DB check. The reply can land in chat_messages successfully while the
-// Realtime subscription has silently dropped (backgrounded tab, brief network
-// blip) — without this, the typing indicator would spin forever with no way
-// to recover other than a manual page refresh.
 const AI_REPLY_TIMEOUT_MS = 20_000
 
-/**
- * Looks up the earliest bot message in `roomId` created after `sentAt`.
- * Used as a one-shot fallback when Realtime hasn't delivered the AI's reply
- * within AI_REPLY_TIMEOUT_MS. Never throws — a query failure here must not
- * crash the chat, it just means the fallback found nothing this time.
- */
 export async function fetchBotReplyAfter(
   supabase: SupabaseClient,
   roomId: string,
@@ -53,13 +44,14 @@ export async function fetchBotReplyAfter(
   }
 }
 
-export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, members, canSend = true }: {
+export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, members, canSend = true, initialReactions = [] }: {
   roomId: string
   roomKind: string
   currentUserId: string
   initialMessages: Message[]
   members: Member[]
   canSend?: boolean
+  initialReactions?: ChatReaction[]
 }) {
   const supabase = createClient()
   const [messages, setMessages] = useState<Message[]>(initialMessages)
@@ -71,6 +63,10 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
   const [attachment, setAttachment] = useState<{ file: File; preview: string | null } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
+  const [reactions, setReactions] = useState<ChatReaction[]>(initialReactions)
+  const [reactingTo, setReactingTo] = useState<string | null>(null)
+  const holdTimer = useRef<number | null>(null)
+  const holdStart = useRef<{ x: number; y: number } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -84,58 +80,45 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
 
   useEffect(() => {
     markRead(roomId)
-
     const channel = supabase
       .channel(`room:${roomId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}` },
-        payload => {
-          setMessages(prev => {
-            const m = payload.new as Message
-            if (prev.find(p => p.id === m.id)) return prev
-            return [...prev, m]
-          })
-          if ((payload.new as Message).sender_id !== currentUserId) {
-            markRead(roomId)
-            if ((payload.new as Message).sender_id === BOT_USER_ID) {
-              setAiTyping(false)
-              setAiTimedOut(false)
-              if (aiReplyTimeoutRef.current) {
-                clearTimeout(aiReplyTimeoutRef.current)
-                aiReplyTimeoutRef.current = null
-              }
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}` }, payload => {
+        setMessages(prev => {
+          const m = payload.new as Message
+          if (prev.find(p => p.id === m.id)) return prev
+          return [...prev, m]
+        })
+        if ((payload.new as Message).sender_id !== currentUserId) {
+          markRead(roomId)
+          if ((payload.new as Message).sender_id === BOT_USER_ID) {
+            setAiTyping(false)
+            setAiTimedOut(false)
+            if (aiReplyTimeoutRef.current) {
+              clearTimeout(aiReplyTimeoutRef.current)
+              aiReplyTimeoutRef.current = null
             }
           }
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}` },
-        payload => {
-          // Only change this listener reacts to right now is a soft-delete
-          // (deleted_at getting set) — drop the message live for every
-          // other viewer instead of leaving it until their next reload.
-          const updated = payload.new as Message & { deleted_at: string | null }
-          if (updated.deleted_at) {
-            setMessages(prev => prev.filter(m => m.id !== updated.id))
-          }
-        },
-      )
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState<{ userId: string; name: string; typing: boolean }>()
-        const typing = Object.values(state)
-          .flat()
-          .filter(p => p.typing && p.userId !== currentUserId)
-          .map(p => p.name)
-        setTypingUsers(typing)
-      })
-      .subscribe(async status => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({ userId: currentUserId, name: myName, typing: false })
         }
       })
-
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}` }, payload => {
+        const updated = payload.new as Message & { deleted_at: string | null }
+        if (updated.deleted_at) setMessages(prev => prev.filter(m => m.id !== updated.id))
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_message_reactions' }, payload => {
+        const row = payload.new as ChatReaction
+        setReactions(prev => (prev.find(r => r.id === row.id) ? prev : [...prev, row]))
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_message_reactions' }, payload => {
+        const row = payload.old as { id?: string }
+        if (row.id) setReactions(prev => prev.filter(r => r.id !== row.id))
+      })
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState<{ userId: string; name: string; typing: boolean }>()
+        setTypingUsers(Object.values(state).flat().filter(p => p.typing && p.userId !== currentUserId).map(p => p.name))
+      })
+      .subscribe(async status => {
+        if (status === 'SUBSCRIBED') await channel.track({ userId: currentUserId, name: myName, typing: false })
+      })
     channelRef.current = channel
     return () => {
       supabase.removeChannel(channel)
@@ -148,21 +131,14 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, aiTyping, typingUsers])
 
-  // The chat-attachments bucket is private: attachment_url holds a storage
-  // path, and viewing rights come from the bucket's RLS policy. Resolve
-  // signed URLs for any paths we haven't resolved yet (http = legacy URLs).
   useEffect(() => {
-    const paths = messages
-      .map(m => m.attachment_url)
-      .filter((u): u is string => !!u && !u.startsWith('http') && !signedUrls[u])
+    const paths = messages.map(m => m.attachment_url).filter((u): u is string => !!u && !u.startsWith('http') && !signedUrls[u])
     if (paths.length === 0) return
     let cancelled = false
-    Promise.all(
-      paths.map(async p => {
-        const { data } = await supabase.storage.from('chat-attachments').createSignedUrl(p, 3600)
-        return [p, data?.signedUrl ?? ''] as const
-      }),
-    ).then(entries => {
+    Promise.all(paths.map(async p => {
+      const { data } = await supabase.storage.from('chat-attachments').createSignedUrl(p, 3600)
+      return [p, data?.signedUrl ?? ''] as const
+    })).then(entries => {
       if (cancelled) return
       setSignedUrls(prev => {
         const next = { ...prev }
@@ -178,22 +154,43 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
     return url.startsWith('http') ? url : signedUrls[url] ?? null
   }
 
-  // Soft-delete — matches the "sender or staff delete" RLS policy on
-  // chat_messages (sender_id = auth.uid() OR is_staff()), scoped here to
-  // your own messages only, per the actual ask. Sets deleted_at rather than
-  // issuing a real DELETE: the server-side initial load and the AI chat
-  // history query both already filter `.is('deleted_at', null)`, so this
-  // was wired up everywhere except the UI.
   async function deleteMessage(id: string) {
     if (!window.confirm('Delete this message? This cannot be undone.')) return
     setDeletingId(id)
-    const { error } = await supabase
-      .from('chat_messages')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id)
+    const { error } = await supabase.from('chat_messages').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     setDeletingId(null)
     if (error) { alert(`Delete failed: ${error.message}`); return }
     setMessages(prev => prev.filter(m => m.id !== id))
+  }
+
+  async function toggleReaction(messageId: string, emoji: string) {
+    const existing = reactions.find(r => r.message_id === messageId && r.user_id === currentUserId && r.emoji === emoji)
+    if (existing) {
+      setReactions(prev => prev.filter(r => r.id !== existing.id))
+      const { error } = await supabase.from('chat_message_reactions').delete().eq('id', existing.id)
+      if (error) {
+        setReactions(prev => [...prev, existing])
+        alert(`Could not remove reaction: ${error.message}`)
+      }
+      return
+    }
+    const { data, error } = await supabase.from('chat_message_reactions').insert({ message_id: messageId, user_id: currentUserId, emoji }).select('id, message_id, user_id, emoji').single()
+    if (error) {
+      if (!String(error.message).toLowerCase().includes('duplicate')) alert(`Could not react: ${error.message}`)
+      return
+    }
+    if (data) setReactions(prev => (prev.find(r => r.id === data.id) ? prev : [...prev, data as ChatReaction]))
+  }
+
+  function reactionsFor(messageId: string) {
+    const grouped: Record<string, { emoji: string; count: number; mine: boolean }> = {}
+    for (const r of reactions) {
+      if (r.message_id !== messageId) continue
+      const entry = grouped[r.emoji] ??= { emoji: r.emoji, count: 0, mine: false }
+      entry.count += 1
+      if (r.user_id === currentUserId) entry.mine = true
+    }
+    return Object.values(grouped)
   }
 
   function handleDraftChange(value: string) {
@@ -206,9 +203,6 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
     }, 2000)
   }
 
-  // Grow the composer with its content (up to the max-h-32 CSS cap, after
-  // which it scrolls internally) — also fires when send() clears the draft,
-  // so it snaps back to one line instead of staying stretched.
   useEffect(() => {
     const el = textareaRef.current
     if (!el) return
@@ -229,7 +223,6 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
     const path = `${currentUserId}/${Date.now()}.${ext}`
     const { data, error } = await supabase.storage.from('chat-attachments').upload(path, file)
     if (error || !data) return null
-    // Private bucket: store the storage path; render resolves a signed URL.
     return { url: data.path, kind: file.type.startsWith('image/') ? 'image' : 'file' }
   }
 
@@ -237,11 +230,8 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
     const body = draft.trim()
     if (!body && !attachment) return
     setSending(true)
-
-    // Clear typing indicator
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
     channelRef.current?.track({ userId: currentUserId, name: myName, typing: false })
-
     let attachmentUrl: string | null = null
     let attachmentKind: string | null = null
     if (attachment) {
@@ -249,37 +239,21 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
       if (result) { attachmentUrl = result.url; attachmentKind = result.kind }
       setAttachment(null)
     }
-
-    const { data: inserted, error } = await supabase
-      .from('chat_messages')
-      .insert({ room_id: roomId, sender_id: currentUserId, body: body || null, attachment_url: attachmentUrl, attachment_kind: attachmentKind })
-      .select('*')
-      .single()
-
+    const { data: inserted, error } = await supabase.from('chat_messages').insert({ room_id: roomId, sender_id: currentUserId, body: body || null, attachment_url: attachmentUrl, attachment_kind: attachmentKind }).select('*').single()
     setSending(false)
     if (error) { alert(`Send failed: ${error.message}`); return }
     setDraft('')
     if (inserted) setMessages(prev => prev.find(p => p.id === inserted.id) ? prev : [...prev, inserted as Message])
-
-    // Fire push to other members (non-bot rooms only) — fire-and-forget
-    if (roomKind !== 'bot') {
-      notifyRoomMembers(roomId, myName ?? 'Someone', body || '📎 Attachment').catch(() => {})
-    }
-
+    if (roomKind !== 'bot') notifyRoomMembers(roomId, myName ?? 'Someone', body || 'Attachment').catch(() => {})
     if (roomKind === 'bot' && body) {
       const sentAt = new Date().toISOString()
       setAiTyping(true)
       setAiTimedOut(false)
       if (aiReplyTimeoutRef.current) clearTimeout(aiReplyTimeoutRef.current)
       try {
-        const res = await fetch('/api/ai/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ roomId }),
-        })
-        if (!res.ok) {
-          setAiTyping(false)
-        } else {
+        const res = await fetch('/api/ai/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomId }) })
+        if (!res.ok) setAiTyping(false)
+        else {
           aiReplyTimeoutRef.current = setTimeout(async () => {
             const reply = await fetchBotReplyAfter(supabase, roomId, sentAt)
             if (reply) {
@@ -291,10 +265,30 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
             }
           }, AI_REPLY_TIMEOUT_MS)
         }
-      } catch {
-        setAiTyping(false)
-      }
+      } catch { setAiTyping(false) }
     }
+  }
+
+  function openSheet(id: string) { setReactingTo(id) }
+  function startHold(id: string, x: number, y: number) {
+    if (holdTimer.current) window.clearTimeout(holdTimer.current)
+    holdStart.current = { x, y }
+    holdTimer.current = window.setTimeout(() => {
+      holdTimer.current = null
+      openSheet(id)
+    }, 380)
+  }
+  function moveHold(x: number, y: number) {
+    const start = holdStart.current
+    if (!start || !holdTimer.current) return
+    const dx = x - start.x
+    const dy = y - start.y
+    if (dx * dx + dy * dy > 16 * 16) cancelHold()
+  }
+  function cancelHold() {
+    if (holdTimer.current) window.clearTimeout(holdTimer.current)
+    holdTimer.current = null
+    holdStart.current = null
   }
 
   return (
@@ -312,9 +306,8 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
           </div>
         )}
         {messages.length === 0 && roomKind !== 'bot' && (
-          <p className="text-center text-xs text-muted-foreground py-8">No messages yet{canSend ? ' — say hello 👋' : ''}</p>
+          <p className="text-center text-xs text-muted-foreground py-8">No messages yet{canSend ? ' — say hello' : ''}</p>
         )}
-
         {messages.map((m, i) => {
           const mine = m.sender_id === currentUserId
           const isBot = m.sender_id === BOT_USER_ID
@@ -322,69 +315,76 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
           const showAvatar = !mine && (!prev || prev.sender_id !== m.sender_id)
           const sender = memberById[m.sender_id]?.users
           const initials = isBot ? 'AI' : (sender?.name ?? '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
-
+          const chips = reactionsFor(m.id)
           return (
             <div key={m.id} className={`flex items-end gap-1.5 ${mine ? 'justify-end' : 'justify-start'}`}>
               {!mine && (
                 <div className={`w-7 h-7 rounded-full shrink-0 ${showAvatar ? '' : 'invisible'}`}>
                   {isBot ? (
-                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 text-white">
-                      <Bot size={14} />
-                    </span>
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 text-white"><Bot size={14} /></span>
                   ) : sender?.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={sender.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
                   ) : (
-                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-300 text-white text-[10px] font-bold">
-                      {initials}
-                    </span>
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-300 text-white text-[10px] font-bold">{initials}</span>
                   )}
                 </div>
               )}
-              <div className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm break-words ${mine ? 'bg-tranmere-blue text-white rounded-br-md' : 'bg-white border text-gray-900 rounded-bl-md'}`}>
+              {mine && (
+              <button type="button" aria-label="React to message" onClick={() => openSheet(m.id)} className="mb-1 shrink-0 rounded-full p-1.5 text-tranmere-blue/70 active:bg-gray-100">
+                <SmilePlus size={16} />
+              </button>
+              )}
+              <div
+                className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm break-words select-none touch-manipulation ${mine ? 'bg-tranmere-blue text-white rounded-br-md' : 'bg-white border text-gray-900 rounded-bl-md'}`}
+                onContextMenu={e => { e.preventDefault(); openSheet(m.id) }}
+                onPointerDown={e => {
+                  if (e.pointerType === 'mouse' && e.button !== 0) return
+                  startHold(m.id, e.clientX, e.clientY)
+                }}
+                onPointerMove={e => moveHold(e.clientX, e.clientY)}
+                onPointerUp={cancelHold}
+                onPointerCancel={cancelHold}
+                onPointerLeave={cancelHold}
+              >
                 {!mine && showAvatar && (
-                  <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">
-                    {isBot ? 'AI Coach' : (sender?.name ?? '?')}
-                  </p>
+                  <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">{isBot ? 'AI Coach' : (sender?.name ?? '?')}</p>
                 )}
                 {m.attachment_kind === 'image' && m.attachment_url && attachmentSrc(m.attachment_url) && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={attachmentSrc(m.attachment_url)!} alt="attachment" className="rounded-lg max-w-full mb-1 max-h-60 object-cover" />
+                  <ChatImage src={attachmentSrc(m.attachment_url)!} />
                 )}
                 {m.attachment_kind === 'file' && m.attachment_url && attachmentSrc(m.attachment_url) && (
-                  <a href={attachmentSrc(m.attachment_url)!} target="_blank" rel="noreferrer"
-                    className={`underline text-xs flex items-center gap-1 mb-1 ${mine ? 'text-blue-200' : 'text-tranmere-blue'}`}>
-                    📎 {decodeURIComponent(m.attachment_url.split('/').pop()?.split('?')[0] ?? 'file')}
+                  <a href={attachmentSrc(m.attachment_url)!} target="_blank" rel="noreferrer" className={`underline text-xs flex items-center gap-1 mb-1 ${mine ? 'text-blue-200' : 'text-tranmere-blue'}`}>
+                    {decodeURIComponent(m.attachment_url.split('/').pop()?.split('?')[0] ?? 'file')}
                   </a>
                 )}
                 {m.body && <MessageBody body={m.body} mine={mine} />}
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <p className={`text-[10px] ${mine ? 'text-blue-200' : 'text-gray-400'}`}>
-                    {new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
-                  </p>
-                  {mine && (
-                    <button
-                      onClick={() => deleteMessage(m.id)}
-                      disabled={deletingId === m.id}
-                      className="text-blue-200 hover:text-white disabled:opacity-50 transition-colors"
-                      aria-label="Delete message"
-                      type="button"
-                    >
-                      <Trash2 size={11} />
-                    </button>
-                  )}
-                </div>
+                <p className={`text-[10px] mt-0.5 ${mine ? 'text-blue-200' : 'text-gray-400'}`}>
+                  {new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
+                </p>
+                {chips.length > 0 && (
+                  <div className={`flex flex-wrap gap-1 mt-1 ${mine ? 'justify-end' : 'justify-start'}`}>
+                    {chips.map(chip => (
+                      <button key={chip.emoji} type="button" onClick={() => toggleReaction(m.id, chip.emoji)} className={`text-[11px] leading-none px-1.5 py-0.5 rounded-full border ${
+                        chip.mine ? (mine ? 'bg-white/20 border-white/40 text-white' : 'bg-blue-50 border-tranmere-blue/40') : (mine ? 'bg-white/10 border-white/20 text-white' : 'bg-gray-50 border-gray-200')
+                      }`}>
+                        {chip.emoji}{chip.count > 1 ? ` ${chip.count}` : ''}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
+              {!mine && (
+              <button type="button" aria-label="React to message" onClick={() => openSheet(m.id)} className="mb-1 shrink-0 rounded-full p-1.5 text-gray-400 active:bg-gray-100">
+                <SmilePlus size={16} />
+              </button>
+              )}
             </div>
           )
         })}
-
-        {/* AI typing dots */}
         {aiTyping && (
           <div className="flex items-end gap-1.5 justify-start">
-            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 text-white shrink-0">
-              <Bot size={14} />
-            </span>
+            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 text-white shrink-0"><Bot size={14} /></span>
             <div className="bg-white border px-3 py-2.5 rounded-2xl rounded-bl-md">
               <div className="flex gap-1 items-center h-4">
                 <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -394,70 +394,44 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
             </div>
           </div>
         )}
-
-        {/* Realtime dropped and the fallback DB check also found nothing yet */}
-        {aiTimedOut && !aiTyping && (
-          <p className="text-xs text-muted-foreground px-1">
-            Taking longer than usual — try refreshing in a moment.
-          </p>
-        )}
-
-        {/* Human typing indicator */}
+        {aiTimedOut && !aiTyping && <p className="text-xs text-muted-foreground px-1">Taking longer than usual — try refreshing in a moment.</p>}
         {typingUsers.length > 0 && !aiTyping && (
-          <p className="text-xs text-muted-foreground px-1 animate-pulse">
-            {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing…
-          </p>
+          <p className="text-xs text-muted-foreground px-1 animate-pulse">{typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing…</p>
         )}
       </div>
-
       {attachment && (
         <div className="bg-white border-t px-3 py-2 flex items-center gap-2 shrink-0">
           {attachment.preview ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={attachment.preview} alt="" className="h-12 w-12 rounded-lg object-cover" />
           ) : (
-            <span className="text-sm text-muted-foreground truncate">📎 {attachment.file.name}</span>
+            <span className="text-sm text-muted-foreground truncate">{attachment.file.name}</span>
           )}
-          <button onClick={() => setAttachment(null)} className="ml-auto text-gray-400 hover:text-gray-600 shrink-0">
-            <X size={16} />
-          </button>
+          <button onClick={() => setAttachment(null)} className="ml-auto text-gray-400 hover:text-gray-600 shrink-0"><X size={16} /></button>
         </div>
       )}
-
       {canSend ? (
         <div className="bg-white border-t p-2 flex items-end gap-2 shrink-0 safe-bottom">
           <input ref={fileInputRef} type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv" className="hidden" onChange={handleFileSelect} />
-          <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-400 hover:text-tranmere-blue shrink-0 active:scale-95 transition-transform" type="button" aria-label="Attach file">
-            <Paperclip size={18} />
-          </button>
-          <textarea
-            ref={textareaRef}
-            value={draft}
-            onChange={e => handleDraftChange(e.target.value)}
-            onKeyDown={e => {
-              if (e.key !== 'Enter' || e.shiftKey) return
-              // Touch devices have no comfortable way to hold Shift for a
-              // newline, so Enter behaves as a normal line break there —
-              // sending stays button-only, same as every mobile chat app.
-              // Desktop keeps the Enter-to-send / Shift+Enter-for-newline
-              // convention, since a physical keyboard makes that easy.
-              if (typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches) return
-              e.preventDefault()
-              send()
-            }}
-            placeholder="Message…"
-            rows={1}
-            className="flex-1 text-sm border rounded-2xl px-3 py-2 resize-none focus:ring-2 focus:ring-tranmere-blue outline-none max-h-32 overflow-y-auto"
-          />
-          <button onClick={send} disabled={(!draft.trim() && !attachment) || sending}
-            className="rounded-full bg-tranmere-blue text-white w-10 h-10 flex items-center justify-center shrink-0 disabled:opacity-50 active:scale-95 transition-transform">
-            <Send size={16} />
-          </button>
+          <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-400 hover:text-tranmere-blue shrink-0" type="button" aria-label="Attach file"><Paperclip size={18} /></button>
+          <textarea ref={textareaRef} value={draft} onChange={e => handleDraftChange(e.target.value)} onKeyDown={e => {
+            if (e.key !== 'Enter' || e.shiftKey) return
+            if (typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches) return
+            e.preventDefault(); send()
+          }} placeholder="Message…" rows={1} className="flex-1 text-sm border rounded-2xl px-3 py-2 resize-none focus:ring-2 focus:ring-tranmere-blue outline-none max-h-32 overflow-y-auto" />
+          <button onClick={send} disabled={(!draft.trim() && !attachment) || sending} className="rounded-full bg-tranmere-blue text-white w-10 h-10 flex items-center justify-center shrink-0 disabled:opacity-50"><Send size={16} /></button>
         </div>
       ) : (
-        <div className="bg-gray-50 border-t p-3 text-center text-xs text-muted-foreground safe-bottom">
-          This is a broadcast channel — only staff can post.
-        </div>
+        <div className="bg-gray-50 border-t p-3 text-center text-xs text-muted-foreground safe-bottom">This is a broadcast channel — only staff can post.</div>
+      )}
+      {reactingTo && (
+        <MessageReactionSheet
+          mine={messages.find(m => m.id === reactingTo)?.sender_id === currentUserId}
+          deleting={deletingId === reactingTo}
+          onPick={emoji => { toggleReaction(reactingTo, emoji); setReactingTo(null) }}
+          onDelete={() => { deleteMessage(reactingTo); setReactingTo(null) }}
+          onClose={() => setReactingTo(null)}
+        />
       )}
     </>
   )

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { getRedFlags, buildWellbeingTrend, normalizedScore, CONTEXT_TAGS, SURVEY_QUESTIONS } from '@/lib/wellbeing/wellbeingUtils'
 import { WellbeingSparkline } from '@/components/wellbeing/WellbeingSparkline'
 import { WellbeingAnswerDetail } from '@/components/wellbeing/WellbeingAnswerDetail'
+import { WellbeingFollowup } from './WellbeingFollowup'
 import { AlertTriangle } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -15,27 +16,10 @@ export default async function AdminWellbeingPage() {
 
   const admin = createAdminClient()
 
-  // Open to admin/coach/teacher alike (the (admin) layout already restricts
-  // this route to those three roles) — reversed 2026-09-10, product-owner
-  // decision, from an earlier admin-only lock. That lock existed because
-  // research ties coach-visible scores to students under-reporting; opening
-  // it back up re-accepts that trade-off deliberately. No replacement
-  // signal (e.g. a coach-facing summary instead of raw scores) was built
-  // either time — still an open, separate decision if this needs revisiting.
-
-  // Fetch recent surveys — enough to build a 3-survey trend per student.
-  // Confirmed live 2026-09-10: this query silently returned zero rows for
-  // weeks because migration 065 (context_tags) was written to the repo but
-  // never actually applied to production — PostgREST rejected the unknown
-  // column, and the unchecked error here fell straight through to "No
-  // surveys sent yet," indistinguishable from genuinely zero surveys, while
-  // 131 real rows sat in the table the whole time. Checking `error`
-  // explicitly now so a future schema-drift (or permissions) failure shows
-  // up as a clear diagnostic instead of silently looking like "no data."
   const { data: surveys, error: surveysError } = await admin
     .from('wellbeing_surveys')
     .select(`
-      id, sent_at, completed_at, status, context_tags,
+      id, student_id, sent_at, completed_at, status, context_tags,
       users!student_id(name),
       wellbeing_responses(question_key, score, note)
     `)
@@ -48,6 +32,7 @@ export default async function AdminWellbeingPage() {
 
   type Survey = {
     id: string
+    student_id: string | null
     sent_at: string
     completed_at: string | null
     status: string
@@ -57,8 +42,22 @@ export default async function AdminWellbeingPage() {
   }
 
   const rows = (surveys ?? []) as unknown as Survey[]
+  const ids = rows.map(r => r.id)
+  const notesRes = ids.length
+    ? await admin
+        .from('wellbeing_staff_notes')
+        .select('id, survey_id, body, completed, created_at, users:staff_id(name)')
+        .in('survey_id', ids)
+        .order('created_at', { ascending: true })
+    : { data: [] as any[], error: null }
 
-  // Group by student — keep up to 3 surveys per student (already sorted newest first)
+  const notesBySurvey = new Map<string, any[]>()
+  for (const n of notesRes.data ?? []) {
+    const list = notesBySurvey.get(n.survey_id) ?? []
+    list.push(n)
+    notesBySurvey.set(n.survey_id, list)
+  }
+
   const byStudent = new Map<string, Survey[]>()
   for (const r of rows) {
     const key = r.users?.name ?? r.id
@@ -67,9 +66,6 @@ export default async function AdminWellbeingPage() {
     if (group.length < 3) group.push(r)
   }
 
-  // Completed surveys (real scores to actually review) sort above still-open
-  // ones, not just newest-sent-first — a student who hasn't filled theirs in
-  // yet isn't more useful to see first than one who has.
   const studentGroups = Array.from(byStudent.values()).sort(
     (a, b) => (a[0].status === 'completed' ? 0 : 1) - (b[0].status === 'completed' ? 0 : 1),
   )
@@ -78,12 +74,12 @@ export default async function AdminWellbeingPage() {
     <div className="space-y-5 p-4">
       <div>
         <h1 className="text-xl font-bold text-tranmere-blue">Wellbeing Monitor</h1>
-        <p className="text-sm text-muted-foreground">Latest survey results — red flags highlighted</p>
+        <p className="text-sm text-muted-foreground">Latest survey results — add a staff comment and mark Completed when it is handled</p>
       </div>
 
       {surveysError ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          <p className="font-semibold">Couldn&apos;t load surveys</p>
+          <p className="font-semibold">Couldn't load surveys</p>
           <p className="mt-1 text-amber-700">{surveysError.message}</p>
         </div>
       ) : studentGroups.length === 0 ? (
@@ -91,29 +87,30 @@ export default async function AdminWellbeingPage() {
       ) : (
         <div className="space-y-3">
           {studentGroups.map(group => {
-            const survey = group[0] // latest
+            const survey = group[0]
             const flags = getRedFlags(survey.wellbeing_responses)
             const hasFlagged = flags.length > 0
             const avgScore = survey.wellbeing_responses.length > 0
               ? Math.round(survey.wellbeing_responses.reduce((s, r) => s + normalizedScore(r.question_key, r.score), 0) / survey.wellbeing_responses.length * 10) / 10
               : null
-
-            // Build trend from the group (oldest → newest for left-to-right progression)
             const trendData = buildWellbeingTrend([...group].reverse())
+            const staffNotes = notesBySurvey.get(survey.id) ?? []
+            const closed = staffNotes.some(n => n.completed)
 
             return (
               <div
                 key={survey.id}
                 className={`rounded-2xl border p-4 space-y-3 ${
+                  closed ? 'border-emerald-200 bg-emerald-50/40' :
                   hasFlagged ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white'
                 }`}
               >
-                {/* Header row */}
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-2">
-                      {hasFlagged && <AlertTriangle size={14} className="text-red-600 shrink-0" />}
+                      {hasFlagged && !closed && <AlertTriangle size={14} className="text-red-600 shrink-0" />}
                       <p className="font-semibold text-sm text-gray-900">{survey.users?.name ?? 'Unknown'}</p>
+                      {closed && <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Completed</span>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {new Date(survey.sent_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -127,7 +124,6 @@ export default async function AdminWellbeingPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
-                    {/* Sparkline trend — only shown when 2+ surveys exist */}
                     <WellbeingSparkline data={trendData} />
                     {avgScore !== null && (
                       <span className={`text-lg font-bold ${
@@ -139,7 +135,6 @@ export default async function AdminWellbeingPage() {
                   </div>
                 </div>
 
-                {/* Red flags */}
                 {hasFlagged && (
                   <div className="rounded-xl bg-red-100 border border-red-200 px-3 py-2 text-xs text-red-700 font-medium space-y-0.5">
                     {flags.map(f => {
@@ -151,7 +146,6 @@ export default async function AdminWellbeingPage() {
                   </div>
                 )}
 
-                {/* Score grid */}
                 {survey.wellbeing_responses.length > 0 && (
                   <div className="grid grid-cols-6 gap-1.5">
                     {SURVEY_QUESTIONS.map(q => {
@@ -174,21 +168,16 @@ export default async function AdminWellbeingPage() {
                   </div>
                 )}
 
-                {/* Click-to-expand: the actual answer text per question, not just the number */}
                 {survey.wellbeing_responses.length > 0 && (
                   <WellbeingAnswerDetail responses={survey.wellbeing_responses} />
                 )}
 
-                {/* Context tags — "what's been on your mind" picker, not scored */}
                 {survey.context_tags && survey.context_tags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {survey.context_tags.map(tagKey => {
                       const tag = CONTEXT_TAGS.find(t => t.key === tagKey)
                       return (
-                        <span
-                          key={tagKey}
-                          className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-tranmere-blue text-xs font-medium px-2.5 py-1"
-                        >
+                        <span key={tagKey} className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-tranmere-blue text-xs font-medium px-2.5 py-1">
                           {tag?.emoji} {tag?.label ?? tagKey}
                         </span>
                       )
@@ -196,13 +185,10 @@ export default async function AdminWellbeingPage() {
                   </div>
                 )}
 
-                {/* Nothing to expand for a still-open survey — say so explicitly,
-                    otherwise the card just looks broken when clicked/inspected */}
                 {survey.wellbeing_responses.length === 0 && (
                   <p className="text-xs text-gray-400 italic">Survey not completed yet — no answers to show.</p>
                 )}
 
-                {/* Notes — free-text follow-up per question, the highest-signal field in the survey */}
                 {survey.wellbeing_responses.some(r => r.note?.trim()) && (
                   <div className="rounded-xl bg-gray-50 border border-gray-200 px-3 py-2 space-y-1">
                     {survey.wellbeing_responses.filter(r => r.note?.trim()).map(r => {
@@ -215,6 +201,13 @@ export default async function AdminWellbeingPage() {
                     })}
                   </div>
                 )}
+
+                <WellbeingFollowup
+                  surveyId={survey.id}
+                  studentId={survey.student_id}
+                  staffId={user.id}
+                  notes={staffNotes}
+                />
               </div>
             )
           })}

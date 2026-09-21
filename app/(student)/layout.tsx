@@ -15,21 +15,16 @@ export default async function StudentLayout({ children }: { children: React.Reac
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Use service client to bypass RLS and reliably get role
   const adminClient = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
-  // .maybeSingle(): a genuinely-missing profile row must not crash the
-  // layout — .single() throwing here is what a layout-level crash (which
-  // no nested error.tsx can catch, only the root boundary) looks like.
   const { data: profile } = await adminClient
     .from('users')
     .select('name, avatar_url, role, year_group, course_id')
     .eq('id', user.id)
     .maybeSingle()
 
-  // Admin/coach/teacher should never see student pages — send them to admin
   if (profile && ['admin', 'coach', 'teacher'].includes(profile.role)) {
     redirect('/admin/home')
   }
@@ -39,10 +34,9 @@ export default async function StudentLayout({ children }: { children: React.Reac
   const showCoursework = profile?.course_id != null
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50 relative overflow-hidden">
+    <div className="min-h-[100dvh] bg-gray-50 relative overflow-x-hidden">
       <NativeInit />
       <InstallGuide />
-      {/* Watermark */}
       <div className="pointer-events-none fixed inset-0 flex items-center justify-center z-0 opacity-[0.04]">
         <img
           src="https://upload.wikimedia.org/wikipedia/en/thumb/5/55/Tranmere_Rovers_FC_crest.svg/960px-Tranmere_Rovers_FC_crest.svg.png"
@@ -51,15 +45,12 @@ export default async function StudentLayout({ children }: { children: React.Reac
         />
       </div>
 
-      {/* Desktop: sidebar + content */}
       <div className="hidden md:flex min-h-[100dvh]">
         <SideNav userName={profile?.name ?? 'Player'} avatarUrl={profile?.avatar_url ?? null} role={profile?.role ?? 'student'} showTimetable={showTimetable} showCoursework={showCoursework} />
         <main className="flex-1 max-w-3xl mx-auto px-8 py-6 relative z-10">{children}</main>
       </div>
 
-      {/* Mobile: bottom nav */}
       <div className="md:hidden min-h-[100dvh] relative z-10">
-        {/* Branded top bar */}
         <div className="sticky top-0 z-20 bg-tranmere-blue px-4 py-2.5 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-2">
             <Image

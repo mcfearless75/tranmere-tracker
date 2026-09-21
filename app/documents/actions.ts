@@ -4,14 +4,19 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-/** True if userId belongs to a staff user (admin/coach/teacher). */
 async function requireStaff(admin: SupabaseClient, userId: string): Promise<boolean> {
   const { data } = await admin.from('users').select('role').eq('id', userId).maybeSingle()
   return !!data && ['admin', 'coach', 'teacher'].includes(data.role)
 }
 
-/** Create a new document folder. Staff-only. */
-export async function createFolder(name: string): Promise<string | { error: string }> {
+function cleanName(name: string, max = 80): string | { error: string } {
+  const trimmedName = name.trim().replace(/\s+/g, ' ')
+  if (!trimmedName) return { error: 'Needs a name' }
+  if (trimmedName.length > max) return { error: `Name must be ${max} characters or fewer` }
+  return trimmedName
+}
+
+export async function createFolder(name: string, parentId?: string): Promise<string | { error: string }> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
@@ -19,24 +24,112 @@ export async function createFolder(name: string): Promise<string | { error: stri
   const admin = createAdminClient()
   if (!await requireStaff(admin, user.id)) return { error: 'Staff only' }
 
-  const trimmedName = name.trim()
-  if (!trimmedName) return { error: 'Folder needs a name' }
-  if (trimmedName.length > 60) return { error: 'Folder name must be 60 characters or fewer' }
+  const trimmedName = cleanName(name, 60)
+  if (typeof trimmedName !== 'string') return trimmedName
+
+  const row: { name: string; created_by: string; parent_id?: string } = {
+    name: trimmedName,
+    created_by: user.id,
+  }
+  if (parentId) {
+    const { data: parent } = await admin.from('document_folders').select('id').eq('id', parentId).maybeSingle()
+    if (!parent) return { error: 'Parent folder not found' }
+    row.parent_id = parentId
+  }
 
   const { data: folder, error } = await admin
     .from('document_folders')
-    .insert({ name: trimmedName, created_by: user.id })
+    .insert(row)
     .select('id')
     .single()
-  if (error || !folder) return { error: error?.message ?? 'Could not create folder' }
+  if (error || !folder) {
+    const msg = error?.message ?? 'Could not create folder'
+    if (msg.includes('parent_id') || msg.includes('schema cache')) {
+      return { error: 'Run supabase/migrations/046_document_folder_parent.sql in the Supabase SQL editor, then try again.' }
+    }
+    return { error: msg }
+  }
 
   revalidatePath('/documents')
+  if (parentId) revalidatePath(`/documents/${parentId}`)
   return folder.id
 }
 
-/** Delete a folder: removes every stored file's bytes, then the folder row
- *  (DB cascade removes the `documents` rows). Staff-only. */
-export async function deleteFolder(folderId: string): Promise<{ ok: boolean; error?: string }> {
+export async function renameFolder(folderId: string, name: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+  const admin = createAdminClient()
+  if (!await requireStaff(admin, user.id)) return { ok: false, error: 'Staff only' }
+  const trimmedName = cleanName(name, 60)
+  if (typeof trimmedName !== 'string') return { ok: false, error: trimmedName.error }
+  const { error } = await admin.from('document_folders').update({ name: trimmedName }).eq('id', folderId)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/documents')
+  revalidatePath(`/documents/${folderId}`)
+  return { ok: true }
+}
+
+export async function renameDocument(documentId: string, name: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+  const admin = createAdminClient()
+  if (!await requireStaff(admin, user.id)) return { ok: false, error: 'Staff only' }
+  const trimmedName = cleanName(name, 120)
+  if (typeof trimmedName !== 'string') return { ok: false, error: trimmedName.error }
+  const { data: doc } = await admin.from('documents').select('id, folder_id').eq('id', documentId).maybeSingle()
+  if (!doc) return { ok: false, error: 'File not found' }
+  const { error } = await admin.from('documents').update({ name: trimmedName }).eq('id', documentId)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath(`/documents/${doc.folder_id}`)
+  return { ok: true }
+}
+
+export async function moveDocument(documentId: string, targetFolderId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+  const admin = createAdminClient()
+  if (!await requireStaff(admin, user.id)) return { ok: false, error: 'Staff only' }
+
+  const { data: doc } = await admin.from('documents').select('id, folder_id').eq('id', documentId).maybeSingle()
+  if (!doc) return { ok: false, error: 'File not found' }
+  if (doc.folder_id === targetFolderId) return { ok: true }
+
+  const { data: dest } = await admin.from('document_folders').select('id').eq('id', targetFolderId).maybeSingle()
+  if (!dest) return { ok: false, error: 'Folder not found' }
+
+  const { error } = await admin.from('documents').update({ folder_id: targetFolderId }).eq('id', documentId)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath(`/documents/${doc.folder_id}`)
+  revalidatePath(`/documents/${targetFolderId}`)
+  return { ok: true }
+}
+
+async function collectFolderTree(admin: SupabaseClient, rootId: string): Promise<string[]> {
+  const ids = [rootId]
+  const { data: all } = await admin.from('document_folders').select('id, parent_id')
+  const childrenOf = new Map<string, string[]>()
+  for (const f of all ?? []) {
+    if (!f.parent_id) continue
+    const list = childrenOf.get(f.parent_id) ?? []
+    list.push(f.id)
+    childrenOf.set(f.parent_id, list)
+  }
+  const stack = [rootId]
+  while (stack.length) {
+    const id = stack.pop()!
+    for (const child of childrenOf.get(id) ?? []) {
+      ids.push(child)
+      stack.push(child)
+    }
+  }
+  return ids
+}
+
+export async function deleteFolder(folderId: string): Promise<{ ok: boolean; parentId?: string | null; error?: string }> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'Unauthorized' }
@@ -44,7 +137,9 @@ export async function deleteFolder(folderId: string): Promise<{ ok: boolean; err
   const admin = createAdminClient()
   if (!await requireStaff(admin, user.id)) return { ok: false, error: 'Staff only' }
 
-  const { data: files } = await admin.from('documents').select('storage_path').eq('folder_id', folderId)
+  const { data: folder } = await admin.from('document_folders').select('parent_id').eq('id', folderId).maybeSingle()
+  const tree = await collectFolderTree(admin, folderId)
+  const { data: files } = await admin.from('documents').select('storage_path').in('folder_id', tree)
   const paths = (files ?? []).map(f => f.storage_path)
   if (paths.length > 0) {
     await admin.storage.from('documents').remove(paths)
@@ -54,11 +149,9 @@ export async function deleteFolder(folderId: string): Promise<{ ok: boolean; err
   if (error) return { ok: false, error: error.message }
 
   revalidatePath('/documents')
-  return { ok: true }
+  return { ok: true, parentId: folder?.parent_id ?? null }
 }
 
-/** Record a successfully-uploaded file as a `documents` row. Staff-only.
- *  Called after the browser has already uploaded the bytes to Storage. */
 export async function recordDocument(
   folderId: string,
   storagePath: string,
@@ -73,10 +166,6 @@ export async function recordDocument(
   const admin = createAdminClient()
   if (!await requireStaff(admin, user.id)) return { ok: false, error: 'Staff only' }
 
-  // The path must actually belong to this folder — otherwise a documents
-  // row could point at a file under a different folder's prefix, and
-  // deleting either row would orphan the other (deleteFolder only removes
-  // storage objects under its own folderId/ prefix).
   if (!storagePath.startsWith(`${folderId}/`)) return { ok: false, error: 'Invalid file path' }
 
   const { error } = await admin.from('documents').insert({
@@ -88,7 +177,6 @@ export async function recordDocument(
     uploaded_by: user.id,
   })
   if (error) {
-    // Don't leave an orphaned file nobody can see or clean up.
     await admin.storage.from('documents').remove([storagePath])
     return { ok: false, error: error.message }
   }
@@ -97,7 +185,6 @@ export async function recordDocument(
   return { ok: true }
 }
 
-/** Delete one file: removes the storage object and the `documents` row. Staff-only. */
 export async function deleteDocument(documentId: string): Promise<{ ok: boolean; error?: string }> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()

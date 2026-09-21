@@ -13,6 +13,7 @@ import { excusalCoversPhase } from '@/lib/attendance/excusal'
 import { ExcuseButton } from './ExcuseButton'
 import { ExcusedPill } from './ExcusedPill'
 import { MissingRowActions } from '@/components/attendance/MissingRowActions'
+import { MissingBatchList } from '@/components/attendance/MissingBatchList'
 import type { PhaseWindows } from '@/lib/attendance/phase'
 import { buildStudentDayStatus, applyStaffFilter, defaultStaffFilter, dayDots, type StudentDayStatus, type Phase } from '@/lib/attendance/dayStatus'
 
@@ -48,8 +49,6 @@ export default async function AttendancePage({
   const admin = createAdminClient()
   const now = new Date()
   const today = londonDateISO(now)
-  // Validate ?date= — an arbitrary string would give Invalid Date and make
-  // shiftDate() throw on toISOString(). Fall back to today.
   const rawDate = searchParams.date
   const date = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) && !isNaN(Date.parse(rawDate + 'T12:00:00Z'))
     ? rawDate
@@ -67,8 +66,6 @@ export default async function AttendancePage({
     pm:    { start: settings?.pm_window_start    ?? '14:30', end: settings?.pm_window_end    ?? '17:30' },
   }
 
-  // The time-of-day default only makes sense for today; a past/future date
-  // just starts on "all".
   const requestedFilter = searchParams.filter
   const validFilter = FILTERS.some(f => f.key === requestedFilter) ? (requestedFilter as typeof FILTERS[number]['key']) : null
   const filter = validFilter ?? (isToday ? defaultStaffFilter(windows, now) : 'all')
@@ -77,7 +74,6 @@ export default async function AttendancePage({
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
 
-  // Roster + records + excusals in parallel
   const [{ data: students }, { data: records }, { data: excusals }] = await Promise.all([
     admin.from('users').select('id, name, avatar_url').eq('role', 'student').eq('is_active', true).order('name'),
     admin
@@ -134,11 +130,6 @@ export default async function AttendancePage({
   const pmOut   = rows.filter(r => r.pm).length
   const flagged = rows.filter(r => r.am_flagged || r.lunch_flagged || r.pm_flagged).length
 
-  // Window-open decisions need a real instant: "now" for today, but the end
-  // of the day for a past date (nothing is "not_yet" any more) and the start
-  // for a future one (nothing is "missing" yet) — otherwise a staff member
-  // looking at yesterday at 08:00 today would see yesterday's lunch/PM as
-  // "not yet", not "missing".
   const statusInstant = date === today ? now
     : date < today ? londonWallTimeToUTC(date, '23:59')
     : londonWallTimeToUTC(date, '00:00')
@@ -164,7 +155,6 @@ export default async function AttendancePage({
   const visibleIds = new Set(applyStaffFilter(statuses, filter).map(s => s.studentId))
   const visibleRows = rows.filter(r => visibleIds.has(r.id))
 
-  // Sort: genuinely missing first, then by name
   const isGenuinelyMissing = (id: string) =>
     (['am', 'lunch', 'pm'] as const).some(p => statusById.get(id)!.phases[p].state === 'missing')
   visibleRows.sort((a, b) => {
@@ -174,39 +164,26 @@ export default async function AttendancePage({
     return a.name.localeCompare(b.name)
   })
 
+  const missingFilter = filter === 'missing_am' || filter === 'missing_lunch' || filter === 'missing_pm'
+  const missingPhase = (filter.replace('missing_', '') || 'pm') as Phase
+
   return (
     <div className="space-y-5 max-w-3xl">
-
-      {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <ClipboardList size={22} className="text-tranmere-blue" />
           <h1 className="text-xl font-bold text-tranmere-blue">Daily Attendance</h1>
-          <Link
-            href="/admin/attendance/health"
-            className="text-xs font-medium text-tranmere-blue underline underline-offset-2"
-          >
+          <Link href="/admin/attendance/health" className="text-xs font-medium text-tranmere-blue underline underline-offset-2">
             Check-in health
           </Link>
         </div>
-        <div className="flex gap-2">
-          <Link
-            href="/admin/attendance/settings"
-            className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            <Settings size={15} />
-            Settings
-          </Link>
-        </div>
+        <Link href="/admin/attendance/settings" className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors">
+          <Settings size={15} /> Settings
+        </Link>
       </div>
 
-      {/* Date navigator */}
       <div className="flex items-center justify-between bg-white border rounded-xl px-3 py-2">
-        <Link
-          href={`/admin/attendance?date=${shiftDate(date, -1)}`}
-          className="p-2 rounded-lg hover:bg-gray-100 text-muted-foreground"
-          aria-label="Previous day"
-        >
+        <Link href={`/admin/attendance?date=${shiftDate(date, -1)}`} className="p-2 rounded-lg hover:bg-gray-100 text-muted-foreground" aria-label="Previous day">
           <ChevronLeft size={18} />
         </Link>
         <div className="text-center">
@@ -215,16 +192,11 @@ export default async function AttendancePage({
             <Link href="/admin/attendance" className="text-[11px] text-tranmere-blue underline">Jump to today</Link>
           )}
         </div>
-        <Link
-          href={`/admin/attendance?date=${shiftDate(date, 1)}`}
-          className="p-2 rounded-lg hover:bg-gray-100 text-muted-foreground"
-          aria-label="Next day"
-        >
+        <Link href={`/admin/attendance?date=${shiftDate(date, 1)}`} className="p-2 rounded-lg hover:bg-gray-100 text-muted-foreground" aria-label="Next day">
           <ChevronRight size={18} />
         </Link>
       </div>
 
-      {/* Summary tiles */}
       <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5">
         <SummaryTile icon={<Sun size={14} />}             label="AM checked"    value={`${amIn}/${rows.length}`} tone="blue" />
         <SummaryTile icon={<UtensilsCrossed size={14} />} label="Lunch checked" value={`${lunchIn}/${rows.length}`} tone="green" />
@@ -234,16 +206,13 @@ export default async function AttendancePage({
         <SummaryTile icon={<AlertTriangle size={14} />}   label="Flagged"       value={`${flagged}`} tone={flagged > 0 ? 'amber' : 'gray'} />
       </div>
 
-      {/* Filter chips */}
       <div className="flex flex-wrap gap-1.5">
         {FILTERS.map(f => (
           <Link
             key={f.key}
             href={`/admin/attendance?date=${date}&filter=${f.key}`}
             className={`text-xs font-semibold px-2.5 py-1.5 rounded-full transition-colors ${
-              filter === f.key
-                ? 'bg-tranmere-blue text-white'
-                : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'
+              filter === f.key ? 'bg-tranmere-blue text-white' : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'
             }`}
           >
             {f.label}
@@ -251,7 +220,17 @@ export default async function AttendancePage({
         ))}
       </div>
 
-      {/* Roster */}
+      {missingFilter && visibleRows.length > 0 && (
+        <div className="bg-white border rounded-xl p-4">
+          <MissingBatchList
+            date={date}
+            phase={missingPhase}
+            students={visibleRows.map(r => ({ studentId: r.id, name: r.name }))}
+          />
+        </div>
+      )}
+
+      {!missingFilter && (
       <div className="bg-white border rounded-xl overflow-hidden">
         <div className="hidden sm:grid sm:grid-cols-[1fr_110px_110px_110px] items-center px-4 py-2.5 border-b bg-gray-50/60 text-[11px] font-bold uppercase tracking-wide text-muted-foreground gap-3">
           <span>Student</span>
@@ -259,7 +238,6 @@ export default async function AttendancePage({
           <span className="text-center">Lunch</span>
           <span className="text-center">PM</span>
         </div>
-
         {visibleRows.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">
             {rows.length === 0 ? 'No students enrolled' : 'No one matches this filter'}
@@ -270,10 +248,7 @@ export default async function AttendancePage({
               const status = statusById.get(r.id)!
               const filled = new Set(dayDots(status))
               return (
-                <li
-                  key={r.id}
-                  className="flex flex-col gap-2 sm:grid sm:grid-cols-[1fr_110px_110px_110px] sm:items-center px-4 py-2.5 sm:gap-3 text-sm hover:bg-gray-50/60 transition-colors"
-                >
+                <li key={r.id} className="flex flex-col gap-2 sm:grid sm:grid-cols-[1fr_110px_110px_110px] sm:items-center px-4 py-2.5 sm:gap-3 text-sm hover:bg-gray-50/60 transition-colors">
                   <div className="flex items-center flex-wrap gap-2.5 min-w-0">
                     <Link href={`/admin/students/${r.id}`} className="flex items-center gap-2.5 min-w-0 hover:underline">
                       {r.avatar_url
@@ -287,11 +262,7 @@ export default async function AttendancePage({
                     </Link>
                     <span className="flex items-center gap-1" aria-label="AM, lunch, PM status">
                       {(['am', 'lunch', 'pm'] as const).map(p => (
-                        <span
-                          key={p}
-                          aria-label={`${p} ${filled.has(p) ? 'done' : 'not done'}`}
-                          className={`w-1.5 h-1.5 rounded-full ${filled.has(p) ? 'bg-green-500' : 'bg-gray-300'}`}
-                        />
+                        <span key={p} aria-label={`${p} ${filled.has(p) ? 'done' : 'not done'}`} className={`w-1.5 h-1.5 rounded-full ${filled.has(p) ? 'bg-green-500' : 'bg-gray-300'}`} />
                       ))}
                     </span>
                     <ExcuseButton studentId={r.id} date={date} excusal={r.excusal ? { reason: r.excusal.reason, note: r.excusal.note } : null} />
@@ -307,64 +278,29 @@ export default async function AttendancePage({
           </ul>
         )}
       </div>
+      )}
 
-      {/* Export bar */}
       <div className="flex flex-wrap gap-2">
-        <Link
-          href={`/admin/attendance/print?date=${date}&phase=both`}
-          className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
-        >
+        <Link href={`/admin/attendance/print?date=${date}&phase=both`} className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors">
           <Printer size={14} /> Print full report
         </Link>
-        <a
-          href={`/api/attendance/export-csv?date=${date}`}
-          className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
-        >
+        <a href={`/api/attendance/export-csv?date=${date}`} className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors">
           <Download size={14} /> Download CSV
         </a>
-        <Link
-          href={`/admin/attendance/print/week?start=${date}`}
-          className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors"
-        >
+        <Link href={`/admin/attendance/print/week?start=${date}`} className="flex items-center gap-1.5 text-sm font-medium text-tranmere-blue bg-tranmere-blue/10 hover:bg-tranmere-blue/20 px-3 py-1.5 rounded-lg transition-colors">
           <FileText size={14} /> Weekly report (for college)
         </Link>
       </div>
 
-      {/* End-of-period reports */}
       <div className="grid sm:grid-cols-2 gap-3">
-        <ReportCard
-          date={date}
-          phase="am"
-          title="Morning Report"
-          subtitle="After AM window (10:30)"
-          summary={`${amIn} of ${rows.length} students checked in`}
-          missingCount={amMissing}
-          missingNames={rows.filter(r => !r.am).map(r => r.name)}
-          tone="blue"
-        />
-        <ReportCard
-          date={date}
-          phase="pm"
-          title="End-of-Day Report"
-          subtitle="After PM window (17:30)"
-          summary={`${pmOut} of ${rows.length} students checked out`}
-          missingCount={pmMissing}
-          missingNames={rows.filter(r => !r.pm).map(r => r.name)}
-          tone="purple"
-        />
+        <ReportCard date={date} phase="am" title="Morning Report" subtitle="After AM window (10:30)" summary={`${amIn} of ${rows.length} students checked in`} missingCount={amMissing} missingNames={rows.filter(r => !r.am).map(r => r.name)} tone="blue" />
+        <ReportCard date={date} phase="pm" title="End-of-Day Report" subtitle="After PM window (17:30)" summary={`${pmOut} of ${rows.length} students checked out`} missingCount={pmMissing} missingNames={rows.filter(r => !r.pm).map(r => r.name)} tone="purple" />
       </div>
     </div>
   )
 }
 
-function SummaryTile({
-  icon, label, value, tone,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: string
-  tone: 'blue' | 'green' | 'purple' | 'red' | 'amber' | 'gray'
-}) {
+function SummaryTile({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string; tone: 'blue' | 'green' | 'purple' | 'red' | 'amber' | 'gray' }) {
   const colours = {
     blue:   'border-blue-200 bg-blue-50/60 text-blue-800',
     green:  'border-green-200 bg-green-50/60 text-green-800',
@@ -373,12 +309,9 @@ function SummaryTile({
     amber:  'border-amber-200 bg-amber-50/60 text-amber-800',
     gray:   'border-border bg-gray-50/40 text-muted-foreground',
   }[tone]
-
   return (
     <div className={`rounded-xl border p-3 ${colours}`}>
-      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider opacity-80">
-        {icon} {label}
-      </div>
+      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider opacity-80">{icon} {label}</div>
       <p className="text-xl font-bold mt-1">{value}</p>
     </div>
   )
@@ -398,24 +331,9 @@ function PhaseCell({
   filter: string
 }) {
   if (!time && excusalCoversPhase(excusal, phase)) {
-    return (
-      <ExcusedPill
-        studentId={studentId}
-        date={date}
-        phase={phase}
-        reason={excusal!.reason}
-        note={excusal!.note}
-      />
-    )
+    return <ExcusedPill studentId={studentId} date={date} phase={phase} reason={excusal!.reason} note={excusal!.note} />
   }
   if (!time) {
-    // The compact Excuse/Mark-present pair only renders for rows matching
-    // the currently-active missing_<phase> filter (final-review Finding 3)
-    // — showing it in every filter view meant up to 3 button-pairs per row
-    // at once on mobile, and made it trivially easy to fire the same
-    // per-phase excuse action twice back to back on one row (see the
-    // Finding 1 excusal-merge fix). Every other filter falls back to the
-    // plain OverrideButton, exactly as it rendered before this branch.
     return (
       <span className="flex flex-col items-center justify-center gap-1 text-xs text-muted-foreground">
         <span aria-label="Missing">—</span>
@@ -432,9 +350,7 @@ function PhaseCell({
       <CheckCircle2 size={13} className="text-green-500" />
       {fmtTime(time)}
       {flagged && (
-        <span title={reason ?? 'Flagged'} className="ml-0.5">
-          <AlertTriangle size={11} className="text-amber-500" />
-        </span>
+        <span title={reason ?? 'Flagged'} className="ml-0.5"><AlertTriangle size={11} className="text-amber-500" /></span>
       )}
       <OverrideButton studentId={studentId} date={date} phase={phase} present={true} />
     </span>
@@ -455,7 +371,6 @@ function ReportCard({
 }) {
   const Icon = tone === 'blue' ? Sun : Moon
   const ring = tone === 'blue' ? 'border-blue-200' : 'border-purple-200'
-
   return (
     <div className={`bg-white border rounded-xl p-4 space-y-2 ${ring}`}>
       <div className="flex items-center gap-2">
@@ -476,20 +391,10 @@ function ReportCard({
         <p className="text-xs text-green-600 border-t pt-2 font-medium">✓ Everyone accounted for</p>
       )}
       <div className="flex gap-2 pt-1 border-t mt-1">
-        <Link
-          href={`/admin/attendance/print?date=${date}&phase=${phase}`}
-          className={`flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold rounded-md py-1.5 transition-colors ${
-            tone === 'blue' ? 'text-blue-700 hover:bg-blue-50' : 'text-purple-700 hover:bg-purple-50'
-          }`}
-        >
+        <Link href={`/admin/attendance/print?date=${date}&phase=${phase}`} className={`flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold rounded-md py-1.5 transition-colors ${tone === 'blue' ? 'text-blue-700 hover:bg-blue-50' : 'text-purple-700 hover:bg-purple-50'}`}>
           <Printer size={11} /> Print / PDF
         </Link>
-        <a
-          href={`/api/attendance/export-csv?date=${date}`}
-          className={`flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold rounded-md py-1.5 transition-colors ${
-            tone === 'blue' ? 'text-blue-700 hover:bg-blue-50' : 'text-purple-700 hover:bg-purple-50'
-          }`}
-        >
+        <a href={`/api/attendance/export-csv?date=${date}`} className={`flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold rounded-md py-1.5 transition-colors ${tone === 'blue' ? 'text-blue-700 hover:bg-blue-50' : 'text-purple-700 hover:bg-purple-50'}`}>
           <Download size={11} /> CSV
         </a>
       </div>

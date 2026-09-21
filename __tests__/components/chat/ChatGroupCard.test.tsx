@@ -145,7 +145,7 @@ describe('ChatGroupCard', () => {
     render(<ChatGroupCard roomId="r1" roomName="Year 2 Students" syncYearGroup={2} members={members} addable={addable} />)
     fireEvent.click(screen.getByText('Year 2 Students'))
     fireEvent.click(screen.getByText('Add people'))
-    fireEvent.change(screen.getByPlaceholderText('Search people…'), { target: { value: 'zzzz' } })
+    fireEvent.change(screen.getByPlaceholderText('Search people...'), { target: { value: 'zzzz' } })
     expect(screen.getByText('No match')).toBeInTheDocument()
   })
 })
