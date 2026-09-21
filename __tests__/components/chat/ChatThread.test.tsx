@@ -207,6 +207,8 @@ function renderThreadWithMessage(senderId: string, body: string, id: string) {
         attachment_url: null,
         attachment_kind: null,
         created_at: new Date().toISOString(),
+        reply_to_id: null,
+        poll_id: null,
       }]}
       members={[
         { user_id: CURRENT_USER_ID, users: { id: CURRENT_USER_ID, name: 'Caleb', avatar_url: null } },

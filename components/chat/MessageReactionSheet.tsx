@@ -5,13 +5,19 @@ const QUICK = ['\ud83d\udc4d', '\ud83d\ude02', '\ud83d\ude4f', '\u2764\ufe0f', '
 export function MessageReactionSheet({
   mine,
   deleting,
+  canReply = true,
   onPick,
+  onReply,
   onDelete,
   onClose,
 }: {
   mine: boolean
   deleting: boolean
+  /** False in the AI Coach bot room — spec §2 puts replies out of scope
+   *  there. Defaults to true so every other room is unaffected. */
+  canReply?: boolean
   onPick: (emoji: string) => void
+  onReply: () => void
   onDelete: () => void
   onClose: () => void
 }) {
@@ -32,6 +38,15 @@ export function MessageReactionSheet({
             </button>
           ))}
         </div>
+        {canReply && (
+          <button
+            type="button"
+            onClick={onReply}
+            className="w-full border-t border-white/10 px-4 py-3 text-left text-sm font-medium"
+          >
+            Reply
+          </button>
+        )}
         {mine && (
           <button
             type="button"

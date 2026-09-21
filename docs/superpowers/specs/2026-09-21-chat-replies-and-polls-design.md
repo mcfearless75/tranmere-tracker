@@ -57,7 +57,7 @@ The governing reason for A: the existing message pipeline is the thing B and C w
 
 ---
 
-## 4. Schema — migration `080_chat_replies_and_polls.sql`
+## 4. Schema — migration `082_chat_replies_and_polls.sql`
 
 ```sql
 create table chat_polls (
@@ -93,7 +93,7 @@ alter table chat_messages
 
 `unique (poll_id, user_id)` is what enforces single choice. Changing your vote is an `update` of `option_id` on your existing row, never a second row.
 
-Length limits, enforced in the database and mirrored in the UI (§8): `question` ≤ 200 chars, `label` ≤ 80 chars, 2–6 options per poll.
+Length limits (§8): `question` and `label` lengths and the 6-option maximum are enforced by the database check constraints and trigger in migration 082; the 2-option minimum is enforced by `validatePollInput` and `createPoll` atomically.
 
 ### Indexes
 
@@ -111,7 +111,7 @@ This cannot be a UI-level hide. A student hitting PostgREST directly must not be
 
 **Counts and votes are separated into two tables with different read policies.**
 
-- `chat_poll_votes` select policy: `user_id = auth.uid() or public.is_chat_staff()`. A student can read exactly one row — their own — so the UI can highlight their pick. They cannot read anyone else's.
+- `chat_poll_votes` select policy: `user_id = auth.uid() or (public.is_chat_staff() and public.is_poll_room_member(poll_id))`. A student can read exactly one row — their own — so the UI can highlight their pick. They cannot read anyone else's. The room-membership clause is load-bearing: `is_chat_staff()` is global, so without it any teacher or coach could read every vote in every room, including rooms they have never joined.
 - `chat_poll_options.vote_count` holds the tally, maintained by a trigger on vote insert / update / delete. Every room member can read it.
 - Staff tapping a result bar issues a second query against `chat_poll_votes`, which their policy permits, and get names.
 
@@ -158,9 +158,11 @@ Handles all three cases: INSERT increments the chosen option; DELETE decrements;
 
 | Table | select | insert | update | delete |
 |---|---|---|---|---|
-| `chat_polls` | room member | staff **and** room member | staff (sets `closed_at` only) | — |
+| `chat_polls` | room member | staff **and** room member | staff **and** room member (any column — see below) | — |
 | `chat_poll_options` | room member | staff **and** room member | — (trigger only) | — |
 | `chat_poll_votes` | own row, or staff | room member, own `user_id`, poll open | own row, poll open | own row |
+
+The `chat_polls` update policy is column-blind: Postgres RLS gates rows, not columns, so "chat staff close polls" permits room staff to update **any** column on a poll in their room, including `question` — `closePoll` only ever sets `closed_at` because that is all the server action writes, not because the policy forbids the rest. That is accepted: the same people can create the poll in the first place, so editing its wording grants them nothing new. It is written down here so nobody later reads the table as a column-level guarantee.
 
 RLS is enforced even though `createPoll` runs server-side, because the server action uses the *user's* client for these writes rather than the admin client. Using the admin client would bypass the policies and leave the staff-only rule resting on a single `if` statement.
 
@@ -254,7 +256,7 @@ Task review runs `npm run build`, not only `tsc` and `jest` — lint errors have
 
 **This repository has no CI step that applies migrations.** A migration file committed to the repo is not a migration applied to production; this has bitten the project at least twice, with the app quietly misbehaving against a schema that did not match the code.
 
-The implementation plan therefore carries applying `080` to production as its own explicit step, followed by verifying against the live schema that the three tables, the two new `chat_messages` columns, the `is_chat_staff()` helper, the vote-count trigger, and each RLS policy actually exist — not merely that the file was committed.
+The implementation plan therefore carries applying `082` to production as its own explicit step, followed by verifying against the live schema that the three tables, the two new `chat_messages` columns, the `is_chat_staff()` helper, the vote-count trigger, and each RLS policy actually exist — not merely that the file was committed.
 
 Realtime publication membership (`chat_poll_options`, `chat_polls`) is part of the same verification: without it, tallies do not update live and the feature looks broken while the tests pass.
 
@@ -263,7 +265,7 @@ Realtime publication membership (`chat_poll_options`, `chat_polls`) is part of t
 ## 14. Files touched
 
 ```
-supabase/migrations/080_chat_replies_and_polls.sql   new
+supabase/migrations/082_chat_replies_and_polls.sql   new
 app/chat/[roomId]/ChatThread.tsx                     modified
 app/chat/[roomId]/page.tsx                           modified
 app/chat/actions.ts                                  modified

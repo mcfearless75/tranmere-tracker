@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { sendPushNotification } from '@/lib/webpush'
 import { sendFcmBatch } from '@/lib/firebase-admin'
+import { validatePollInput } from '@/lib/chat/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 /** True if userId is a member of roomId. Guards actions that touch a room. */
@@ -298,6 +299,7 @@ export async function notifyRoomMembers(
   roomId: string,
   _senderName: string,
   preview: string,
+  replyToUserId?: string,
 ): Promise<void> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -322,32 +324,48 @@ export async function notifyRoomMembers(
   const senderName = sender?.name ?? 'Someone'
 
   const otherIds = members.map(m => m.user_id)
-  const notification = { title: senderName, body: preview.slice(0, 100), url: `/chat/${roomId}` }
+  // Only honour a reply target who is actually a member of this room —
+  // ignore anything else (and this also excludes the sender, since otherIds
+  // already excludes user.id).
+  const replyTarget = replyToUserId && otherIds.includes(replyToUserId) ? replyToUserId : null
+  const plainIds = otherIds.filter(id => id !== replyTarget)
 
-  // ── Web push (VAPID) ──────────────────────────────────────────────────
-  const { data: subs } = await admin
-    .from('push_subscriptions')
-    .select('endpoint, p256dh, auth')
-    .in('user_id', otherIds)
+  const body = preview.slice(0, 100)
+  const url = `/chat/${roomId}`
+  const groups: { ids: string[]; title: string }[] = [
+    { ids: plainIds, title: senderName },
+    ...(replyTarget ? [{ ids: [replyTarget], title: `${senderName} replied to you` }] : []),
+  ]
 
-  if (subs && subs.length > 0) {
-    await Promise.allSettled(
-      subs.map(s => sendPushNotification(
-        { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
-        notification
-      ))
-    )
-  }
+  for (const group of groups) {
+    if (group.ids.length === 0) continue
+    const notification = { title: group.title, body, url }
 
-  // ── Native push (FCM via Firebase Admin) ─────────────────────────────
-  const { data: nativeTokens } = await admin
-    .from('native_push_tokens')
-    .select('token')
-    .in('user_id', otherIds)
+    // ── Web push (VAPID) ────────────────────────────────────────────────
+    const { data: subs } = await admin
+      .from('push_subscriptions')
+      .select('endpoint, p256dh, auth')
+      .in('user_id', group.ids)
 
-  const tokens = (nativeTokens ?? []).map(r => r.token as string)
-  if (tokens.length > 0) {
-    await sendFcmBatch(tokens, notification)
+    if (subs && subs.length > 0) {
+      await Promise.allSettled(
+        subs.map(s => sendPushNotification(
+          { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
+          notification
+        ))
+      )
+    }
+
+    // ── Native push (FCM via Firebase Admin) ───────────────────────────
+    const { data: nativeTokens } = await admin
+      .from('native_push_tokens')
+      .select('token')
+      .in('user_id', group.ids)
+
+    const tokens = (nativeTokens ?? []).map(r => r.token as string)
+    if (tokens.length > 0) {
+      await sendFcmBatch(tokens, notification)
+    }
   }
 }
 
@@ -407,6 +425,134 @@ export async function nudgeRoom(roomId: string): Promise<{ ok: boolean; error?: 
     await sendFcmBatch(tokens, notification)
   }
 
+  return { ok: true }
+}
+
+/** Delete a poll this function just created, because a later step (options
+ *  or carrier message) failed. Uses the ADMIN client — deliberately, and
+ *  only for this.
+ *
+ *  Migration 082 enables RLS on chat_polls and defines only select/insert/
+ *  update policies — there is no delete policy. Under RLS, a command with no
+ *  matching policy is denied for every row, for every role, and PostgREST
+ *  reports that as zero rows affected with NO error. So the user client
+ *  cannot perform this delete: it would silently no-op, and the caller would
+ *  see "could not create poll" while an orphaned chat_polls row (no options,
+ *  no carrier message) stays behind forever. Do not "fix" this back to the
+ *  user client for symmetry with the rest of the file — that reintroduces
+ *  the silent-no-op bug.
+ *
+ *  This does not reopen the authorization hole the user-client design exists
+ *  to close: authorization was already settled a moment ago by the poll
+ *  insert succeeding under RLS, which proves the caller is chat staff and a
+ *  member of the room. This delete is not a user-initiated action — it is
+ *  this function cleaning up a row it just created and owns. Adding a
+ *  general delete policy instead would grant chat_polls deletes more widely
+ *  than this one cleanup path needs. */
+async function rollbackPoll(pollId: string): Promise<string | null> {
+  const admin = createAdminClient()
+  const { error } = await admin.from('chat_polls').delete().eq('id', pollId)
+  return error ? error.message : null
+}
+
+/** Create a poll, its options and the carrier chat message.
+ *  Deliberately uses the USER's client, not the admin client, for the poll/
+ *  options/message inserts — migration 082's staff-only insert policy on
+ *  chat_polls (public.is_chat_staff()) is what actually enforces "staff
+ *  only", not an `if` here. Using the admin client for those would bypass
+ *  RLS entirely and leave permission resting on this function alone, one
+ *  refactor away from a hole. (The rollback delete below is the one
+ *  exception — see rollbackPoll's comment for why.)
+ *  Rolls the poll row back if the options insert or the carrier message
+ *  insert fails — an orphaned poll (no options, or no message to render it
+ *  in) is invisible garbage in the timeline, same reasoning as the room
+ *  rollback in getOrCreateDM/createGroupChat. If the rollback delete itself
+ *  fails, that is reported distinctly — the caller must be able to tell
+ *  "your poll was not created" from "your poll was not created AND garbage
+ *  was left behind that needs manual cleanup". */
+export async function createPoll(
+  roomId: string,
+  question: string,
+  options: string[],
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+
+  const invalid = validatePollInput(question, options)
+  if (invalid) return { ok: false, error: invalid }
+
+  const q = question.trim()
+  const labels = options.map(o => o.trim()).filter(Boolean)
+
+  const { data: poll, error: pollError } = await supabase
+    .from('chat_polls')
+    .insert({ room_id: roomId, created_by: user.id, question: q })
+    .select('id')
+    .single()
+
+  if (pollError || !poll) {
+    // Includes the RLS rejection a non-staff caller gets back — surface it
+    // rather than reporting fake success.
+    return { ok: false, error: pollError?.message ?? 'Could not create the poll' }
+  }
+
+  const { error: optionsError } = await supabase
+    .from('chat_poll_options')
+    .insert(labels.map((label, position) => ({ poll_id: poll.id, label, position })))
+
+  if (optionsError) {
+    const rollbackError = await rollbackPoll(poll.id)
+    return {
+      ok: false,
+      error: rollbackError
+        ? `Could not add poll options (${optionsError.message}), and the orphaned poll could not be removed (${rollbackError}) — a staff member will need to delete poll ${poll.id} manually.`
+        : optionsError.message,
+    }
+  }
+
+  const { error: messageError } = await supabase
+    .from('chat_messages')
+    .insert({ room_id: roomId, sender_id: user.id, body: null, poll_id: poll.id })
+
+  if (messageError) {
+    const rollbackError = await rollbackPoll(poll.id)
+    return {
+      ok: false,
+      error: rollbackError
+        ? `Could not post the poll message (${messageError.message}), and the orphaned poll could not be removed (${rollbackError}) — a staff member will need to delete poll ${poll.id} manually.`
+        : messageError.message,
+    }
+  }
+
+  // A push failure here must never turn a successfully-created poll into a
+  // reported failure — the poll and its message already exist by this point.
+  await notifyRoomMembers(roomId, '', `📊 ${q}`).catch(() => {})
+  revalidatePath(`/chat/${roomId}`)
+  return { ok: true }
+}
+
+/** Close a poll so no further votes can be cast.
+ *  Staff-only is enforced by the update policy on chat_polls, not by an `if`
+ *  here — same reasoning as createPoll. Uses .maybeSingle(), not .single():
+ *  an RLS-blocked update returns zero rows (not a thrown error), which is a
+ *  legitimate "not found, or you're not allowed" case, not a crash. */
+export async function closePoll(pollId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+
+  const { data, error } = await supabase
+    .from('chat_polls')
+    .update({ closed_at: new Date().toISOString() })
+    .eq('id', pollId)
+    .select('room_id')
+    .maybeSingle()
+
+  if (error) return { ok: false, error: error.message }
+  if (!data) return { ok: false, error: 'Poll not found, or you cannot close it' }
+
+  revalidatePath(`/chat/${data.room_id}`)
   return { ok: true }
 }
 
