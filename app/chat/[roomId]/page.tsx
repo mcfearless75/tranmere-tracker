@@ -51,7 +51,7 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
 
   const { data: recentMessages } = await admin
     .from('chat_messages')
-    .select('id, sender_id, body, attachment_url, attachment_kind, created_at')
+    .select('id, sender_id, body, attachment_url, attachment_kind, created_at, reply_to_id, poll_id')
     .eq('room_id', params.roomId)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })

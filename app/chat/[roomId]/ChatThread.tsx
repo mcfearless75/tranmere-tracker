@@ -3,20 +3,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { Send, Paperclip, X, Bot, SmilePlus } from 'lucide-react'
+import { Send, Paperclip, X, Bot } from 'lucide-react'
 import { MessageReactionSheet } from '@/components/chat/MessageReactionSheet'
-import { ChatImage } from '@/components/chat/ChatImage'
-import { MessageBody } from '@/components/chat/MessageBody'
+import { MessageBubble } from '@/components/chat/MessageBubble'
 import { markRead, notifyRoomMembers } from '../actions'
+import type { ChatMessage } from '@/lib/chat/types'
 
-type Message = {
-  id: string
-  sender_id: string
-  body: string | null
-  attachment_url: string | null
-  attachment_kind: string | null
-  created_at: string
-}
 type Member = { user_id: string; users: { id: string; name: string | null; avatar_url: string | null } | null }
 export type ChatReaction = { id: string; message_id: string; user_id: string; emoji: string }
 
@@ -27,7 +19,7 @@ export async function fetchBotReplyAfter(
   supabase: SupabaseClient,
   roomId: string,
   sentAt: string,
-): Promise<Message | null> {
+): Promise<ChatMessage | null> {
   try {
     const { data } = await supabase
       .from('chat_messages')
@@ -38,7 +30,7 @@ export async function fetchBotReplyAfter(
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle()
-    return (data as Message | null) ?? null
+    return (data as ChatMessage | null) ?? null
   } catch {
     return null
   }
@@ -48,13 +40,13 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
   roomId: string
   roomKind: string
   currentUserId: string
-  initialMessages: Message[]
+  initialMessages: ChatMessage[]
   members: Member[]
   canSend?: boolean
   initialReactions?: ChatReaction[]
 }) {
   const supabase = createClient()
-  const [messages, setMessages] = useState<Message[]>(initialMessages)
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [aiTyping, setAiTyping] = useState(false)
@@ -65,8 +57,6 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
   const [reactions, setReactions] = useState<ChatReaction[]>(initialReactions)
   const [reactingTo, setReactingTo] = useState<string | null>(null)
-  const holdTimer = useRef<number | null>(null)
-  const holdStart = useRef<{ x: number; y: number } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -84,13 +74,13 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
       .channel(`room:${roomId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}` }, payload => {
         setMessages(prev => {
-          const m = payload.new as Message
+          const m = payload.new as ChatMessage
           if (prev.find(p => p.id === m.id)) return prev
           return [...prev, m]
         })
-        if ((payload.new as Message).sender_id !== currentUserId) {
+        if ((payload.new as ChatMessage).sender_id !== currentUserId) {
           markRead(roomId)
-          if ((payload.new as Message).sender_id === BOT_USER_ID) {
+          if ((payload.new as ChatMessage).sender_id === BOT_USER_ID) {
             setAiTyping(false)
             setAiTimedOut(false)
             if (aiReplyTimeoutRef.current) {
@@ -101,7 +91,7 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}` }, payload => {
-        const updated = payload.new as Message & { deleted_at: string | null }
+        const updated = payload.new as ChatMessage & { deleted_at: string | null }
         if (updated.deleted_at) setMessages(prev => prev.filter(m => m.id !== updated.id))
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_message_reactions' }, payload => {
@@ -243,7 +233,7 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
     setSending(false)
     if (error) { alert(`Send failed: ${error.message}`); return }
     setDraft('')
-    if (inserted) setMessages(prev => prev.find(p => p.id === inserted.id) ? prev : [...prev, inserted as Message])
+    if (inserted) setMessages(prev => prev.find(p => p.id === inserted.id) ? prev : [...prev, inserted as ChatMessage])
     if (roomKind !== 'bot') notifyRoomMembers(roomId, myName ?? 'Someone', body || 'Attachment').catch(() => {})
     if (roomKind === 'bot' && body) {
       const sentAt = new Date().toISOString()
@@ -270,26 +260,6 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
   }
 
   function openSheet(id: string) { setReactingTo(id) }
-  function startHold(id: string, x: number, y: number) {
-    if (holdTimer.current) window.clearTimeout(holdTimer.current)
-    holdStart.current = { x, y }
-    holdTimer.current = window.setTimeout(() => {
-      holdTimer.current = null
-      openSheet(id)
-    }, 380)
-  }
-  function moveHold(x: number, y: number) {
-    const start = holdStart.current
-    if (!start || !holdTimer.current) return
-    const dx = x - start.x
-    const dy = y - start.y
-    if (dx * dx + dy * dy > 16 * 16) cancelHold()
-  }
-  function cancelHold() {
-    if (holdTimer.current) window.clearTimeout(holdTimer.current)
-    holdTimer.current = null
-    holdStart.current = null
-  }
 
   return (
     <>
@@ -309,77 +279,23 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
           <p className="text-center text-xs text-muted-foreground py-8">No messages yet{canSend ? ' — say hello' : ''}</p>
         )}
         {messages.map((m, i) => {
-          const mine = m.sender_id === currentUserId
-          const isBot = m.sender_id === BOT_USER_ID
           const prev = messages[i - 1]
-          const showAvatar = !mine && (!prev || prev.sender_id !== m.sender_id)
+          const isBot = m.sender_id === BOT_USER_ID
           const sender = memberById[m.sender_id]?.users
-          const initials = isBot ? 'AI' : (sender?.name ?? '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
-          const chips = reactionsFor(m.id)
           return (
-            <div key={m.id} className={`flex items-end gap-1.5 ${mine ? 'justify-end' : 'justify-start'}`}>
-              {!mine && (
-                <div className={`w-7 h-7 rounded-full shrink-0 ${showAvatar ? '' : 'invisible'}`}>
-                  {isBot ? (
-                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 text-white"><Bot size={14} /></span>
-                  ) : sender?.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={sender.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
-                  ) : (
-                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-300 text-white text-[10px] font-bold">{initials}</span>
-                  )}
-                </div>
-              )}
-              {mine && (
-              <button type="button" aria-label="React to message" onClick={() => openSheet(m.id)} className="mb-1 shrink-0 rounded-full p-1.5 text-tranmere-blue/70 active:bg-gray-100">
-                <SmilePlus size={16} />
-              </button>
-              )}
-              <div
-                className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm break-words select-none touch-manipulation ${mine ? 'bg-tranmere-blue text-white rounded-br-md' : 'bg-white border text-gray-900 rounded-bl-md'}`}
-                onContextMenu={e => { e.preventDefault(); openSheet(m.id) }}
-                onPointerDown={e => {
-                  if (e.pointerType === 'mouse' && e.button !== 0) return
-                  startHold(m.id, e.clientX, e.clientY)
-                }}
-                onPointerMove={e => moveHold(e.clientX, e.clientY)}
-                onPointerUp={cancelHold}
-                onPointerCancel={cancelHold}
-                onPointerLeave={cancelHold}
-              >
-                {!mine && showAvatar && (
-                  <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">{isBot ? 'AI Coach' : (sender?.name ?? '?')}</p>
-                )}
-                {m.attachment_kind === 'image' && m.attachment_url && attachmentSrc(m.attachment_url) && (
-                  <ChatImage src={attachmentSrc(m.attachment_url)!} />
-                )}
-                {m.attachment_kind === 'file' && m.attachment_url && attachmentSrc(m.attachment_url) && (
-                  <a href={attachmentSrc(m.attachment_url)!} target="_blank" rel="noreferrer" className={`underline text-xs flex items-center gap-1 mb-1 ${mine ? 'text-blue-200' : 'text-tranmere-blue'}`}>
-                    {decodeURIComponent(m.attachment_url.split('/').pop()?.split('?')[0] ?? 'file')}
-                  </a>
-                )}
-                {m.body && <MessageBody body={m.body} mine={mine} />}
-                <p className={`text-[10px] mt-0.5 ${mine ? 'text-blue-200' : 'text-gray-400'}`}>
-                  {new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
-                </p>
-                {chips.length > 0 && (
-                  <div className={`flex flex-wrap gap-1 mt-1 ${mine ? 'justify-end' : 'justify-start'}`}>
-                    {chips.map(chip => (
-                      <button key={chip.emoji} type="button" onClick={() => toggleReaction(m.id, chip.emoji)} className={`text-[11px] leading-none px-1.5 py-0.5 rounded-full border ${
-                        chip.mine ? (mine ? 'bg-white/20 border-white/40 text-white' : 'bg-blue-50 border-tranmere-blue/40') : (mine ? 'bg-white/10 border-white/20 text-white' : 'bg-gray-50 border-gray-200')
-                      }`}>
-                        {chip.emoji}{chip.count > 1 ? ` ${chip.count}` : ''}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {!mine && (
-              <button type="button" aria-label="React to message" onClick={() => openSheet(m.id)} className="mb-1 shrink-0 rounded-full p-1.5 text-gray-400 active:bg-gray-100">
-                <SmilePlus size={16} />
-              </button>
-              )}
-            </div>
+            <MessageBubble
+              key={m.id}
+              message={m}
+              mine={m.sender_id === currentUserId}
+              isBot={isBot}
+              showAvatar={m.sender_id !== currentUserId && (!prev || prev.sender_id !== m.sender_id)}
+              senderName={isBot ? 'AI Coach' : (sender?.name ?? '?')}
+              avatarUrl={sender?.avatar_url ?? null}
+              chips={reactionsFor(m.id)}
+              attachmentSrc={attachmentSrc}
+              onOpenSheet={openSheet}
+              onToggleReaction={toggleReaction}
+            />
           )
         })}
         {aiTyping && (
