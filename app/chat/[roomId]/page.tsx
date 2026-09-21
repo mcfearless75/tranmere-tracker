@@ -6,6 +6,7 @@ import { ArrowLeft } from 'lucide-react'
 import { ChatThread } from './ChatThread'
 import { GroupMembers } from './GroupMembers'
 import { AddGroupMembers } from './AddGroupMembers'
+import type { ReplyParent } from '@/lib/chat/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,6 +61,24 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
   const messages = (recentMessages ?? []).slice().reverse()
   const messageIds = messages.map((m: any) => m.id)
 
+  // A reply can point outside the 100-message window. Without this fetch the
+  // quote renders blank for anything older.
+  const windowIds = new Set(messages.map((m: any) => m.id))
+  const missingParentIds = Array.from(new Set(
+    messages
+      .map((m: any) => m.reply_to_id)
+      .filter((id: string | null): id is string => !!id && !windowIds.has(id))
+  ))
+
+  let replyParents: ReplyParent[] = []
+  if (missingParentIds.length) {
+    const { data } = await admin
+      .from('chat_messages')
+      .select('id, sender_id, body, attachment_kind, deleted_at')
+      .in('id', missingParentIds)
+    replyParents = (data ?? []) as ReplyParent[]
+  }
+
   let reactions: { id: string; message_id: string; user_id: string; emoji: string }[] = []
   if (messageIds.length) {
     const { data: reactionRows, error: reactionErr } = await admin
@@ -112,6 +131,7 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
         currentUserId={user.id}
         initialMessages={(messages ?? []) as any}
         initialReactions={reactions}
+        initialReplyParents={replyParents}
         members={(members ?? []) as any}
         canSend={canSend}
       />

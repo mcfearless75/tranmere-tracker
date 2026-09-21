@@ -6,12 +6,14 @@ export function MessageReactionSheet({
   mine,
   deleting,
   onPick,
+  onReply,
   onDelete,
   onClose,
 }: {
   mine: boolean
   deleting: boolean
   onPick: (emoji: string) => void
+  onReply: () => void
   onDelete: () => void
   onClose: () => void
 }) {
@@ -32,6 +34,13 @@ export function MessageReactionSheet({
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          onClick={onReply}
+          className="w-full border-t border-white/10 px-4 py-3 text-left text-sm font-medium"
+        >
+          Reply
+        </button>
         {mine && (
           <button
             type="button"

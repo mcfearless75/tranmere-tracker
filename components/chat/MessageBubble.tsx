@@ -4,7 +4,8 @@ import { useRef } from 'react'
 import { Bot, SmilePlus } from 'lucide-react'
 import { ChatImage } from '@/components/chat/ChatImage'
 import { MessageBody } from '@/components/chat/MessageBody'
-import type { ChatMessage } from '@/lib/chat/types'
+import { ReplyQuote } from '@/components/chat/ReplyQuote'
+import type { ChatMessage, ReplyParent } from '@/lib/chat/types'
 
 export type ReactionChip = { emoji: string; count: number; mine: boolean }
 
@@ -19,6 +20,9 @@ export type MessageBubbleProps = {
   attachmentSrc: (url: string) => string | null
   onOpenSheet: (messageId: string) => void
   onToggleReaction: (messageId: string, emoji: string) => void
+  replyParent?: ReplyParent | null
+  replyParentName?: string
+  onJumpToMessage?: (messageId: string) => void
 }
 
 export function MessageBubble({
@@ -32,6 +36,9 @@ export function MessageBubble({
   attachmentSrc,
   onOpenSheet,
   onToggleReaction,
+  replyParent = null,
+  replyParentName = '',
+  onJumpToMessage,
 }: MessageBubbleProps) {
   const holdTimer = useRef<number | null>(null)
   const holdStart = useRef<{ x: number; y: number } | null>(null)
@@ -63,7 +70,7 @@ export function MessageBubble({
   }
 
   return (
-    <div className={`flex items-end gap-1.5 ${mine ? 'justify-end' : 'justify-start'}`}>
+    <div id={`msg-${m.id}`} className={`flex items-end gap-1.5 ${mine ? 'justify-end' : 'justify-start'}`}>
       {!mine && (
         <div className={`w-7 h-7 rounded-full shrink-0 ${showAvatar ? '' : 'invisible'}`}>
           {isBot ? (
@@ -95,6 +102,17 @@ export function MessageBubble({
       >
         {!mine && showAvatar && (
           <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">{isBot ? 'AI Coach' : senderName}</p>
+        )}
+        {m.reply_to_id && (
+          <ReplyQuote
+            parent={replyParent}
+            senderName={replyParentName}
+            variant="bubble"
+            mine={mine}
+            onJump={onJumpToMessage && replyParent && !replyParent.deleted_at
+              ? () => onJumpToMessage(replyParent.id)
+              : undefined}
+          />
         )}
         {m.attachment_kind === 'image' && m.attachment_url && attachmentSrc(m.attachment_url) && (
           <ChatImage src={attachmentSrc(m.attachment_url)!} />

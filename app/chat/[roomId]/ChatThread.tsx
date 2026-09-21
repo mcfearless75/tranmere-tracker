@@ -6,8 +6,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { Send, Paperclip, X, Bot } from 'lucide-react'
 import { MessageReactionSheet } from '@/components/chat/MessageReactionSheet'
 import { MessageBubble } from '@/components/chat/MessageBubble'
+import { ReplyQuote } from '@/components/chat/ReplyQuote'
 import { markRead, notifyRoomMembers } from '../actions'
-import type { ChatMessage } from '@/lib/chat/types'
+import type { ChatMessage, ReplyParent } from '@/lib/chat/types'
 
 type Member = { user_id: string; users: { id: string; name: string | null; avatar_url: string | null } | null }
 export type ChatReaction = { id: string; message_id: string; user_id: string; emoji: string }
@@ -36,7 +37,7 @@ export async function fetchBotReplyAfter(
   }
 }
 
-export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, members, canSend = true, initialReactions = [] }: {
+export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, members, canSend = true, initialReactions = [], initialReplyParents = [] }: {
   roomId: string
   roomKind: string
   currentUserId: string
@@ -44,6 +45,7 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
   members: Member[]
   canSend?: boolean
   initialReactions?: ChatReaction[]
+  initialReplyParents?: ReplyParent[]
 }) {
   const supabase = createClient()
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
@@ -57,6 +59,10 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
   const [reactions, setReactions] = useState<ChatReaction[]>(initialReactions)
   const [reactingTo, setReactingTo] = useState<string | null>(null)
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null)
+  const [replyParents, setReplyParents] = useState<Record<string, ReplyParent>>(
+    Object.fromEntries(initialReplyParents.map(p => [p.id, p]))
+  )
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -144,6 +150,55 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
     return url.startsWith('http') ? url : signedUrls[url] ?? null
   }
 
+  function parentFor(message: ChatMessage): ReplyParent | null {
+    if (!message.reply_to_id) return null
+    const inWindow = messages.find(m => m.id === message.reply_to_id)
+    if (inWindow) {
+      return {
+        id: inWindow.id,
+        sender_id: inWindow.sender_id,
+        body: inWindow.body,
+        attachment_kind: inWindow.attachment_kind,
+        deleted_at: null,
+      }
+    }
+    return replyParents[message.reply_to_id] ?? null
+  }
+
+  // A reply can point at a message that is neither in the loaded window nor
+  // in initialReplyParents — e.g. one that arrives over realtime after page
+  // load, replying to something older. Fetch those lazily so the quote
+  // doesn't render blank.
+  useEffect(() => {
+    const missing = messages
+      .map(m => m.reply_to_id)
+      .filter((id): id is string =>
+        !!id && !messages.some(m => m.id === id) && !replyParents[id])
+    if (missing.length === 0) return
+    let cancelled = false
+    supabase
+      .from('chat_messages')
+      .select('id, sender_id, body, attachment_kind, deleted_at')
+      .in('id', missing)
+      .then(({ data }: { data: ReplyParent[] | null }) => {
+        if (cancelled || !data) return
+        setReplyParents(prev => ({
+          ...prev,
+          ...Object.fromEntries(data.map(p => [p.id, p])),
+        }))
+      })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, replyParents, supabase])
+
+  function jumpToMessage(messageId: string) {
+    const el = document.getElementById(`msg-${messageId}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('ring-2', 'ring-tranmere-blue')
+    window.setTimeout(() => el.classList.remove('ring-2', 'ring-tranmere-blue'), 1200)
+  }
+
   async function deleteMessage(id: string) {
     if (!window.confirm('Delete this message? This cannot be undone.')) return
     setDeletingId(id)
@@ -229,10 +284,11 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
       if (result) { attachmentUrl = result.url; attachmentKind = result.kind }
       setAttachment(null)
     }
-    const { data: inserted, error } = await supabase.from('chat_messages').insert({ room_id: roomId, sender_id: currentUserId, body: body || null, attachment_url: attachmentUrl, attachment_kind: attachmentKind }).select('*').single()
+    const { data: inserted, error } = await supabase.from('chat_messages').insert({ room_id: roomId, sender_id: currentUserId, body: body || null, attachment_url: attachmentUrl, attachment_kind: attachmentKind, reply_to_id: replyingTo?.id ?? null }).select('*').single()
     setSending(false)
     if (error) { alert(`Send failed: ${error.message}`); return }
     setDraft('')
+    setReplyingTo(null)
     if (inserted) setMessages(prev => prev.find(p => p.id === inserted.id) ? prev : [...prev, inserted as ChatMessage])
     if (roomKind !== 'bot') notifyRoomMembers(roomId, myName ?? 'Someone', body || 'Attachment').catch(() => {})
     if (roomKind === 'bot' && body) {
@@ -282,6 +338,9 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
           const prev = messages[i - 1]
           const isBot = m.sender_id === BOT_USER_ID
           const sender = memberById[m.sender_id]?.users
+          const replyParent = parentFor(m)
+          const replyParentIsBot = replyParent?.sender_id === BOT_USER_ID
+          const replyParentName = replyParentIsBot ? 'AI Coach' : (memberById[replyParent?.sender_id ?? '']?.users?.name ?? '?')
           return (
             <MessageBubble
               key={m.id}
@@ -295,6 +354,9 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
               attachmentSrc={attachmentSrc}
               onOpenSheet={openSheet}
               onToggleReaction={toggleReaction}
+              replyParent={replyParent}
+              replyParentName={replyParentName}
+              onJumpToMessage={jumpToMessage}
             />
           )
         })}
@@ -326,6 +388,20 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
           <button onClick={() => setAttachment(null)} className="ml-auto text-gray-400 hover:text-gray-600 shrink-0"><X size={16} /></button>
         </div>
       )}
+      {replyingTo && (
+        <ReplyQuote
+          parent={{
+            id: replyingTo.id,
+            sender_id: replyingTo.sender_id,
+            body: replyingTo.body,
+            attachment_kind: replyingTo.attachment_kind,
+            deleted_at: null,
+          }}
+          senderName={replyingTo.sender_id === BOT_USER_ID ? 'AI Coach' : (memberById[replyingTo.sender_id]?.users?.name ?? '?')}
+          variant="composer"
+          onCancel={() => setReplyingTo(null)}
+        />
+      )}
       {canSend ? (
         <div className="bg-white border-t p-2 flex items-end gap-2 shrink-0 safe-bottom">
           <input ref={fileInputRef} type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv" className="hidden" onChange={handleFileSelect} />
@@ -335,7 +411,7 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
             if (typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches) return
             e.preventDefault(); send()
           }} placeholder="Message…" rows={1} className="flex-1 text-sm border rounded-2xl px-3 py-2 resize-none focus:ring-2 focus:ring-tranmere-blue outline-none max-h-32 overflow-y-auto" />
-          <button onClick={send} disabled={(!draft.trim() && !attachment) || sending} className="rounded-full bg-tranmere-blue text-white w-10 h-10 flex items-center justify-center shrink-0 disabled:opacity-50"><Send size={16} /></button>
+          <button onClick={send} disabled={(!draft.trim() && !attachment) || sending} aria-label="Send message" className="rounded-full bg-tranmere-blue text-white w-10 h-10 flex items-center justify-center shrink-0 disabled:opacity-50"><Send size={16} /></button>
         </div>
       ) : (
         <div className="bg-gray-50 border-t p-3 text-center text-xs text-muted-foreground safe-bottom">This is a broadcast channel — only staff can post.</div>
@@ -345,6 +421,7 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
           mine={messages.find(m => m.id === reactingTo)?.sender_id === currentUserId}
           deleting={deletingId === reactingTo}
           onPick={emoji => { toggleReaction(reactingTo, emoji); setReactingTo(null) }}
+          onReply={() => { setReplyingTo(messages.find(m => m.id === reactingTo) ?? null); setReactingTo(null) }}
           onDelete={() => { deleteMessage(reactingTo); setReactingTo(null) }}
           onClose={() => setReactingTo(null)}
         />
