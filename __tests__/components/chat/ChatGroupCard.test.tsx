@@ -117,4 +117,35 @@ describe('ChatGroupCard', () => {
     expect(screen.getByText('Give the group a name')).toBeInTheDocument()
     expect(renameGroupChatMock).not.toHaveBeenCalled()
   })
+
+  it('explains in the add panel that only staff can be added to a synced roster', () => {
+    render(<ChatGroupCard roomId="r1" roomName="Year 2 Students" syncYearGroup={2} members={members} addable={addable} />)
+    fireEvent.click(screen.getByText('Year 2 Students'))
+    fireEvent.click(screen.getByText('Add people'))
+    expect(screen.getByText(/Only staff can be added here/)).toBeInTheDocument()
+    expect(screen.getByText(/set their year group to 2/)).toBeInTheDocument()
+  })
+
+  it('shows no sync explanation in the add panel of a manually-managed group', () => {
+    render(<ChatGroupCard roomId="r1" roomName="Strikers" syncYearGroup={null} members={members} addable={addable} />)
+    fireEvent.click(screen.getByText('Strikers'))
+    fireEvent.click(screen.getByText('Add people'))
+    expect(screen.queryByText(/Only staff can be added here/)).not.toBeInTheDocument()
+  })
+
+  it('says everyone addable is already in, rather than "No match", on an empty list', () => {
+    render(<ChatGroupCard roomId="r1" roomName="Year 2 Students" syncYearGroup={2} members={members} addable={[]} />)
+    fireEvent.click(screen.getByText('Year 2 Students'))
+    fireEvent.click(screen.getByText('Add people'))
+    expect(screen.getByText('Everyone who can be added is already in')).toBeInTheDocument()
+    expect(screen.queryByText('No match')).not.toBeInTheDocument()
+  })
+
+  it('still says "No match" when a search simply matches nobody', () => {
+    render(<ChatGroupCard roomId="r1" roomName="Year 2 Students" syncYearGroup={2} members={members} addable={addable} />)
+    fireEvent.click(screen.getByText('Year 2 Students'))
+    fireEvent.click(screen.getByText('Add people'))
+    fireEvent.change(screen.getByPlaceholderText('Search people...'), { target: { value: 'zzzz' } })
+    expect(screen.getByText('No match')).toBeInTheDocument()
+  })
 })
