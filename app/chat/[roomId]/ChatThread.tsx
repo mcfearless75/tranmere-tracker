@@ -69,6 +69,11 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const aiReplyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Ids we've already tried to fetch a reply parent for, whether or not the
+  // fetch found a row. Without this, an id the query can never resolve (RLS
+  // denies it, or it was hard-deleted) would be recomputed as still-missing
+  // on every render, refire the fetch, and loop forever.
+  const attemptedParentIds = useRef<Set<string>>(new Set())
 
   const memberById: Record<string, Member> = {}
   for (const m of members) memberById[m.user_id] = m
@@ -173,15 +178,18 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
     const missing = messages
       .map(m => m.reply_to_id)
       .filter((id): id is string =>
-        !!id && !messages.some(m => m.id === id) && !replyParents[id])
+        !!id && !messages.some(m => m.id === id) && !replyParents[id] && !attemptedParentIds.current.has(id))
     if (missing.length === 0) return
+    // Mark these attempted before the request fires (a ref, so this doesn't
+    // retrigger the effect) so an id the query never resolves is not retried.
+    for (const id of missing) attemptedParentIds.current.add(id)
     let cancelled = false
     supabase
       .from('chat_messages')
       .select('id, sender_id, body, attachment_kind, deleted_at')
       .in('id', missing)
       .then(({ data }: { data: ReplyParent[] | null }) => {
-        if (cancelled || !data) return
+        if (cancelled || !data || data.length === 0) return
         setReplyParents(prev => ({
           ...prev,
           ...Object.fromEntries(data.map(p => [p.id, p])),
@@ -341,6 +349,12 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
           const replyParent = parentFor(m)
           const replyParentIsBot = replyParent?.sender_id === BOT_USER_ID
           const replyParentName = replyParentIsBot ? 'AI Coach' : (memberById[replyParent?.sender_id ?? '']?.users?.name ?? '?')
+          // Spec §6: "If the original is not in the loaded window, the strip
+          // is not tappable." Only offer the jump handler when the parent's
+          // bubble actually exists on screen — a parent resolved from
+          // initialReplyParents or the lazy fetch lives outside `messages`
+          // and has nowhere to scroll to.
+          const canJumpToParent = !!m.reply_to_id && messages.some(msg => msg.id === m.reply_to_id)
           return (
             <MessageBubble
               key={m.id}
@@ -356,7 +370,7 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
               onToggleReaction={toggleReaction}
               replyParent={replyParent}
               replyParentName={replyParentName}
-              onJumpToMessage={jumpToMessage}
+              onJumpToMessage={canJumpToParent ? jumpToMessage : undefined}
             />
           )
         })}

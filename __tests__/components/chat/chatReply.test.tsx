@@ -36,7 +36,9 @@ const channelMock: ChannelMock = {
 }
 
 const insertMock = jest.fn(() => ({
-  select: () => ({ single: () => Promise.resolve({ data: null, error: null }) }),
+  select: () => ({
+    single: () => Promise.resolve<{ data: null; error: { message: string } | null }>({ data: null, error: null }),
+  }),
 }))
 
 const inMock = jest.fn(() => Promise.resolve({ data: [] }))
@@ -156,5 +158,74 @@ describe('chat replies', () => {
     fireEvent.click(screen.getByLabelText('Cancel reply'))
     expect(screen.queryByLabelText('Cancel reply')).not.toBeInTheDocument()
     expect(insertMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the composer reply stub in place when the send fails', async () => {
+    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {})
+    insertMock.mockImplementationOnce(() => ({
+      select: () => ({ single: () => Promise.resolve({ data: null, error: { message: 'boom' } }) }),
+    }))
+    await act(async () => { renderThread() })
+    fireEvent.click(screen.getAllByLabelText('React to message')[0])
+    fireEvent.click(screen.getByText('Reply'))
+    expect(screen.getByLabelText('Cancel reply')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Message…'), { target: { value: 'On my way' } })
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Send message'))
+    })
+
+    expect(alertSpy).toHaveBeenCalledWith('Send failed: boom')
+    // The user's reply target must not be silently lost on a failed send.
+    expect(screen.getByLabelText('Cancel reply')).toBeInTheDocument()
+    alertSpy.mockRestore()
+  })
+
+  // Regression guard for the lazy reply-parent fetch: an id the query can
+  // never resolve (RLS denies it, or the row was hard-deleted) must be
+  // attempted at most once. Before the fix, `setReplyParents` was called
+  // unconditionally on every fetch — even when it added no keys — which
+  // produced a new object reference, retriggered the effect (it depends on
+  // `replyParents`), recomputed the same still-missing id, and fetched
+  // again forever.
+  it('fetches an unresolvable reply parent exactly once — no retry loop', async () => {
+    const replyToGhost: ChatMessage = { ...messages[1], id: 'm3', reply_to_id: 'ghost' }
+    await act(async () => {
+      renderThread({ initialMessages: [messages[0], replyToGhost] })
+    })
+
+    await waitFor(() => expect(inMock).toHaveBeenCalledTimes(1))
+    expect(inMock).toHaveBeenCalledWith('id', ['ghost'])
+
+    // Flush further render/effect cycles. Under the bug, `inMock` would
+    // keep growing without bound instead of settling at 1.
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(inMock).toHaveBeenCalledTimes(1)
+  })
+
+  // Spec §6: "If the original is not in the loaded window, the strip is not
+  // tappable."
+  describe('jump-to-original tappability', () => {
+    it('is tappable when the parent is in the loaded window', async () => {
+      await act(async () => { renderThread() })
+      const matches = screen.getAllByText('Training moved to 6pm')
+      const quote = matches.find(el => el.closest('button'))
+      expect(quote).toBeTruthy()
+    })
+
+    it('is NOT tappable when the parent came from initialReplyParents (outside the loaded window)', async () => {
+      const older: ReplyParent = { id: 'm0', sender_id: 'u2', body: 'Old news', attachment_kind: null, deleted_at: null }
+      await act(async () => {
+        renderThread({
+          initialMessages: [{ ...messages[1], reply_to_id: 'm0' }],
+          initialReplyParents: [older],
+        })
+      })
+      const quote = screen.getByText('Old news')
+      expect(quote.closest('button')).toBeNull()
+    })
   })
 })
