@@ -65,4 +65,26 @@ describe('ReplyQuote', () => {
     rerender(<ReplyQuote parent={parent} senderName="Coach Phil" variant="bubble" />)
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
+
+  it('falls back to the deleted stub for a parent with neither body nor attachment', () => {
+    render(
+      <ReplyQuote
+        parent={{ ...parent, body: null, attachment_kind: null }}
+        senderName="Coach Phil"
+        variant="bubble"
+      />
+    )
+    expect(screen.getByText('Message deleted')).toBeInTheDocument()
+  })
+
+  it('falls back to the deleted stub for a parent with only whitespace in body', () => {
+    render(
+      <ReplyQuote
+        parent={{ ...parent, body: '   ', attachment_kind: null }}
+        senderName="Coach Phil"
+        variant="bubble"
+      />
+    )
+    expect(screen.getByText('Message deleted')).toBeInTheDocument()
+  })
 })
