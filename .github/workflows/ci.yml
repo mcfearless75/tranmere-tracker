@@ -50,3 +50,36 @@ jobs:
       # only, which is the line we want to hold.
       - run: npm run lint
       - run: npx tsc --noEmit
+
+  migrations:
+    name: Migration replay
+    runs-on: ubuntu-latest
+    # Replays every migration against an empty database, the way a Supabase
+    # preview branch does. `Supabase Preview` already does this, but it is an
+    # external check that went red for weeks and four PRs merged over it — a
+    # hardcoded production-only id in 054 aborted the replay at statement 3.
+    # This job is the blocking, in-repo version of that safety net.
+    #
+    # Needs no secrets: it replays the SQL, it never touches production.
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        # Without a healthcheck the job races the container's first boot.
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      # psql ships on ubuntu-latest runners; the script uses it directly
+      # rather than Docker when REPLAY_DATABASE_URL is set.
+      - name: Replay migrations against an empty database
+        env:
+          REPLAY_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/app
+        run: bash scripts/migration-replay/replay.sh
