@@ -79,7 +79,7 @@ export default async function AdminWellbeingPage() {
 
       {surveysError ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          <p className="font-semibold">Couldn't load surveys</p>
+          <p className="font-semibold">Couldn&apos;t load surveys</p>
           <p className="mt-1 text-amber-700">{surveysError.message}</p>
         </div>
       ) : studentGroups.length === 0 ? (

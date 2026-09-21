@@ -15,8 +15,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Blocking. Everything here passes on master today, so a red build means
-  # something genuinely broke rather than a pre-existing debt.
   test:
     name: Build and test
     runs-on: ubuntu-latest
@@ -35,16 +33,9 @@ jobs:
       - run: npm run build
       - run: npm test -- --ci
 
-  # Advisory, not blocking. next.config.js sets eslint.ignoreDuringBuilds and
-  # typescript.ignoreBuildErrors (e10ef33), so neither of these gates anything
-  # anywhere right now, and master currently carries ~4 lint errors and ~12
-  # type errors. Surfacing them here makes new ones visible without painting
-  # the whole board red on day one. Once the backlog is cleared, drop the
-  # continue-on-error lines and this becomes a real gate.
   quality:
-    name: Lint and typecheck (advisory)
+    name: Lint and typecheck
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -52,7 +43,10 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # next.config.js sets eslint.ignoreDuringBuilds and
+      # typescript.ignoreBuildErrors, so `next build` — here and on Vercel —
+      # catches neither. This job is the only thing enforcing them.
+      # ESLint warnings stay warnings: `next lint` exits non-zero on errors
+      # only, which is the line we want to hold.
       - run: npm run lint
-        continue-on-error: true
       - run: npx tsc --noEmit
-        continue-on-error: true

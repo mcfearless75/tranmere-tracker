@@ -15,7 +15,7 @@
  */
 const adminFromMock = jest.fn()
 const adminRpcMock = jest.fn()
-const sendPushNotificationMock = jest.fn(() => Promise.resolve())
+const sendPushNotificationMock = jest.fn((..._args: unknown[]) => Promise.resolve())
 
 jest.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => ({ from: adminFromMock, rpc: adminRpcMock }),
