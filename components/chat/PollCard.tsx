@@ -91,7 +91,12 @@ export function PollCard({
       {(isChatStaff && !closed) || (isChatStaff && onShowVoters && !voters) ? (
         <div className="mt-2 flex items-center gap-3 text-[11px] font-medium">
           {isChatStaff && !closed && (
-            <button type="button" onClick={onClose} className="text-red-600">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={busy}
+              className="text-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               Close poll
             </button>
           )}

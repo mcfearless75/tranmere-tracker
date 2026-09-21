@@ -35,13 +35,29 @@ const channelMock: ChannelMock = {
   presenceState: jest.fn(() => ({})),
 }
 
+/** Drives a brand-new message in over realtime. Takes the LAST registered
+ *  handler — `channelMock.on` accumulates calls across renders. */
+function fireMessageInsert(row: ChatMessage) {
+  const calls = channelMock.on.mock.calls.filter(c => {
+    if (c[0] !== 'postgres_changes') return false
+    const cfg = c[1] as { table?: string; event?: string }
+    return cfg?.table === 'chat_messages' && cfg?.event === 'INSERT'
+  })
+  const handler = calls[calls.length - 1]?.[2] as ((p: { new: ChatMessage }) => void) | undefined
+  if (!handler) throw new Error('chat_messages INSERT handler was not registered')
+  handler({ new: row })
+}
+
 const insertMock = jest.fn(() => ({
   select: () => ({
     single: () => Promise.resolve<{ data: null; error: { message: string } | null }>({ data: null, error: null }),
   }),
 }))
 
-const inMock = jest.fn(() => Promise.resolve({ data: [] }))
+// The lazy reply-parent lookup: .select(...).in('id', ids).eq('room_id', id)
+const eqMock = jest.fn((_col: string, _val: string) =>
+  Promise.resolve<{ data: ReplyParent[] }>({ data: [] }))
+const inMock = jest.fn((_col: string, _ids: string[]) => ({ eq: eqMock }))
 
 function makeChatMessagesFrom() {
   return {
@@ -103,6 +119,8 @@ describe('chat replies', () => {
   beforeEach(() => {
     insertMock.mockClear()
     inMock.mockClear()
+    eqMock.mockClear()
+    eqMock.mockImplementation(() => Promise.resolve({ data: [] }))
   })
 
   it('renders the quote from a parent inside the loaded window', async () => {
@@ -204,6 +222,55 @@ describe('chat replies', () => {
       await Promise.resolve()
     })
     expect(inMock).toHaveBeenCalledTimes(1)
+  })
+
+  // Same class as the admin-client fix in page.tsx: reply_to_id is
+  // attacker-controlled (migration 011's insert policy validates neither it
+  // nor poll_id), so a member of two rooms could otherwise quote a message
+  // from one inside the other.
+  it('constrains the reply-parent lookup to this room', async () => {
+    const replyToGhost: ChatMessage = { ...messages[1], id: 'm3', reply_to_id: 'ghost' }
+    await act(async () => {
+      renderThread({ initialMessages: [messages[0], replyToGhost] })
+    })
+    await waitFor(() => expect(inMock).toHaveBeenCalledWith('id', ['ghost']))
+    expect(eqMock).toHaveBeenCalledWith('room_id', 'room-1')
+  })
+
+  // Regression for the cancel-plus-attempted-guard race: the id is marked
+  // attempted before the request fires, and React runs this effect's cleanup
+  // on every `messages` change — not just on unmount. Without unmarking on
+  // the cancelled path, one more message arriving mid-flight discarded the
+  // response and left the parent unfetchable, so the quote stayed blank.
+  it('still resolves the parent when a second message arrives mid-flight', async () => {
+    const older: ReplyParent = { id: 'm0', sender_id: 'u2', body: 'Old news', attachment_kind: null, deleted_at: null, poll_id: null }
+    let release: (value: { data: ReplyParent[] }) => void = () => {}
+    eqMock.mockImplementationOnce(() =>
+      new Promise<{ data: ReplyParent[] }>(res => { release = res }))
+    eqMock.mockImplementation(() => Promise.resolve({ data: [older] }))
+
+    await act(async () => {
+      renderThread({ initialMessages: [{ ...messages[1], reply_to_id: 'm0' }] })
+    })
+    await waitFor(() => expect(inMock).toHaveBeenCalledTimes(1))
+
+    await act(async () => {
+      fireMessageInsert({
+        id: 'm11',
+        sender_id: 'u2',
+        body: 'nice',
+        attachment_url: null,
+        attachment_kind: null,
+        created_at: '2026-09-21T17:02:00.000Z',
+        reply_to_id: null,
+        poll_id: null,
+      })
+    })
+
+    await waitFor(() => expect(inMock).toHaveBeenCalledTimes(2))
+    await act(async () => { release({ data: [] }) })
+
+    await waitFor(() => expect(screen.getByText('Old news')).toBeInTheDocument())
   })
 
   // Spec §6: "If the original is not in the loaded window, the strip is not

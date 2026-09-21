@@ -75,10 +75,16 @@ const insertMock = jest.fn(() => ({
 let fetchedPolls: Poll[] = []
 let fetchedOptions: PollOption[] = []
 
-const pollsSelectInMock = jest.fn(() => Promise.resolve({ data: fetchedPolls }))
+// .select('*').in('id', ids).eq('room_id', roomId)
+const pollsSelectEqMock = jest.fn((_col: string, _val: string) =>
+  Promise.resolve({ data: fetchedPolls }))
+const pollsSelectInMock = jest.fn((_col: string, _ids: string[]) => ({ eq: pollsSelectEqMock }))
 const optionsSelectInMock = jest.fn(() => ({
   order: jest.fn(() => Promise.resolve({ data: fetchedOptions })),
 }))
+// chat_messages reply-parent lookup: .select(...).in('id', ids).eq('room_id', roomId)
+const parentsEqMock = jest.fn(() => Promise.resolve({ data: [] }))
+const parentsInMock = jest.fn(() => ({ eq: parentsEqMock }))
 
 function makeChatMessagesFrom() {
   return {
@@ -94,7 +100,7 @@ function makeChatMessagesFrom() {
           })),
         })),
       })),
-      in: jest.fn(() => Promise.resolve({ data: [] })),
+      in: parentsInMock,
     })),
   }
 }
@@ -183,7 +189,11 @@ describe('polls in the thread', () => {
     closePollMock.mockClear()
     closePollMock.mockImplementation(() => Promise.resolve({ ok: true }))
     pollsSelectInMock.mockClear()
+    pollsSelectEqMock.mockClear()
+    pollsSelectEqMock.mockImplementation(() => Promise.resolve({ data: fetchedPolls }))
     optionsSelectInMock.mockClear()
+    parentsInMock.mockClear()
+    parentsEqMock.mockClear()
     fetchedPolls = []
     fetchedOptions = []
   })
@@ -298,6 +308,65 @@ describe('polls in the thread', () => {
       expect(screen.getByRole('button', { name: /Boots/ })).toBeInTheDocument()
     })
 
+    // Same class as the CRITICAL 1 fix on the server: poll_id is
+    // attacker-controlled, so a member of two rooms could otherwise pull
+    // another room's poll (labels, live tallies, a working vote button)
+    // into this thread. RLS bounds who can see it; the constraint stops it
+    // being rendered in the wrong room at all.
+    it('constrains the poll lookup to this room', async () => {
+      fetchedPolls = [newPoll]
+      fetchedOptions = newOptions
+      await act(async () => {
+        renderThreadWithPoll({ initialMessages: [], initialPolls: [], initialPollOptions: [] })
+      })
+      await act(async () => { fireMessageInsert(carrier) })
+      await waitFor(() => expect(pollsSelectInMock).toHaveBeenCalledWith('id', ['poll-2']))
+      expect(pollsSelectEqMock).toHaveBeenCalledWith('room_id', 'room-1')
+    })
+
+    // Regression for the cancel-plus-attempted-guard race. The effect marks
+    // an id attempted BEFORE the request fires (that is what stops the
+    // infinite loop), and React runs the cleanup on every `messages` change,
+    // not only on unmount. Without unmarking on the cancelled path, one more
+    // message arriving mid-flight discarded the response AND left the poll
+    // permanently marked attempted — an empty grey bubble until a reload.
+    it('still renders when a second message arrives while its fetch is in flight', async () => {
+      fetchedPolls = [newPoll]
+      fetchedOptions = newOptions
+      let releasePolls: (value: { data: Poll[] }) => void = () => {}
+      pollsSelectEqMock.mockImplementationOnce(() =>
+        new Promise<{ data: Poll[] }>(res => { releasePolls = res }))
+
+      await act(async () => {
+        renderThreadWithPoll({ initialMessages: [], initialPolls: [], initialPollOptions: [] })
+      })
+      await act(async () => { fireMessageInsert(carrier) })
+      expect(pollsSelectInMock).toHaveBeenCalledTimes(1)
+
+      // Anything at all — a second poll, or just someone typing "nice".
+      await act(async () => {
+        fireMessageInsert({
+          id: 'm10',
+          sender_id: 'u2',
+          body: 'nice',
+          attachment_url: null,
+          attachment_kind: null,
+          created_at: '2026-09-21T18:00:01.000Z',
+          reply_to_id: null,
+          poll_id: null,
+        })
+      })
+
+      // The first request was cancelled; the retry must have gone out.
+      await waitFor(() => expect(pollsSelectInMock).toHaveBeenCalledTimes(2))
+
+      // The stale response landing late must not clobber anything either.
+      await act(async () => { releasePolls({ data: [newPoll] }) })
+
+      await waitFor(() => expect(screen.getByText('Boots or trainers?')).toBeInTheDocument())
+      expect(screen.getByRole('button', { name: /Boots/ })).toBeInTheDocument()
+    })
+
     it('fetches an unresolvable poll exactly once — no retry loop', async () => {
       fetchedPolls = []
       fetchedOptions = []
@@ -331,6 +400,23 @@ describe('polls in the thread', () => {
       // Still open — a failed close must not look like a successful one.
       expect(screen.getByText('Close poll')).toBeInTheDocument()
       alertSpy.mockRestore()
+    })
+
+    // Symmetric with vote(), which already guarded. Harmless but
+    // inconsistent: two taps used to fire two closePoll calls.
+    it('fires closePoll once for a double tap', async () => {
+      let release: (value: { ok: boolean }) => void = () => {}
+      closePollMock.mockImplementationOnce(() =>
+        new Promise<{ ok: boolean; error?: string }>(res => { release = res }))
+      await act(async () => { renderThreadWithPoll() })
+
+      const button = screen.getByText('Close poll')
+      await act(async () => { fireEvent.click(button) })
+      expect(button).toBeDisabled()
+      await act(async () => { fireEvent.click(button) })
+
+      expect(closePollMock).toHaveBeenCalledTimes(1)
+      await act(async () => { release({ ok: true }) })
     })
 
     it('marks the poll closed on success', async () => {

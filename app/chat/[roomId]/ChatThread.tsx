@@ -232,29 +232,50 @@ export function ChatThread({
   // load, replying to something older. Fetch those lazily so the quote
   // doesn't render blank.
   useEffect(() => {
+    // Hoisted so the cleanup closes over the Set itself, not over
+    // `.current` (the ref object is stable and its Set is never replaced,
+    // but reading `.current` in a cleanup trips react-hooks/exhaustive-deps).
+    const attempted = attemptedParentIds.current
     const missing = messages
       .map(m => m.reply_to_id)
       .filter((id): id is string =>
-        !!id && !messages.some(m => m.id === id) && !replyParents[id] && !attemptedParentIds.current.has(id))
+        !!id && !messages.some(m => m.id === id) && !replyParents[id] && !attempted.has(id))
     if (missing.length === 0) return
     // Mark these attempted before the request fires (a ref, so this doesn't
     // retrigger the effect) so an id the query never resolves is not retried.
-    for (const id of missing) attemptedParentIds.current.add(id)
+    for (const id of missing) attempted.add(id)
     let cancelled = false
+    let settled = false
     supabase
       .from('chat_messages')
       .select('id, sender_id, body, attachment_kind, deleted_at, poll_id')
       .in('id', missing)
+      // Room-constrained for the same reason page.tsx's parent query is:
+      // reply_to_id is attacker-controlled (migration 011 validates neither
+      // it nor poll_id), so without this a member of two rooms could pull a
+      // message from one into a quote rendered in the other.
+      .eq('room_id', roomId)
       .then(({ data }: { data: ReplyParent[] | null }) => {
+        settled = true
         if (cancelled || !data || data.length === 0) return
         setReplyParents(prev => ({
           ...prev,
           ...Object.fromEntries(data.map(p => [p.id, p])),
         }))
       })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      // React runs this cleanup on every dependency change, not only on
+      // unmount, and `messages` is a dependency — one more message arriving
+      // mid-flight would otherwise discard this response AND leave the ids
+      // marked attempted, so they could never be fetched again. Undo the
+      // marking when the request has not settled, so the next run retries.
+      // A request that DID settle keeps its marking, so an id that resolves
+      // to nothing is still never retried.
+      if (!settled) for (const id of missing) attempted.delete(id)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, replyParents, supabase])
+  }, [messages, replyParents, supabase, roomId])
 
   // A poll created after this page loaded arrives as a carrier chat_messages
   // INSERT over realtime. Its body is null by design, so without the poll in
@@ -271,25 +292,35 @@ export function ChatThread({
   // vote query to the viewer's own row exactly as page.tsx does; no other
   // student's ballot is ever fetched here.
   useEffect(() => {
+    const attempted = attemptedPollIds.current
     const missing = Array.from(new Set(messages
       .map(m => m.poll_id)
       .filter((id): id is string =>
-        !!id && !polls.some(p => p.id === id) && !attemptedPollIds.current.has(id))))
+        !!id && !polls.some(p => p.id === id) && !attempted.has(id))))
     if (missing.length === 0) return
     // Marked attempted before the request fires (a ref, so this doesn't
     // retrigger the effect) — same loop guard as attemptedParentIds above.
-    for (const id of missing) attemptedPollIds.current.add(id)
+    for (const id of missing) attempted.add(id)
     let cancelled = false
+    let settled = false
     Promise.all([
-      supabase.from('chat_polls').select('*').in('id', missing),
+      // Room-constrained exactly as page.tsx's poll lookup now is: poll_id
+      // is attacker-controlled, so without this a member of two rooms could
+      // pull another room's poll — labels, live tallies and a working vote
+      // button — into this thread.
+      supabase.from('chat_polls').select('*').in('id', missing).eq('room_id', roomId),
       supabase.from('chat_poll_options').select('*').in('poll_id', missing).order('position'),
       supabase.from('chat_poll_votes').select('id, poll_id, option_id, user_id')
         .in('poll_id', missing).eq('user_id', currentUserId),
     ]).then(([pollRes, optionRes, voteRes]) => {
+      settled = true
       if (cancelled) return
       const newPolls = (pollRes?.data ?? []) as Poll[]
-      const newOptions = (optionRes?.data ?? []) as PollOption[]
-      const newVotes = (voteRes?.data ?? []) as PollVote[]
+      // Options and votes key off the poll ids that survived the room
+      // filter, so a foreign poll contributes neither labels nor tallies.
+      const allowed = new Set(newPolls.map(p => p.id))
+      const newOptions: PollOption[] = ((optionRes?.data ?? []) as PollOption[]).filter(o => allowed.has(o.poll_id))
+      const newVotes: PollVote[] = ((voteRes?.data ?? []) as PollVote[]).filter(v => allowed.has(v.poll_id))
       if (newPolls.length) {
         setPolls(prev => [...prev.filter(p => !newPolls.some(n => n.id === p.id)), ...newPolls])
       }
@@ -300,9 +331,18 @@ export function ChatThread({
         setMyVotes(prev => [...prev.filter(v => !newVotes.some(n => n.poll_id === v.poll_id)), ...newVotes])
       }
     })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      // Same reasoning as the reply-parent effect above: this cleanup runs
+      // on every `messages` change, so a second message arriving while the
+      // fetch is in flight would otherwise discard the response AND leave
+      // the poll permanently marked attempted — the poll would render as an
+      // empty grey bubble until a full page reload. Unmarking only when the
+      // request did NOT settle keeps an unresolvable id loop-free.
+      if (!settled) for (const id of missing) attempted.delete(id)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, polls, supabase, currentUserId])
+  }, [messages, polls, supabase, currentUserId, roomId])
 
   function jumpToMessage(messageId: string) {
     const el = document.getElementById(`msg-${messageId}`)
@@ -391,6 +431,8 @@ export function ChatThread({
   // ok: false — with the promise discarded that reads as "the button does
   // nothing, forever". Surfaced the same way vote() surfaces its failure.
   async function handleClosePoll(pollId: string) {
+    // Symmetric with vote(): one write per poll at a time.
+    if (busyPollId === pollId) return
     setBusyPollId(pollId)
     const result = await closePoll(pollId)
     setBusyPollId(prev => (prev === pollId ? null : prev))
