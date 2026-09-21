@@ -428,16 +428,48 @@ export async function nudgeRoom(roomId: string): Promise<{ ok: boolean; error?: 
   return { ok: true }
 }
 
+/** Delete a poll this function just created, because a later step (options
+ *  or carrier message) failed. Uses the ADMIN client — deliberately, and
+ *  only for this.
+ *
+ *  Migration 082 enables RLS on chat_polls and defines only select/insert/
+ *  update policies — there is no delete policy. Under RLS, a command with no
+ *  matching policy is denied for every row, for every role, and PostgREST
+ *  reports that as zero rows affected with NO error. So the user client
+ *  cannot perform this delete: it would silently no-op, and the caller would
+ *  see "could not create poll" while an orphaned chat_polls row (no options,
+ *  no carrier message) stays behind forever. Do not "fix" this back to the
+ *  user client for symmetry with the rest of the file — that reintroduces
+ *  the silent-no-op bug.
+ *
+ *  This does not reopen the authorization hole the user-client design exists
+ *  to close: authorization was already settled a moment ago by the poll
+ *  insert succeeding under RLS, which proves the caller is chat staff and a
+ *  member of the room. This delete is not a user-initiated action — it is
+ *  this function cleaning up a row it just created and owns. Adding a
+ *  general delete policy instead would grant chat_polls deletes more widely
+ *  than this one cleanup path needs. */
+async function rollbackPoll(pollId: string): Promise<string | null> {
+  const admin = createAdminClient()
+  const { error } = await admin.from('chat_polls').delete().eq('id', pollId)
+  return error ? error.message : null
+}
+
 /** Create a poll, its options and the carrier chat message.
- *  Deliberately uses the USER's client, not the admin client — migration 082's
- *  staff-only insert policy on chat_polls (public.is_chat_staff()) is what
- *  actually enforces "staff only", not an `if` here. Using the admin client
- *  would bypass RLS entirely and leave permission resting on this function
- *  alone, one refactor away from a hole.
+ *  Deliberately uses the USER's client, not the admin client, for the poll/
+ *  options/message inserts — migration 082's staff-only insert policy on
+ *  chat_polls (public.is_chat_staff()) is what actually enforces "staff
+ *  only", not an `if` here. Using the admin client for those would bypass
+ *  RLS entirely and leave permission resting on this function alone, one
+ *  refactor away from a hole. (The rollback delete below is the one
+ *  exception — see rollbackPoll's comment for why.)
  *  Rolls the poll row back if the options insert or the carrier message
  *  insert fails — an orphaned poll (no options, or no message to render it
  *  in) is invisible garbage in the timeline, same reasoning as the room
- *  rollback in getOrCreateDM/createGroupChat. */
+ *  rollback in getOrCreateDM/createGroupChat. If the rollback delete itself
+ *  fails, that is reported distinctly — the caller must be able to tell
+ *  "your poll was not created" from "your poll was not created AND garbage
+ *  was left behind that needs manual cleanup". */
 export async function createPoll(
   roomId: string,
   question: string,
@@ -470,8 +502,13 @@ export async function createPoll(
     .insert(labels.map((label, position) => ({ poll_id: poll.id, label, position })))
 
   if (optionsError) {
-    await supabase.from('chat_polls').delete().eq('id', poll.id)
-    return { ok: false, error: optionsError.message }
+    const rollbackError = await rollbackPoll(poll.id)
+    return {
+      ok: false,
+      error: rollbackError
+        ? `Could not add poll options (${optionsError.message}), and the orphaned poll could not be removed (${rollbackError}) — a staff member will need to delete poll ${poll.id} manually.`
+        : optionsError.message,
+    }
   }
 
   const { error: messageError } = await supabase
@@ -479,10 +516,17 @@ export async function createPoll(
     .insert({ room_id: roomId, sender_id: user.id, body: null, poll_id: poll.id })
 
   if (messageError) {
-    await supabase.from('chat_polls').delete().eq('id', poll.id)
-    return { ok: false, error: messageError.message }
+    const rollbackError = await rollbackPoll(poll.id)
+    return {
+      ok: false,
+      error: rollbackError
+        ? `Could not post the poll message (${messageError.message}), and the orphaned poll could not be removed (${rollbackError}) — a staff member will need to delete poll ${poll.id} manually.`
+        : messageError.message,
+    }
   }
 
+  // A push failure here must never turn a successfully-created poll into a
+  // reported failure — the poll and its message already exist by this point.
   await notifyRoomMembers(roomId, '', `📊 ${q}`).catch(() => {})
   revalidatePath(`/chat/${roomId}`)
   return { ok: true }
