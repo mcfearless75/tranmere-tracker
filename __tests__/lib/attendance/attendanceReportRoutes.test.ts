@@ -7,7 +7,7 @@
  * hour should send. Same self-correcting pattern as lunch-ending.
  */
 const adminFromMock = jest.fn()
-const sendPushNotificationMock = jest.fn(() => Promise.resolve())
+const sendPushNotificationMock = jest.fn((..._args: unknown[]) => Promise.resolve())
 
 jest.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => ({ from: adminFromMock }),

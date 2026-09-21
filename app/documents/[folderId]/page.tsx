@@ -69,7 +69,7 @@ export default async function DocumentFolderPage({ params }: { params: { folderI
           <ArrowLeft size={18} />
         </Link>
         <h1 className="text-xl sm:text-2xl font-bold text-tranmere-blue break-words min-w-0 flex-1">{folder.name}</h1>
-        {isStaff && <FolderHeader folderId={params.folderId} folderName={folder.name} parentId={folder.parent_id} />}
+        {isStaff && <FolderHeader folderId={params.folderId} folderName={folder.name} />}
       </div>
 
       {isStaff && <CreateFolderButton parentId={params.folderId} />}

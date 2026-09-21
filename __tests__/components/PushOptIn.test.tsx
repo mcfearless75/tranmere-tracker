@@ -196,7 +196,7 @@ describe('PushOptIn — iOS Safari outside Home Screen install (web path)', () =
 
   afterEach(() => {
     setUserAgent(originalUA)
-    // @ts-expect-error — test-only cleanup of a property jsdom doesn't define by default
+    // Test-only cleanup of a property jsdom doesn't define by default.
     delete (navigator as { standalone?: boolean }).standalone
   })
 

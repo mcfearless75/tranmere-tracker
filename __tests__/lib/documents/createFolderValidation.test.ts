@@ -46,7 +46,10 @@ describe('createFolder — name length validation', () => {
 
     const result = await createFolder('A'.repeat(61))
 
-    expect(result).toEqual({ error: 'Folder name must be 60 characters or fewer' })
+    // Wording comes from the shared cleanName() helper, which folders and
+    // documents both use (b19d358); the 60-character folder cap is what
+    // this test is actually guarding.
+    expect(result).toEqual({ error: 'Name must be 60 characters or fewer' })
     expect(admin.folderInsert).not.toHaveBeenCalled()
   })
 
