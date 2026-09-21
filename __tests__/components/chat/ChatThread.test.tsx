@@ -216,14 +216,27 @@ function renderThreadWithMessage(senderId: string, body: string, id: string) {
   )
 }
 
+// Deleting your own message moved out of an always-visible Trash2 button on
+// the bubble and into the message action sheet (the hold-to-react rewrite):
+// hold or right-click any bubble to open it, or tap the "React to message"
+// button beside any bubble. The sheet renders its Delete option only when
+// the message is yours. The underlying behaviour is
+// unchanged — confirm first, then a soft delete via `deleted_at`.
+async function openMessageSheet() {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'React to message' }))
+  })
+}
+
 describe('ChatThread — delete own message', () => {
   it('lets you delete your own message, confirms first, and removes it from the thread', async () => {
     const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true)
     renderThreadWithMessage(CURRENT_USER_ID, 'delete me', 'msg-1')
     expect(screen.getByText('delete me')).toBeInTheDocument()
 
+    await openMessageSheet()
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Delete message' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     })
 
     expect(confirmSpy).toHaveBeenCalled()
@@ -236,8 +249,9 @@ describe('ChatThread — delete own message', () => {
     const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false)
     renderThreadWithMessage(CURRENT_USER_ID, 'keep me', 'msg-2')
 
+    await openMessageSheet()
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Delete message' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     })
 
     expect(updateEqMock).not.toHaveBeenCalled()
@@ -245,9 +259,13 @@ describe('ChatThread — delete own message', () => {
     confirmSpy.mockRestore()
   })
 
-  it('does not show a delete button on someone else\'s message', () => {
+  it("offers no delete option on someone else's message", async () => {
     renderThreadWithMessage('someone-else', 'not yours', 'msg-3')
     expect(screen.getByText('not yours')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Delete message' })).not.toBeInTheDocument()
+    // The sheet still opens on anyone's message — that is how you react to
+    // it — but it offers reactions only, never Delete.
+    await openMessageSheet()
+    expect(screen.getAllByRole('button', { name: /React with/ }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
   })
 })

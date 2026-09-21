@@ -1,19 +1,21 @@
 /**
  * @jest-environment node
  *
- * Regression coverage for the atomic-raise fix: a plain select-then-insert
- * into safeguarding_concerns was generating ~490 duplicate-key Postgres
- * errors/day (confirmed via the Supabase log explorer, 2026-09-15) — the
- * same already-cased student retried, and failed, on every 15-min tick for
- * the rest of the day. raise_attendance_safeguarding_concern() (migration
- * 070) now does the check-and-insert atomically server-side; the route
- * calls it via admin.rpc() and treats zero rows back as "already raised,
- * no-op" rather than an error. Same idempotent-upsert treatment for the
- * stage-1 nudge log.
+ * This cron used to do two things: nudge staff at PM + 30, then auto-raise a
+ * safeguarding case later in the afternoon. The second stage was deliberately
+ * removed (5438d35, with migration 076 closing the cases it had already
+ * opened, and 4e84cc1 taking them off the safeguarding board) — a forgotten
+ * tap is not a safeguarding concern, and missing students now surface on Home
+ * and the register instead.
+ *
+ * So the coverage here is: the stage-1 nudge still fires exactly once a day
+ * (the idempotent upsert that killed ~490 duplicate-key errors/day, confirmed
+ * via the Supabase log explorer 2026-09-15), and no case is ever raised —
+ * including past the hour the old stage-2 deadline used to sit at.
  */
 const adminFromMock = jest.fn()
 const adminRpcMock = jest.fn()
-const sendPushNotificationMock = jest.fn(() => Promise.resolve())
+const sendPushNotificationMock = jest.fn((..._args: unknown[]) => Promise.resolve())
 
 jest.mock('@/lib/supabase/admin', () => ({
   createAdminClient: () => ({ from: adminFromMock, rpc: adminRpcMock }),
@@ -36,14 +38,12 @@ function setupAdmin(opts: {
   students?: { id: string; name: string }[]
   nudgeAlreadySent?: boolean
   nudgeUpsertRows?: { attendance_date: string }[]
-  rpcRowsByStudent?: Record<string, { id: string }[]>
 } = {}) {
   const {
     students = [{ id: 'student-1', name: 'Alice' }],
     atRiskRows = [{ student_id: 'student-1', am_checked_at: '2026-09-10T08:00:00Z', lunch_checked_at: null, pm_checked_at: null }],
     nudgeAlreadySent = false,
     nudgeUpsertRows = [{ attendance_date: '2026-09-10' }],
-    rpcRowsByStudent = { 'student-1': [{ id: 'concern-1' }] },
   } = opts
 
   const nudgeUpsertSelectMock = jest.fn(() => Promise.resolve({ data: nudgeUpsertRows, error: null }))
@@ -55,10 +55,9 @@ function setupAdmin(opts: {
     }
     if (table === 'users') {
       return {
-        // Three distinct call shapes off this table: students
-        // (.eq('role','student').eq('is_active', true)), staff-group
-        // (.in('role', [...])), and the stage-2 admin-only DSL query
-        // (.eq('role', 'admin') alone, no second .eq()).
+        // Two call shapes off this table: students
+        // (.eq('role','student').eq('is_active', true)) and the staff group
+        // that receives the nudge (.in('role', [...])).
         select: () => ({
           eq: (_col: string, val: unknown) =>
             val === 'student'
@@ -88,10 +87,8 @@ function setupAdmin(opts: {
     throw new Error(`Unexpected table: ${table}`)
   })
 
-  adminRpcMock.mockImplementation((fn: string, args: { p_student_id: string }) => {
-    if (fn === 'raise_attendance_safeguarding_concern') {
-      return Promise.resolve({ data: rpcRowsByStudent[args.p_student_id] ?? [], error: null })
-    }
+  // The route should not call rpc() at all any more; make it loud if it does.
+  adminRpcMock.mockImplementation((fn: string) => {
     throw new Error(`Unexpected rpc: ${fn}`)
   })
 
@@ -110,32 +107,31 @@ afterEach(() => {
 })
 
 describe('GET /api/cron/attendance-safeguarding-check', () => {
-  it('raises a case via the atomic RPC and notifies admins when past the case deadline', async () => {
-    jest.setSystemTime(new Date('2026-09-10T13:31:00Z')) // 14:31 London BST — past the 13:30 case deadline
+  it('nudges staff about the students who are quiet since lunch', async () => {
+    jest.setSystemTime(new Date('2026-09-10T12:00:00Z')) // 13:00 London BST — past PM + 30
     setupAdmin()
     const res = await GET(makeRequest())
     const json = await res.json()
 
-    expect(adminRpcMock).toHaveBeenCalledWith('raise_attendance_safeguarding_concern', expect.objectContaining({
-      p_student_id: 'student-1',
-      p_raised_date: '2026-09-10',
-    }))
-    expect(json.raised).toBe(1)
+    expect(json).toEqual({ checked: 1, nudged: 1, cases: 0 })
+    expect(sendPushNotificationMock).toHaveBeenCalledTimes(1)
   })
 
-  it('treats zero rows back from the RPC as already-raised — no error, no duplicate notification', async () => {
-    jest.setSystemTime(new Date('2026-09-10T13:31:00Z'))
-    setupAdmin({ rpcRowsByStudent: { 'student-1': [] } })
+  it('never auto-raises a safeguarding case, even at the hour stage 2 used to fire', async () => {
+    jest.setSystemTime(new Date('2026-09-10T13:31:00Z')) // 14:31 London BST — past the old 13:30 case deadline
+    setupAdmin()
     const res = await GET(makeRequest())
     const json = await res.json()
 
-    expect(json.raised).toBe(0)
-    // Only the stage-1 nudge push, no stage-2 "case opened" push.
+    expect(adminRpcMock).not.toHaveBeenCalled()
+    expect(json.cases).toBe(0)
+    expect(json.raised).toBeUndefined()
+    // The staff nudge, and nothing resembling a "case opened" push.
     expect(sendPushNotificationMock).toHaveBeenCalledTimes(1)
   })
 
   it('sends the stage-1 nudge only once — upsert returning zero rows means it already sent', async () => {
-    jest.setSystemTime(new Date('2026-09-10T12:00:00Z')) // 13:00 London BST — past nudge deadline (12:30), before case deadline (13:30)
+    jest.setSystemTime(new Date('2026-09-10T12:00:00Z'))
     const { nudgeUpsertMock } = setupAdmin({ nudgeUpsertRows: [] })
     const res = await GET(makeRequest())
     const json = await res.json()
@@ -144,12 +140,22 @@ describe('GET /api/cron/attendance-safeguarding-check', () => {
       { attendance_date: '2026-09-10', notified_count: 1 },
       { onConflict: 'attendance_date', ignoreDuplicates: true },
     )
-    expect(json.nudged).toBeUndefined()
+    expect(json.nudged).toBe(0)
+    expect(sendPushNotificationMock).not.toHaveBeenCalled()
+  })
+
+  it("does not re-notify when today's nudge is already logged", async () => {
+    jest.setSystemTime(new Date('2026-09-10T12:00:00Z'))
+    setupAdmin({ nudgeAlreadySent: true })
+    const res = await GET(makeRequest())
+    const json = await res.json()
+
+    expect(json).toEqual({ checked: 1, nudged: 0 })
     expect(sendPushNotificationMock).not.toHaveBeenCalled()
   })
 
   it('skips entirely before the nudge grace period is reached', async () => {
-    jest.setSystemTime(new Date('2026-09-10T11:00:00Z')) // 12:00 London BST — pm_window_start itself, before the 12:30 nudge deadline
+    jest.setSystemTime(new Date('2026-09-10T11:00:00Z')) // 12:00 London BST — pm_window_start itself
     setupAdmin()
     const res = await GET(makeRequest())
     const json = await res.json()

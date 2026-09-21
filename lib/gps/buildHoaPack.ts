@@ -39,7 +39,6 @@ export async function downloadHoaPack(opts: {
   const dist = live.map((p) => Math.round(p.distanceM))
   const sprint = live.map((p) => Math.round(p.sprintM))
   const kmh = live.map((p) => +p.maxKmh.toFixed(1))
-  const load = live.map((p) => Math.round(p.load))
 
   const total = live.reduce((a, p) => a + p.distanceM, 0)
   const avg = live.length ? total / live.length : 0
@@ -48,7 +47,7 @@ export async function downloadHoaPack(opts: {
   const topDist = live[0]
 
   function footer(slide: any, page: string) {
-    slide.addShape(pres.shapes.RECTANGLE, { x: 0, y: 7.22, w: 13.333, h: 0.28, fill: { color: '070B12' } })
+    slide.addShape(pres.ShapeType.rect, { x: 0, y: 7.22, w: 13.333, h: 0.28, fill: { color: '070B12' } })
     slide.addText('TRANMERE ROVERS ACADEMY  ·  CONFIDENTIAL  ·  HEAD OF ACADEMY', {
       x: 0.4, y: 7.22, w: 9, h: 0.28, fontFace: 'Arial', fontSize: 10, color: MUTED, valign: 'middle',
     })
@@ -58,13 +57,13 @@ export async function downloadHoaPack(opts: {
   }
 
   function paint(slide: any) {
-    slide.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: 13.333, h: 7.5, fill: { color: NAVY } })
-    slide.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: 0.14, h: 7.5, fill: { color: RED } })
+    slide.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 13.333, h: 7.5, fill: { color: NAVY } })
+    slide.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 0.14, h: 7.5, fill: { color: RED } })
   }
 
   function kpi(slide: any, x: number, y: number, value: string, label: string, accent: string) {
-    slide.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y, w: 2.4, h: 1.18, fill: { color: CARD }, rectRadius: 0.08 })
-    slide.addShape(pres.shapes.RECTANGLE, { x, y, w: 0.08, h: 1.18, fill: { color: accent } })
+    slide.addShape(pres.ShapeType.roundRect, { x, y, w: 2.4, h: 1.18, fill: { color: CARD }, rectRadius: 0.08 })
+    slide.addShape(pres.ShapeType.rect, { x, y, w: 0.08, h: 1.18, fill: { color: accent } })
     slide.addText(value, { x: x + 0.2, y: y + 0.12, w: 2.1, h: 0.62, fontFace: 'Arial', fontSize: 22, bold: true, color: WHITE })
     slide.addText(label, { x: x + 0.2, y: y + 0.7, w: 2.1, h: 0.34, fontFace: 'Arial', fontSize: 10, color: MUTED })
   }
@@ -86,14 +85,14 @@ export async function downloadHoaPack(opts: {
     kpi(s, 10.7, 1.35, `${live.length} / ${rows.length}`, 'Units with a file', MUTED)
 
     if (live.length) {
-      s.addChart(pres.charts.BAR, [{ name: 'Distance m', labels, values: dist }], {
+      s.addChart(pres.ChartType.bar, [{ name: 'Distance m', labels, values: dist }], {
         x: 0.35, y: 2.7, w: 8.3, h: 4.3, barDir: 'bar', showLegend: false, chartColors: [RED],
         catAxisLabelColor: MUTED, catAxisLabelFontSize: 9, valAxisLabelColor: MUTED, valAxisLabelFontSize: 9,
         valAxisMinVal: 0, valGridLine: { color: LINE }, catGridLine: { style: 'none' },
         chartArea: { fill: { type: 'none' } }, plotArea: { fill: { type: 'none' } },
       })
     }
-    s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 8.9, y: 2.7, w: 4.0, h: 4.3, fill: { color: CARD }, rectRadius: 0.08 })
+    s.addShape(pres.ShapeType.roundRect, { x: 8.9, y: 2.7, w: 4.0, h: 4.3, fill: { color: CARD }, rectRadius: 0.08 })
     s.addText('SIGNALS', { x: 9.1, y: 2.84, w: 3.6, h: 0.24, fontFace: 'Arial', fontSize: 11, color: GOLD, bold: true })
     const signals = [
       topDist ? ['Highest output', `${lastName(topDist.name)}  ${Math.round(topDist.distanceM).toLocaleString()} m`] : null,
@@ -113,13 +112,13 @@ export async function downloadHoaPack(opts: {
     const s = pres.addSlide()
     paint(s)
     s.addText('SPEED  ·  SPRINT VOLUME', { x: 0.5, y: 0.22, w: 12, h: 0.34, fontFace: 'Arial', fontSize: 22, bold: true, color: WHITE })
-    s.addChart(pres.charts.BAR, [{ name: 'Max km/h', labels, values: kmh }], {
+    s.addChart(pres.ChartType.bar, [{ name: 'Max km/h', labels, values: kmh }], {
       x: 0.3, y: 0.9, w: 6.4, h: 6.0, barDir: 'bar', chartColors: [GOLD], showLegend: false,
       catAxisLabelColor: MUTED, catAxisLabelFontSize: 9, valAxisLabelColor: MUTED, valAxisMinVal: 0,
       valGridLine: { color: LINE }, catGridLine: { style: 'none' },
       chartArea: { fill: { type: 'none' } }, plotArea: { fill: { type: 'none' } },
     })
-    s.addChart(pres.charts.BAR, [{ name: 'Sprint m', labels, values: sprint }], {
+    s.addChart(pres.ChartType.bar, [{ name: 'Sprint m', labels, values: sprint }], {
       x: 6.8, y: 0.9, w: 6.2, h: 6.0, barDir: 'bar', chartColors: [CYAN], showLegend: false,
       catAxisLabelColor: MUTED, catAxisLabelFontSize: 9, valAxisLabelColor: MUTED, valAxisMinVal: 0,
       valGridLine: { color: LINE }, catGridLine: { style: 'none' },

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Pencil, Trash2, Check, X } from 'lucide-react'
 import { deleteFolder, renameFolder } from '../actions'
 
-export function FolderHeader({ folderId, folderName, parentId }: { folderId: string; folderName: string; parentId?: string | null }) {
+export function FolderHeader({ folderId, folderName }: { folderId: string; folderName: string }) {
   const router = useRouter()
   const [pending, start] = useTransition()
   const [editing, setEditing] = useState(false)

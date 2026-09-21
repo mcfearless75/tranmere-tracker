@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # `npm ci` also runs the postinstall patch for the background-geolocation
+      # plugin, which exits non-zero if upstream changes its Package.swift out
+      # from under us — that is deliberate and should fail the run.
+      - run: npm ci
+      # No Supabase/Anthropic/VAPID secrets: the build does not read them at
+      # build time and Jest mocks every client, so CI stays secret-free.
+      - run: npm run build
+      - run: npm test -- --ci
+
+  quality:
+    name: Lint and typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # next.config.js sets eslint.ignoreDuringBuilds and
+      # typescript.ignoreBuildErrors, so `next build` — here and on Vercel —
+      # catches neither. This job is the only thing enforcing them.
+      # ESLint warnings stay warnings: `next lint` exits non-zero on errors
+      # only, which is the line we want to hold.
+      - run: npm run lint
+      - run: npx tsc --noEmit

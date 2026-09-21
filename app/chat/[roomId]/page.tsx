@@ -30,7 +30,7 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
   if (!me) {
     return (
       <div className="p-6 text-center">
-        <p className="text-sm text-muted-foreground">You're not a member of this conversation.</p>
+        <p className="text-sm text-muted-foreground">You&apos;re not a member of this conversation.</p>
         <Link href="/chat" className="text-tranmere-blue underline mt-2 inline-block">Back</Link>
       </div>
     )
