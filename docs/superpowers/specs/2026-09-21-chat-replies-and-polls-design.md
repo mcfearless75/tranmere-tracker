@@ -93,7 +93,7 @@ alter table chat_messages
 
 `unique (poll_id, user_id)` is what enforces single choice. Changing your vote is an `update` of `option_id` on your existing row, never a second row.
 
-Length limits, enforced in the database and mirrored in the UI (§8): `question` ≤ 200 chars, `label` ≤ 80 chars, 2–6 options per poll.
+Length limits (§8): `question` and `label` lengths and the 6-option maximum are enforced by the database check constraints and trigger in migration 082; the 2-option minimum is enforced by `validatePollInput` and `createPoll` atomically.
 
 ### Indexes
 
