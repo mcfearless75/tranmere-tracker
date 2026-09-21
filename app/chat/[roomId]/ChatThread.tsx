@@ -298,7 +298,12 @@ export function ChatThread({ roomId, roomKind, currentUserId, initialMessages, m
     setDraft('')
     setReplyingTo(null)
     if (inserted) setMessages(prev => prev.find(p => p.id === inserted.id) ? prev : [...prev, inserted as ChatMessage])
-    if (roomKind !== 'bot') notifyRoomMembers(roomId, myName ?? 'Someone', body || 'Attachment').catch(() => {})
+    if (roomKind !== 'bot') notifyRoomMembers(
+      roomId,
+      myName ?? 'Someone',
+      body || 'Attachment',
+      replyingTo && replyingTo.sender_id !== currentUserId ? replyingTo.sender_id : undefined,
+    ).catch(() => {})
     if (roomKind === 'bot' && body) {
       const sentAt = new Date().toISOString()
       setAiTyping(true)

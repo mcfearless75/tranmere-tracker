@@ -298,6 +298,7 @@ export async function notifyRoomMembers(
   roomId: string,
   _senderName: string,
   preview: string,
+  replyToUserId?: string,
 ): Promise<void> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -322,32 +323,48 @@ export async function notifyRoomMembers(
   const senderName = sender?.name ?? 'Someone'
 
   const otherIds = members.map(m => m.user_id)
-  const notification = { title: senderName, body: preview.slice(0, 100), url: `/chat/${roomId}` }
+  // Only honour a reply target who is actually a member of this room —
+  // ignore anything else (and this also excludes the sender, since otherIds
+  // already excludes user.id).
+  const replyTarget = replyToUserId && otherIds.includes(replyToUserId) ? replyToUserId : null
+  const plainIds = otherIds.filter(id => id !== replyTarget)
 
-  // ── Web push (VAPID) ──────────────────────────────────────────────────
-  const { data: subs } = await admin
-    .from('push_subscriptions')
-    .select('endpoint, p256dh, auth')
-    .in('user_id', otherIds)
+  const body = preview.slice(0, 100)
+  const url = `/chat/${roomId}`
+  const groups: { ids: string[]; title: string }[] = [
+    { ids: plainIds, title: senderName },
+    ...(replyTarget ? [{ ids: [replyTarget], title: `${senderName} replied to you` }] : []),
+  ]
 
-  if (subs && subs.length > 0) {
-    await Promise.allSettled(
-      subs.map(s => sendPushNotification(
-        { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
-        notification
-      ))
-    )
-  }
+  for (const group of groups) {
+    if (group.ids.length === 0) continue
+    const notification = { title: group.title, body, url }
 
-  // ── Native push (FCM via Firebase Admin) ─────────────────────────────
-  const { data: nativeTokens } = await admin
-    .from('native_push_tokens')
-    .select('token')
-    .in('user_id', otherIds)
+    // ── Web push (VAPID) ────────────────────────────────────────────────
+    const { data: subs } = await admin
+      .from('push_subscriptions')
+      .select('endpoint, p256dh, auth')
+      .in('user_id', group.ids)
 
-  const tokens = (nativeTokens ?? []).map(r => r.token as string)
-  if (tokens.length > 0) {
-    await sendFcmBatch(tokens, notification)
+    if (subs && subs.length > 0) {
+      await Promise.allSettled(
+        subs.map(s => sendPushNotification(
+          { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
+          notification
+        ))
+      )
+    }
+
+    // ── Native push (FCM via Firebase Admin) ───────────────────────────
+    const { data: nativeTokens } = await admin
+      .from('native_push_tokens')
+      .select('token')
+      .in('user_id', group.ids)
+
+    const tokens = (nativeTokens ?? []).map(r => r.token as string)
+    if (tokens.length > 0) {
+      await sendFcmBatch(tokens, notification)
+    }
   }
 }
 
