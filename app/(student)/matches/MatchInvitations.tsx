@@ -25,22 +25,44 @@ export function MatchInvitations({ invitations: initial }: { invitations: Invita
   const router = useRouter()
   const [invitations, setInvitations] = useState(initial)
   const [loading, setLoading] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const pending = invitations.filter(i => i.status === 'invited')
   const past = invitations.filter(i => i.status !== 'invited')
 
   async function respond(squadId: string, status: 'accepted' | 'declined') {
+    const previous = invitations
     // Optimistic update — UI responds instantly
     setInvitations(prev => prev.map(i => i.id === squadId ? { ...i, status } : i))
     setLoading(squadId)
-    const supabase = createClient()
-    await supabase.from('match_squads').update({ status }).eq('id', squadId)
-    setLoading(null)
-    router.refresh()
+    setError(null)
+    try {
+      const supabase = createClient()
+      const { error: writeError } = await supabase.from('match_squads').update({ status }).eq('id', squadId)
+      if (writeError) throw new Error(writeError.message)
+      router.refresh()
+    } catch (e) {
+      // `invitations` is seeded from props by useState, and router.refresh()
+      // does NOT re-seed it. Without this rollback a failed write left the
+      // student looking at "accepted" for the rest of the session while the
+      // DB still said "invited" and the coach's squad list disagreed.
+      setInvitations(previous)
+      setError(e instanceof Error && e.message
+        ? e.message
+        : 'Could not send your reply — you may be offline. Try again.')
+    } finally {
+      setLoading(null)
+    }
   }
 
   return (
     <div className="space-y-3">
+      {error && (
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          {error}
+        </p>
+      )}
+
       {pending.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
           <p className="font-semibold text-amber-800 text-sm">⚽ Squad Invitations</p>

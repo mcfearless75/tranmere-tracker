@@ -50,21 +50,21 @@ export async function POST(request: Request) {
   let actualTemplateId = templateId
 
   if (!actualTemplateId) {
-    const { data: tmpl } = await adminClient
+    const { data: tmpl, error: tmplError } = await adminClient
       .from('schedule_templates')
       .insert({ name: 'Weekly Schedule', created_by: user.id })
       .select('id')
       .single()
+    if (tmplError) {
+      return NextResponse.json({ error: `Could not create template: ${tmplError.message}` }, { status: 500 })
+    }
     actualTemplateId = tmpl?.id ?? null
   }
 
   if (!actualTemplateId) return NextResponse.json({ error: 'Could not create template' }, { status: 500 })
 
-  await adminClient.from('schedule_slots').delete().eq('template_id', actualTemplateId)
-
   const toInsert = Object.entries(slots).flatMap(([day, daySlots]) =>
     daySlots.map((s, idx) => ({
-      template_id:   actualTemplateId as string,
       day_of_week:   parseInt(day),
       slot_order:    idx + 1,
       start_time:    s.startTime,
@@ -74,8 +74,20 @@ export async function POST(request: Request) {
     }))
   )
 
-  if (toInsert.length > 0) {
-    await adminClient.from('schedule_slots').insert(toInsert)
+  // Replacing the week used to be a bare delete() followed by a bare insert(),
+  // neither checked — so a failed insert wiped the whole schedule and still
+  // reported success. The RPC does both in one transaction (migration 083), so
+  // a failure here leaves the previous schedule exactly as it was.
+  const { error: replaceError } = await adminClient.rpc('replace_schedule_slots', {
+    p_template_id: actualTemplateId,
+    p_slots: toInsert,
+  })
+
+  if (replaceError) {
+    return NextResponse.json(
+      { error: `Could not save the schedule: ${replaceError.message}` },
+      { status: 500 },
+    )
   }
 
   // Fire-and-forget — the response never waits on push delivery

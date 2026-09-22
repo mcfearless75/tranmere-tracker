@@ -23,27 +23,40 @@ export function MatchLogForm({ studentId }: Props) {
   const [rating, setRating] = useState('7')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   async function handleSave() {
     if (!opponent.trim()) return
     setSaving(true)
-    await supabase.from('match_logs').insert({
-      student_id: studentId,
-      match_date: date,
-      opponent: opponent.trim(),
-      goals: Math.max(0, Number(goals)),
-      assists: Math.max(0, Number(assists)),
-      minutes_played: Math.max(0, Math.min(120, Number(minutes))),
-      position,
-      self_rating: Number(rating),
-      notes: notes.trim() || null,
-    })
-    setOpponent('')
-    setNotes('')
-    setGoals('0')
-    setAssists('0')
-    setSaving(false)
-    router.refresh()
+    setError('')
+    try {
+      const { error: writeError } = await supabase.from('match_logs').insert({
+        student_id: studentId,
+        match_date: date,
+        opponent: opponent.trim(),
+        goals: Math.max(0, Number(goals)),
+        assists: Math.max(0, Number(assists)),
+        minutes_played: Math.max(0, Math.min(120, Number(minutes))),
+        position,
+        self_rating: Number(rating),
+        notes: notes.trim() || null,
+      })
+      // Clearing the form was the only feedback this gave, so an unchecked
+      // insert failure read as a successful save.
+      if (writeError) {
+        setError(writeError.message || 'Could not save that match. Try again.')
+        return
+      }
+      setOpponent('')
+      setNotes('')
+      setGoals('0')
+      setAssists('0')
+      router.refresh()
+    } catch {
+      setError('Could not save that match — you may be offline. Try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -104,6 +117,8 @@ export function MatchLogForm({ studentId }: Props) {
         rows={2}
         className="text-sm resize-none"
       />
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
 
       <Button
         onClick={handleSave}

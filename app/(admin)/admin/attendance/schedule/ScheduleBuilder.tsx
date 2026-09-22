@@ -82,6 +82,7 @@ export function ScheduleBuilder({ templateId: initId, initialSlots }: Props) {
   const [templateId, setTid]      = useState<string | null>(initId)
   const [saving, setSaving]       = useState(false)
   const [saved, setSaved]         = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [genMonth, setGenMonth]   = useState(() => {
     const d = new Date(); d.setMonth(d.getMonth() + 1)
@@ -108,7 +109,7 @@ export function ScheduleBuilder({ templateId: initId, initialSlots }: Props) {
   }
 
   const saveTemplate = async () => {
-    setSaving(true); setSaved(false)
+    setSaving(true); setSaved(false); setSaveError(null)
     const payload: Record<string, { type: string; label: string; startTime: string; endTime: string }[]> = {}
     for (const [day, dayData] of Object.entries(slots)) {
       payload[day] = dayData.map(s => ({ type: s.type, label: s.label, startTime: s.startTime, endTime: s.endTime }))
@@ -119,10 +120,18 @@ export function ScheduleBuilder({ templateId: initId, initialSlots }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ templateId, slots: payload }),
       })
-      const data = await res.json()
+      const data = await res.json() as { templateId?: string; error?: string }
+      // This used to flash "Saved!" on every response, including a 500 — and
+      // the route behind it could have wiped the week on the way to that 500.
+      if (!res.ok) {
+        setSaveError(`${data.error ?? `HTTP ${res.status}`} — nothing was changed, the saved schedule is still in place.`)
+        return
+      }
       if (data.templateId) setTid(data.templateId)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
+    } catch (e) {
+      setSaveError(e instanceof Error && e.message ? e.message : 'Could not save — you may be offline. Try again.')
     } finally { setSaving(false) }
   }
 
@@ -332,6 +341,12 @@ export function ScheduleBuilder({ templateId: initId, initialSlots }: Props) {
       {genError && (
         <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
           {genError}
+        </p>
+      )}
+
+      {saveError && (
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          Save failed: {saveError}
         </p>
       )}
     </div>

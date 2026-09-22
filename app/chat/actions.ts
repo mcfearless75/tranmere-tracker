@@ -580,13 +580,18 @@ export async function leaveOrDeleteRoom(roomId: string): Promise<{ ok: boolean; 
   const shouldDelete = memberCount <= 1 || (isOwner && ['dm', 'bot'].includes(room.kind))
 
   if (shouldDelete) {
-    // Cascade: delete messages and members first, then room
-    await admin.from('chat_messages').delete().eq('room_id', roomId)
-    await admin.from('chat_members').delete().eq('room_id', roomId)
-    await admin.from('chat_rooms').delete().eq('id', roomId)
+    // chat_messages, chat_members and chat_polls all declare
+    // `on delete cascade` on room_id (migrations 011 and 082), and their own
+    // children cascade in turn — so deleting the room removes the lot in one
+    // statement. This used to be three sequential unchecked deletes that still
+    // returned {ok:true}: a failure on the last one left a room nobody was in
+    // with every message already gone.
+    const { error } = await admin.from('chat_rooms').delete().eq('id', roomId)
+    if (error) return { ok: false, error: error.message }
   } else {
     // Just remove self from the room
-    await admin.from('chat_members').delete().eq('room_id', roomId).eq('user_id', user.id)
+    const { error } = await admin.from('chat_members').delete().eq('room_id', roomId).eq('user_id', user.id)
+    if (error) return { ok: false, error: error.message }
   }
 
   revalidatePath('/chat')

@@ -12,9 +12,9 @@ export async function logStudentMatch(data: {
   rating: string
   position: string
   notes: string
-}) {
+}): Promise<{ ok: boolean; error?: string }> {
   const { admin: client } = await requireStaffAction()
-  await client.from('match_logs').insert({
+  const { error } = await client.from('match_logs').insert({
     student_id: data.student_id,
     match_date: data.match_date,
     opponent: data.opponent,
@@ -25,5 +25,13 @@ export async function logStudentMatch(data: {
     position: data.position || null,
     notes: data.notes || null,
   })
+
+  // Returns a result rather than throwing: Next.js masks Server Action error
+  // messages in production, so a throw would reach the client as an opaque
+  // digest. This used to return void with the insert error dropped, and the
+  // form showed "Match logged successfully!" regardless.
+  if (error) return { ok: false, error: error.message }
+
   revalidatePath('/admin/student-matches')
+  return { ok: true }
 }

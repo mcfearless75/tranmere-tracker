@@ -27,22 +27,35 @@ export function TrainingLogForm({ studentId }: Props) {
   const [intensity, setIntensity] = useState<'low' | 'medium' | 'high'>('medium')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   async function handleSave() {
     if (!duration || Number(duration) < 1) return
     setSaving(true)
-    await supabase.from('training_logs').insert({
-      student_id: studentId,
-      session_date: date,
-      session_type: type,
-      duration_mins: Number(duration),
-      intensity,
-      notes: notes.trim() || null,
-    })
-    setDuration('')
-    setNotes('')
-    setSaving(false)
-    router.refresh()
+    setError('')
+    try {
+      const { error: writeError } = await supabase.from('training_logs').insert({
+        student_id: studentId,
+        session_date: date,
+        session_type: type,
+        duration_mins: Number(duration),
+        intensity,
+        notes: notes.trim() || null,
+      })
+      // Clearing the form was the only feedback this gave, so an unchecked
+      // insert failure read as a successful save.
+      if (writeError) {
+        setError(writeError.message || 'Could not save that session. Try again.')
+        return
+      }
+      setDuration('')
+      setNotes('')
+      router.refresh()
+    } catch {
+      setError('Could not save that session — you may be offline. Try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -93,6 +106,8 @@ export function TrainingLogForm({ studentId }: Props) {
         rows={2}
         className="text-sm resize-none"
       />
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
 
       <Button
         onClick={handleSave}

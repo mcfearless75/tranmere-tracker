@@ -23,10 +23,12 @@ export function MealLogForm({ studentId, onLogged }: Props) {
   const [meal, setMeal] = useState<MealType>('lunch')
   const [showScanner, setShowScanner] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   const handleSelect = useCallback((item: FoodItem) => {
     setSelected(item)
     setGrams('100')
+    setError('')
   }, [])
 
   function scaled(val: number) {
@@ -37,21 +39,33 @@ export function MealLogForm({ studentId, onLogged }: Props) {
   async function handleSave() {
     if (!selected) return
     setSaving(true)
-    await supabase.from('nutrition_logs').insert({
-      student_id: studentId,
-      logged_date: new Date().toISOString().split('T')[0],
-      meal_type: meal,
-      food_name: selected.food_name,
-      barcode: selected.barcode,
-      calories: scaled(selected.calories),
-      protein_g: scaled(selected.protein_g),
-      carbs_g: scaled(selected.carbs_g),
-      fat_g: scaled(selected.fat_g),
-    })
-    setSelected(null)
-    setGrams('100')
-    setSaving(false)
-    onLogged()
+    setError('')
+    try {
+      const { error: writeError } = await supabase.from('nutrition_logs').insert({
+        student_id: studentId,
+        logged_date: new Date().toISOString().split('T')[0],
+        meal_type: meal,
+        food_name: selected.food_name,
+        barcode: selected.barcode,
+        calories: scaled(selected.calories),
+        protein_g: scaled(selected.protein_g),
+        carbs_g: scaled(selected.carbs_g),
+        fat_g: scaled(selected.fat_g),
+      })
+      // Clearing the selection was the only feedback this gave, so an
+      // unchecked insert failure read as a successful log.
+      if (writeError) {
+        setError(writeError.message || 'Could not add that to your log. Try again.')
+        return
+      }
+      setSelected(null)
+      setGrams('100')
+      onLogged()
+    } catch {
+      setError('Could not add that to your log — you may be offline. Try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -114,6 +128,8 @@ export function MealLogForm({ studentId, onLogged }: Props) {
           </Button>
         </div>
       )}
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   )
 }

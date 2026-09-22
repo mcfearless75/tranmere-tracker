@@ -36,13 +36,17 @@ export function StudentMatchForm({ students }: { students: Student[] }) {
     setError(null)
     startTransition(async () => {
       try {
-        await logStudentMatch(form)
+        const res = await logStudentMatch(form)
+        if (!res.ok) {
+          setError(res.error ?? 'Could not log the match. Try again.')
+          return
+        }
         setSuccess(true)
         setForm(f => ({ ...f, opponent: '', goals: '0', assists: '0', rating: '7', notes: '' }))
       } catch (e) {
-        // logStudentMatch returns void, so a rejection is the ONLY failure
-        // signal that reaches the client. Without this the form sat stuck on
-        // "Saving…" with nothing on screen to say why.
+        // logStudentMatch now reports a failed insert via its return value; a
+        // rejection here is the transport itself failing. Without this the
+        // form sat stuck on "Saving…" with nothing on screen to say why.
         setError(e instanceof Error && e.message
           ? e.message
           : 'Could not log the match — you may be offline. Try again.')
