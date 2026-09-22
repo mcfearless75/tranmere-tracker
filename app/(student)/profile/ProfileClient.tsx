@@ -72,13 +72,22 @@ export function ProfileClient({ profile, courses }: ProfileClientProps) {
     const fd = new FormData()
     fd.append('avatar', uploadFile)
     startTransition(async () => {
-      const res = await uploadAvatar(fd)
-      if (res && 'url' in res && res.url) {
-        setAvatarUrl(res.url)
-      } else if (res && 'error' in res && res.error) {
-        setUploadError(res.error)
+      try {
+        const res = await uploadAvatar(fd)
+        if (res && 'url' in res && res.url) {
+          setAvatarUrl(res.url)
+        } else if (res && 'error' in res && res.error) {
+          setUploadError(res.error)
+        }
+      } catch {
+        // A Server Action rejects, rather than returning an error, when the
+        // request itself fails — offline, 5xx, a deploy landing mid-call. The
+        // try above covers only the HEIC conversion, so without this the
+        // upload sat stuck on its progress state until a reload.
+        setUploadError('Could not upload that photo — you may be offline. Try again.')
+      } finally {
+        setUploading(false)
       }
-      setUploading(false)
     })
   }
 

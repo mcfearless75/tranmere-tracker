@@ -34,10 +34,18 @@ export function NewGroupPicker({ directory }: { directory: Person[] }) {
     if (!name.trim()) { setError('Give the group a name'); return }
     if (selected.size === 0) { setError('Pick at least one member'); return }
     setSubmitting(true)
-    const res = await createGroupChat(name.trim(), Array.from(selected))
-    setSubmitting(false)
-    if (typeof res === 'string') router.push(`/chat/${res}`)
-    else setError(res.error)
+    try {
+      const res = await createGroupChat(name.trim(), Array.from(selected))
+      if (typeof res === 'string') router.push(`/chat/${res}`)
+      else setError(res.error)
+    } catch {
+      // A Server Action rejects, rather than returning an error, when the
+      // request itself fails — offline, 5xx, a deploy landing mid-call.
+      // Without the finally, the button stays disabled until a reload.
+      setError('Could not create the group — you may be offline. Try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   if (!open) {

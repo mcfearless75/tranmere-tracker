@@ -75,8 +75,18 @@ export function ChatGroupCard({
 
   function handleOpen() {
     start(async () => {
-      await joinGroupChat(roomId)
-      router.push(`/chat/${roomId}`)
+      try {
+        await joinGroupChat(roomId)
+        router.push(`/chat/${roomId}`)
+      } catch {
+        // Without this, tapping the group silently did nothing: the join
+        // rejects, the push never runs, and nothing appears on screen.
+        // The Open button works while the card is COLLAPSED, but the error
+        // paragraph only renders inside the expanded panel — so expand it,
+        // or the message would be set and never seen.
+        setExpanded(true)
+        setError('Could not open the group — you may be offline. Try again.')
+      }
     })
   }
 
@@ -92,12 +102,19 @@ export function ChatGroupCard({
     const trimmed = nameInput.trim()
     if (!trimmed) { setRenameError('Give the group a name'); return }
     start(async () => {
-      const res = await renameGroupChat(roomId, trimmed)
-      if (res.ok) {
-        setRenaming(false)
-        router.refresh()
-      } else {
-        setRenameError(res.error ?? 'Failed to rename')
+      try {
+        const res = await renameGroupChat(roomId, trimmed)
+        if (res.ok) {
+          setRenaming(false)
+          router.refresh()
+        } else {
+          setRenameError(res.error ?? 'Failed to rename')
+        }
+      } catch {
+        // A Server Action rejects, rather than returning { ok: false }, when
+        // the request itself fails. Without this the rename simply did
+        // nothing — no error, no change, no clue why.
+        setRenameError('Could not reach the server — you may be offline. Try again.')
       }
     })
   }

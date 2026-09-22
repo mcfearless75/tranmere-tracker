@@ -21,19 +21,28 @@ export function InviteParentForm({
     setBusy(true)
     setError(null)
     setInvite(null)
-    const res = await fetch('/api/admin/invite-parent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentId, parentName, email }),
-    })
-    const data = await res.json()
-    setBusy(false)
-    if (!res.ok) setError(data.error ?? 'Failed')
-    else {
-      setInvite({ login: data.login, pin: data.pin, studentName: data.studentName })
-      setParentName('')
-      setEmail('')
-      router.refresh()
+    try {
+      const res = await fetch('/api/admin/invite-parent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId, parentName, email }),
+      })
+      const data = await res.json()
+      if (!res.ok) setError(data.error ?? 'Failed')
+      else {
+        setInvite({ login: data.login, pin: data.pin, studentName: data.studentName })
+        setParentName('')
+        setEmail('')
+        router.refresh()
+      }
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally the Invite button stayed disabled until a
+      // reload — and the PIN this form generates is shown once, so a stuck
+      // button is the difference between a parent getting access or not.
+      setError('Could not reach the server — you may be offline. Try again.')
+    } finally {
+      setBusy(false)
     }
   }
 

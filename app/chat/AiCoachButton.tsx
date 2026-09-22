@@ -11,12 +11,20 @@ export function AiCoachButton() {
 
   async function open() {
     setLoading(true)
-    const result = await getOrCreateBotRoom()
-    setLoading(false)
-    if (typeof result === 'string') {
-      router.push(`/chat/${result}`)
-    } else {
-      alert(result.error)
+    try {
+      const result = await getOrCreateBotRoom()
+      if (typeof result === 'string') {
+        router.push(`/chat/${result}`)
+      } else {
+        alert(result.error)
+      }
+    } catch {
+      // A Server Action rejects, rather than returning an error, when the
+      // request itself fails — offline, 5xx, a deploy landing mid-call.
+      // Without the finally, the button stays disabled until a reload.
+      alert('Could not open the AI Coach — you may be offline. Try again.')
+    } finally {
+      setLoading(false)
     }
   }
 

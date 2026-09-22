@@ -16,14 +16,22 @@ export function CreateFolderButton({ parentId }: { parentId?: string }) {
     setError(null)
     if (!name.trim()) { setError('Give the folder a name'); return }
     setSubmitting(true)
-    const res = await createFolder(name.trim(), parentId)
-    setSubmitting(false)
-    if (typeof res === 'string') {
-      setName('')
-      setOpen(false)
-      router.refresh()
-    } else {
-      setError(res.error)
+    try {
+      const res = await createFolder(name.trim(), parentId)
+      if (typeof res === 'string') {
+        setName('')
+        setOpen(false)
+        router.refresh()
+      } else {
+        setError(res.error)
+      }
+    } catch {
+      // A Server Action rejects, rather than returning an error, when the
+      // request itself fails — offline, 5xx, a deploy landing mid-call.
+      // Without the finally, the button stays disabled until a reload.
+      setError('Could not create the folder — you may be offline. Try again.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
