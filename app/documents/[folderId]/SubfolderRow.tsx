@@ -12,13 +12,25 @@ export function SubfolderRow({ id, name, isStaff }: { id: string; name: string; 
   const [value, setValue] = useState(name)
   const [pending, start] = useTransition()
   const [over, setOver] = useState(false)
+  // This row previously surfaced nothing at all: both calls checked res.ok and
+  // did nothing on the other branch, so a refused rename and a dropped
+  // connection both looked identical to the user — the folder simply did not
+  // change and no reason was given.
+  const [error, setError] = useState<string | null>(null)
 
   function save() {
+    setError(null)
     start(async () => {
-      const res = await renameFolder(id, value)
-      if (res.ok) {
-        setEditing(false)
-        router.refresh()
+      try {
+        const res = await renameFolder(id, value)
+        if (res.ok) {
+          setEditing(false)
+          router.refresh()
+        } else setError(res.error ?? 'Could not rename')
+      } catch {
+        // A Server Action rejects, rather than returning an error, when the
+        // request itself fails — offline, 5xx, a deploy landing mid-call.
+        setError('Could not rename — you may be offline. Try again.')
       }
     })
   }
@@ -28,13 +40,20 @@ export function SubfolderRow({ id, name, isStaff }: { id: string; name: string; 
     setOver(false)
     const docId = e.dataTransfer.getData('application/x-tranmere-doc') || e.dataTransfer.getData('text/plain')
     if (!docId || !isStaff) return
+    setError(null)
     start(async () => {
-      const res = await moveDocument(docId, id)
-      if (res.ok) router.refresh()
+      try {
+        const res = await moveDocument(docId, id)
+        if (res.ok) router.refresh()
+        else setError(res.error ?? 'Could not move that file here')
+      } catch {
+        setError('Could not move that file — you may be offline. Try again.')
+      }
     })
   }
 
   return (
+    <div>
     <div
       className={`flex items-center gap-3 p-3 ${over ? 'bg-tranmere-blue/10 ring-2 ring-tranmere-blue/30' : ''}`}
       onDragOver={e => { e.preventDefault(); setOver(true) }}
@@ -66,6 +85,8 @@ export function SubfolderRow({ id, name, isStaff }: { id: string; name: string; 
       ) : (
         <button type="button" onClick={() => setEditing(true)} className="p-2 text-gray-400" aria-label="Rename folder"><Pencil size={16} /></button>
       ))}
+    </div>
+    {error && <p className="px-3 pb-2 text-xs text-red-600">{error}</p>}
     </div>
   )
 }

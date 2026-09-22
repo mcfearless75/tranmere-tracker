@@ -15,11 +15,18 @@ export function FolderHeader({ folderId, folderName }: { folderId: string; folde
   function save() {
     setError(null)
     start(async () => {
-      const res = await renameFolder(folderId, value)
-      if (res.ok) {
-        setEditing(false)
-        router.refresh()
-      } else setError(res.error ?? 'Could not rename')
+      try {
+        const res = await renameFolder(folderId, value)
+        if (res.ok) {
+          setEditing(false)
+          router.refresh()
+        } else setError(res.error ?? 'Could not rename')
+      } catch {
+        // A Server Action rejects, rather than returning an error, when the
+        // request itself fails — offline, 5xx, a deploy landing mid-call.
+        // Stays in edit mode so the typed name is not lost.
+        setError('Could not rename — you may be offline. Try again.')
+      }
     })
   }
 
@@ -27,9 +34,13 @@ export function FolderHeader({ folderId, folderName }: { folderId: string; folde
     if (!confirm(`Delete "${folderName}" and everything inside it? This cannot be undone.`)) return
     setError(null)
     start(async () => {
-      const res = await deleteFolder(folderId)
-      if (res.ok) router.push(res.parentId ? `/documents/${res.parentId}` : '/documents')
-      else setError(res.error ?? 'Failed to delete')
+      try {
+        const res = await deleteFolder(folderId)
+        if (res.ok) router.push(res.parentId ? `/documents/${res.parentId}` : '/documents')
+        else setError(res.error ?? 'Failed to delete')
+      } catch {
+        setError('Could not delete — you may be offline. Try again.')
+      }
     })
   }
 

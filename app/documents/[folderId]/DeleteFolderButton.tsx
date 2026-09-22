@@ -14,9 +14,15 @@ export function DeleteFolderButton({ folderId, folderName }: { folderId: string;
     if (!confirm(`Delete "${folderName}" and all its files? This cannot be undone.`)) return
     setError(null)
     start(async () => {
-      const res = await deleteFolder(folderId)
-      if (res.ok) router.push('/documents')
-      else setError(res.error ?? 'Failed to delete')
+      try {
+        const res = await deleteFolder(folderId)
+        if (res.ok) router.push('/documents')
+        else setError(res.error ?? 'Failed to delete')
+      } catch {
+        // A Server Action rejects, rather than returning an error, when the
+        // request itself fails — offline, 5xx, a deploy landing mid-call.
+        setError('Could not delete — you may be offline. Try again.')
+      }
     })
   }
 

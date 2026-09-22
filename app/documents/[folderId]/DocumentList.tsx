@@ -43,32 +43,49 @@ export function DocumentList({ documents, isStaff, destinations }: { documents: 
     setError(null)
     setRemovingId(id)
     start(async () => {
-      const res = await deleteDocument(id)
-      setRemovingId(null)
-      if (res.ok) router.refresh()
-      else setError(res.error ?? 'Failed to delete')
+      try {
+        const res = await deleteDocument(id)
+        if (res.ok) router.refresh()
+        else setError(res.error ?? 'Failed to delete')
+      } catch {
+        // A Server Action rejects, rather than returning an error, when the
+        // request itself fails — offline, 5xx, a deploy landing mid-call.
+        setError('Could not delete — you may be offline. Try again.')
+      } finally {
+        // Without the finally this row stays stuck in its removing state.
+        setRemovingId(null)
+      }
     })
   }
 
   function saveName(id: string) {
     setError(null)
     start(async () => {
-      const res = await renameDocument(id, editValue)
-      if (res.ok) {
-        setEditingId(null)
-        router.refresh()
-      } else setError(res.error ?? 'Could not rename')
+      try {
+        const res = await renameDocument(id, editValue)
+        if (res.ok) {
+          setEditingId(null)
+          router.refresh()
+        } else setError(res.error ?? 'Could not rename')
+      } catch {
+        // Stays in edit mode so the typed name is not lost.
+        setError('Could not rename — you may be offline. Try again.')
+      }
     })
   }
 
   function moveTo(docId: string, folderId: string) {
     setError(null)
     start(async () => {
-      const res = await moveDocument(docId, folderId)
-      if (res.ok) {
-        setMovingId(null)
-        router.refresh()
-      } else setError(res.error ?? 'Could not move')
+      try {
+        const res = await moveDocument(docId, folderId)
+        if (res.ok) {
+          setMovingId(null)
+          router.refresh()
+        } else setError(res.error ?? 'Could not move')
+      } catch {
+        setError('Could not move — you may be offline. Try again.')
+      }
     })
   }
 
