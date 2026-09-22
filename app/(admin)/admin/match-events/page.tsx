@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { eligiblePlayers } from '@/lib/teams/players'
-import type { TeamRef } from '@/lib/teams/types'
+import type { Team, TeamRef } from '@/lib/teams/types'
 import { CreateMatchForm } from './CreateMatchForm'
 import { MatchEventList } from './MatchEventList'
 import Link from 'next/link'
@@ -32,7 +32,7 @@ export default async function MatchEventsPage() {
   const { data: { user } } = await auth.auth.getUser()
   const supabase = createAdminClient()
 
-  const [{ data: students }, { data: matches }] = await Promise.all([
+  const [{ data: students }, { data: matches }, { data: teams }] = await Promise.all([
     eligiblePlayers(supabase, 'id, name, year_group, role, team_id, teams(id, name)'),
     supabase
       .from('match_events')
@@ -44,6 +44,8 @@ export default async function MatchEventsPage() {
         )
       `)
       .order('match_date', { ascending: false }),
+    supabase.from('teams').select('id, name, sort_order, is_active')
+      .eq('is_active', true).order('sort_order'),
   ])
 
   return (
@@ -60,7 +62,11 @@ export default async function MatchEventsPage() {
           <LayoutGrid size={16} /> Open Formation Pitch
         </Link>
       </div>
-      <CreateMatchForm students={(students ?? []) as unknown as EligiblePlayer[]} coachId={user!.id} />
+      <CreateMatchForm
+        students={(students ?? []) as unknown as EligiblePlayer[]}
+        teams={(teams ?? []) as Team[]}
+        coachId={user!.id}
+      />
       <MatchEventList matches={(matches ?? []) as any} />
     </div>
   )

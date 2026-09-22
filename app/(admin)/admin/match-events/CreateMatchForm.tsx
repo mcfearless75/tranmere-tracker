@@ -1,5 +1,7 @@
 'use client'
 import { YearBadge } from '@/components/YearBadge'
+import { TeamBadge } from '@/components/TeamBadge'
+import type { Team, TeamRef } from '@/lib/teams/types'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -9,10 +11,17 @@ import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import { formatEventTime } from '@/lib/calendar/calendarUtils'
 
-type Student = { id: string; name: string; year_group: number }
-type Props = { students: Student[]; coachId: string }
+type Student = {
+  id: string
+  name: string
+  year_group: number
+  role: string
+  team_id: string | null
+  teams: TeamRef | null
+}
+type Props = { students: Student[]; teams: Team[]; coachId: string }
 
-export function CreateMatchForm({ students, coachId }: Props) {
+export function CreateMatchForm({ students, teams, coachId }: Props) {
   const router = useRouter()
   const [date, setDate] = useState('')
   const [kickOffTime, setKickOffTime] = useState('')
@@ -20,6 +29,7 @@ export function CreateMatchForm({ students, coachId }: Props) {
   const [opponent, setOpponent] = useState('')
   const [location, setLocation] = useState('')
   const [notes, setNotes] = useState('')
+  const [teamId, setTeamId] = useState<string>('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null)
@@ -30,6 +40,13 @@ export function CreateMatchForm({ students, coachId }: Props) {
       if (next.has(id)) next.delete(id); else next.add(id)
       return next
     })
+  }
+
+  function pickTeam(next: string) {
+    const manual = selected.size > 0 && teamId === ''
+    if (manual && next && !confirm('Replace the players you have picked with the whole team?')) return
+    setTeamId(next)
+    setSelected(next ? new Set(students.filter(s => s.team_id === next).map(s => s.id)) : new Set())
   }
 
   async function handleCreate() {
@@ -45,6 +62,7 @@ export function CreateMatchForm({ students, coachId }: Props) {
       opponent,
       location: location || null,
       notes: notes || null,
+      team_id: teamId || null,
     }
     if (meetTime) row.meet_time = meetTime
 
@@ -95,9 +113,38 @@ export function CreateMatchForm({ students, coachId }: Props) {
       ok: true,
     })
     setDate(''); setKickOffTime(''); setMeetTime(''); setOpponent(''); setLocation(''); setNotes('')
+    setTeamId('')
     setSelected(new Set())
     router.refresh()
     setSaving(false)
+  }
+
+  const teamPlayers = teamId ? students.filter(s => s.team_id === teamId) : []
+  const otherPlayers = teamId ? students.filter(s => s.team_id !== teamId) : students
+
+  function PlayerButton({ s }: { s: Student }) {
+    const isSelected = selected.has(s.id)
+    return (
+      <button
+        key={s.id}
+        type="button"
+        aria-pressed={isSelected}
+        onClick={() => toggle(s.id)}
+        className={`text-sm px-3 py-2 rounded-lg border text-left ${
+          isSelected
+            ? 'bg-tranmere-blue text-white border-tranmere-blue'
+            : 'bg-white text-gray-700 border-gray-200'
+        }`}
+      >
+        <span className="flex items-center justify-between gap-1.5">
+          <span className="truncate">{s.name}</span>
+          <span className="flex items-center gap-1 shrink-0">
+            {!teamId && <TeamBadge team={s.teams} />}
+            <YearBadge year={s.year_group} />
+          </span>
+        </span>
+      </button>
+    )
   }
 
   return (
@@ -132,26 +179,33 @@ export function CreateMatchForm({ students, coachId }: Props) {
       </div>
 
       <div>
+        <label htmlFor="match-team" className="text-xs font-medium text-muted-foreground">Team</label>
+        <select
+          id="match-team"
+          value={teamId}
+          onChange={e => pickTeam(e.target.value)}
+          className="w-full text-sm border rounded-lg px-3 py-2 bg-white mt-1"
+        >
+          <option value="">No team · pick players manually</option>
+          {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+      </div>
+
+      <div>
         <p className="text-xs font-medium text-muted-foreground mb-2">Squad (optional — add later if you want)</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
-          {students.map(s => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => toggle(s.id)}
-              className={`text-sm px-3 py-2 rounded-lg border text-left ${
-                selected.has(s.id)
-                  ? 'bg-tranmere-blue text-white border-tranmere-blue'
-                  : 'bg-white text-gray-700 border-gray-200'
-              }`}
-            >
-              <span className="flex items-center justify-between gap-1.5">
-                <span className="truncate">{s.name}</span>
-                <YearBadge year={s.year_group} />
-              </span>
-            </button>
-          ))}
-        </div>
+        {teamId && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto mb-2">
+            {teamPlayers.map(s => <PlayerButton key={s.id} s={s} />)}
+          </div>
+        )}
+        <details open={!teamId}>
+          <summary className="text-xs font-medium text-muted-foreground cursor-pointer select-none">
+            {teamId ? 'Other players (call-up)' : 'Players'}
+          </summary>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto mt-2">
+            {otherPlayers.map(s => <PlayerButton key={s.id} s={s} />)}
+          </div>
+        </details>
       </div>
 
       {message && (
