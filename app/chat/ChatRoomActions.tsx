@@ -51,8 +51,14 @@ export function ChatRoomActions({
     e.stopPropagation()
     setOpen(false)
     start(async () => {
-      const res = await nudgeRoom(roomId)
-      setFeedback(res.ok ? 'Nudge sent ✓' : (res.error ?? 'Failed'))
+      try {
+        const res = await nudgeRoom(roomId)
+        setFeedback(res.ok ? 'Nudge sent ✓' : (res.error ?? 'Failed'))
+      } catch {
+        // A Server Action rejects, rather than returning an error, when the
+        // request itself fails — offline, 5xx, a deploy landing mid-call.
+        setFeedback('Could not send — you may be offline')
+      }
       setTimeout(() => setFeedback(null), 2500)
     })
   }
@@ -64,12 +70,17 @@ export function ChatRoomActions({
     const label = isOwner && isDmOrBot ? 'Delete this conversation?' : 'Leave this conversation?'
     if (!confirm(label)) return
     start(async () => {
-      const res = await leaveOrDeleteRoom(roomId)
-      if (res.ok) router.refresh()
-      else {
+      try {
+        const res = await leaveOrDeleteRoom(roomId)
+        if (res.ok) {
+          router.refresh()
+          return
+        }
         setFeedback(res.error ?? 'Failed')
-        setTimeout(() => setFeedback(null), 2500)
+      } catch {
+        setFeedback('Could not leave — you may be offline')
       }
+      setTimeout(() => setFeedback(null), 2500)
     })
   }
 

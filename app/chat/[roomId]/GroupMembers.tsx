@@ -34,10 +34,18 @@ export function GroupMembers({
     setError(null)
     setRemovingId(userId)
     start(async () => {
-      const res = await removeGroupMember(roomId, userId)
-      setRemovingId(null)
-      if (res.ok) router.refresh()
-      else setError(res.error ?? 'Failed to remove')
+      try {
+        const res = await removeGroupMember(roomId, userId)
+        if (res.ok) router.refresh()
+        else setError(res.error ?? 'Failed to remove')
+      } catch {
+        // A Server Action rejects, rather than returning an error, when the
+        // request itself fails — offline, 5xx, a deploy landing mid-call.
+        setError('Could not remove — you may be offline. Try again.')
+      } finally {
+        // Without the finally this row stays stuck in its removing state.
+        setRemovingId(null)
+      }
     })
   }
 

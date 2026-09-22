@@ -32,13 +32,20 @@ export function AddGroupMembers({ roomId, addable }: { roomId: string; addable: 
     setError(null)
     if (selected.size === 0) { setError('Pick at least one person'); return }
     start(async () => {
-      const res = await addGroupMembers(roomId, Array.from(selected))
-      if (res.ok) {
-        setOpen(false)
-        setSelected(new Set())
-        router.refresh()
-      } else {
-        setError(res.error ?? 'Failed to add members')
+      try {
+        const res = await addGroupMembers(roomId, Array.from(selected))
+        if (res.ok) {
+          setOpen(false)
+          setSelected(new Set())
+          router.refresh()
+        } else {
+          setError(res.error ?? 'Failed to add members')
+        }
+      } catch {
+        // A Server Action rejects, rather than returning an error, when the
+        // request itself fails — offline, 5xx, a deploy landing mid-call.
+        // The picker stays open so the selection is not lost.
+        setError('Could not add members — you may be offline. Try again.')
       }
     })
   }

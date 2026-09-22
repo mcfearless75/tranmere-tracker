@@ -50,17 +50,25 @@ export function PlayerAttributesForm({
   function save() {
     setMsg(null)
     start(async () => {
-      const res = await savePlayerAttributes({
-        userId,
-        date_of_birth: form.date_of_birth,
-        position:      form.position,
-        height_cm:     form.height_cm,
-        weight_kg:     form.weight_kg,
-        build:         form.build,
-        dominant_foot: form.dominant_foot,
-      })
-      if (res.ok) { setEditing(false); setMsg('Saved') }
-      else        setMsg(res.error ?? 'Save failed')
+      try {
+        const res = await savePlayerAttributes({
+          userId,
+          date_of_birth: form.date_of_birth,
+          position:      form.position,
+          height_cm:     form.height_cm,
+          weight_kg:     form.weight_kg,
+          build:         form.build,
+          dominant_foot: form.dominant_foot,
+        })
+        if (res.ok) { setEditing(false); setMsg('Saved') }
+        else        setMsg(res.error ?? 'Save failed')
+      } catch {
+        // A Server Action rejects, rather than returning an error, when the
+        // request itself fails — offline, 5xx, a deploy landing mid-call.
+        // Staying in edit mode keeps the typed values AND renders this in red
+        // (the read view styles msg green, the edit view red).
+        setMsg('Could not save — you may be offline. Try again.')
+      }
     })
   }
 
