@@ -47,17 +47,26 @@ export function ReportBuilderClient({ students, courses }: { students: Student[]
   async function run() {
     if (selectedMetrics.size === 0) return
     setLoading(true)
-    const res = await fetch('/api/admin/report-builder', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        studentIds: filteredStudents.map(s => s.id),
-        metrics: Array.from(selectedMetrics),
-      }),
-    })
-    const data = await res.json()
-    setRows(data.rows ?? [])
-    setLoading(false)
+    try {
+      const res = await fetch('/api/admin/report-builder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentIds: filteredStudents.map(s => s.id),
+          metrics: Array.from(selectedMetrics),
+        }),
+      })
+      const data = await res.json()
+      setRows(data.rows ?? [])
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally this stayed stuck on "Loading…" until a
+      // reload. Clear the rows so a stale report is not read as a fresh one.
+      setRows([])
+      alert('Could not reach the server — you may be offline. Try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   function exportCSV() {

@@ -82,21 +82,29 @@ export function NotificationsClient({ users, courses }: { users: User[]; courses
 
     const targetUserIds = audience.kind === 'all' ? null : targetedUsers.map(u => u.id)
 
-    const res = await fetch('/api/push/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: title.trim(), body: body.trim(), targetUserIds }),
-    })
-    const data = await res.json()
-    setSending(false)
-    if (data.error) {
-      setResult({ ok: false, text: `Error: ${data.error}` })
-    } else {
-      setResult({
-        ok: true,
-        text: `Sent to ${data.sent} device(s)${data.failed > 0 ? ` · ${data.failed} failed` : ''} · ${data.total} subscribers targeted`,
+    try {
+      const res = await fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title.trim(), body: body.trim(), targetUserIds }),
       })
-      setTitle(''); setBody('')
+      const data = await res.json()
+      if (data.error) {
+        setResult({ ok: false, text: `Error: ${data.error}` })
+      } else {
+        setResult({
+          ok: true,
+          text: `Sent to ${data.sent} device(s)${data.failed > 0 ? ` · ${data.failed} failed` : ''} · ${data.total} subscribers targeted`,
+        })
+        setTitle(''); setBody('')
+      }
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally the Send button stayed disabled until a
+      // reload, with the composed message still sitting there unsent.
+      setResult({ ok: false, text: 'Could not reach the server — you may be offline. Try again.' })
+    } finally {
+      setSending(false)
     }
   }
 

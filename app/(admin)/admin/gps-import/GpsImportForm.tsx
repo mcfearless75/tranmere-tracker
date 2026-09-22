@@ -27,17 +27,25 @@ export function GpsImportForm() {
     const form = new FormData()
     form.append('file', file)
     form.append('session_label', label || 'Training')
-    const res = await fetch('/api/admin/gps-import', { method: 'POST', body: form })
-    const data = await res.json()
-    if (data.error) {
-      setResult({ ok: false, message: data.error })
-    } else {
-      setResult({ ok: true, message: data.message })
-      setFile(null)
-      setLabel('')
-      router.refresh()
+    try {
+      const res = await fetch('/api/admin/gps-import', { method: 'POST', body: form })
+      const data = await res.json()
+      if (data.error) {
+        setResult({ ok: false, message: data.error })
+      } else {
+        setResult({ ok: true, message: data.message })
+        setFile(null)
+        setLabel('')
+        router.refresh()
+      }
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally this stayed stuck on "Uploading…" until a
+      // reload — and GPS imports are done pitchside on patchy signal.
+      setResult({ ok: false, message: 'Could not reach the server — you may be offline. Try again.' })
+    } finally {
+      setUploading(false)
     }
-    setUploading(false)
   }
 
   return (

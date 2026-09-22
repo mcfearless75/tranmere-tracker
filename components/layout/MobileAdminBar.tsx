@@ -55,11 +55,11 @@ export function MobileAdminBar({ userName, avatarUrl, role }: Props) {
     <>
       {/* ── Drawer overlay ── */}
       {open && (
-        <div className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
+        <div className="md:hidden fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
       )}
 
       {/* ── Drawer ── */}
-      <aside className={`md:hidden fixed top-0 left-0 z-50 h-[100dvh] w-72 bg-tranmere-blue text-white flex flex-col shadow-2xl transform transition-transform duration-300 ease-out ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`md:hidden fixed top-0 left-0 z-[70] h-[100dvh] w-72 bg-tranmere-blue text-white flex flex-col shadow-2xl transform transition-transform duration-300 ease-out ${open ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between p-4 border-b border-blue-800">
           <div className="flex items-center gap-2">
             <Image src="https://upload.wikimedia.org/wikipedia/en/thumb/5/55/Tranmere_Rovers_FC_crest.svg/960px-Tranmere_Rovers_FC_crest.svg.png" alt="Tranmere Rovers" width={32} height={32} />
@@ -112,7 +112,7 @@ export function MobileAdminBar({ userName, avatarUrl, role }: Props) {
       </aside>
 
       {/* ── Persistent bottom tab bar (mobile only) ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-tranmere-blue text-white flex justify-around items-center h-16 safe-area-inset-bottom shadow-lg">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-tranmere-blue text-white flex justify-around items-center h-16 safe-area-inset-bottom shadow-lg">
         <Link href="/admin/home"
           className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${pathname.startsWith('/admin/home') ? 'text-white' : 'text-blue-300'}`}>
           <Home size={20} strokeWidth={pathname.startsWith('/admin/home') ? 2.5 : 1.5} />

@@ -39,21 +39,29 @@ export function CreateUserForm({ courses }: Props) {
     }
     setSaving(true)
     setMessage(null)
-    const res = await fetch('/api/admin/create-user', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, name, role, courseId: courseId || null, pin,
-        yearGroup: role === 'student' ? yearGroup : null }),
-    })
-    const data = await res.json()
-    if (data.error) {
-      setMessage({ text: data.error, ok: false })
-    } else {
-      setMessage({ text: `Account created — ${name} logs in at /staff-login with username "${username}" and their PIN`, ok: true })
-      setName(''); setUsername(''); setPin(''); setCourseId('')
-      router.refresh()
+    try {
+      const res = await fetch('/api/admin/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, name, role, courseId: courseId || null, pin,
+          yearGroup: role === 'student' ? yearGroup : null }),
+      })
+      const data = await res.json()
+      if (data.error) {
+        setMessage({ text: data.error, ok: false })
+      } else {
+        setMessage({ text: `Account created — ${name} logs in at /staff-login with username "${username}" and their PIN`, ok: true })
+        setName(''); setUsername(''); setPin(''); setCourseId('')
+        router.refresh()
+      }
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally the Create button stayed disabled until a
+      // reload, with the typed username and PIN still in the form.
+      setMessage({ text: 'Could not reach the server — you may be offline. Try again.', ok: false })
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   return (

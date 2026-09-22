@@ -54,21 +54,28 @@ export function TimetableManager({ slots, yearGroup }: Props) {
       tutor: form.tutor.trim() || null,
       year_group: yearGroup,
     }
-    const res = await fetch(
-      editingId ? `/api/admin/timetable-slots/${editingId}` : '/api/admin/timetable-slots',
-      {
-        method: editingId ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+    try {
+      const res = await fetch(
+        editingId ? `/api/admin/timetable-slots/${editingId}` : '/api/admin/timetable-slots',
+        {
+          method: editingId ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }
+      )
+      const data = await res.json()
+      if (res.ok) {
+        cancelEdit()
+        router.refresh()
+      } else {
+        alert(data.error ?? 'Failed to save session')
       }
-    )
-    const data = await res.json()
-    setLoading(false)
-    if (res.ok) {
-      cancelEdit()
-      router.refresh()
-    } else {
-      alert(data.error ?? 'Failed to save session')
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally the Save button stayed disabled until a reload.
+      alert('Could not reach the server — you may be offline. Try again.')
+    } finally {
+      setLoading(false)
     }
   }
 

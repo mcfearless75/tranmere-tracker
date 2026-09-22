@@ -135,18 +135,26 @@ export function MatchReport({ match, squad }: { match: Match; squad: SquadRow[] 
       status,
     }).eq('id', match.id)
 
-    const res = await fetch('/api/ai/match-report', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ matchId: match.id, coachNotes: reportText }),
-    })
-    const data = await res.json()
-    setAiWriting(false)
-    if (data.error) {
-      setSaveMsg(`AI error: ${data.error}`)
-    } else {
-      setReportText(data.report)
-      setSaveMsg('✨ AI report generated — review and save')
+    try {
+      const res = await fetch('/api/ai/match-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: match.id, coachNotes: reportText }),
+      })
+      const data = await res.json()
+      if (data.error) {
+        setSaveMsg(`AI error: ${data.error}`)
+      } else {
+        setReportText(data.report)
+        setSaveMsg('✨ AI report generated — review and save')
+      }
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally this stayed stuck on "Writing…" until a
+      // reload. AI report generation is slow, which widens the window.
+      setSaveMsg('Could not reach the server — you may be offline. Try again.')
+    } finally {
+      setAiWriting(false)
     }
     setTimeout(() => setSaveMsg(null), 5000)
   }

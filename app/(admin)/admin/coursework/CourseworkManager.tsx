@@ -52,21 +52,28 @@ export function CourseworkManager({ units, assignments }: Props) {
       due_date: form.due_date,
       grade_target: form.grade_target.trim() || null,
     }
-    const res = await fetch(
-      editingId ? `/api/admin/assignments/${editingId}` : '/api/admin/assignments',
-      {
-        method: editingId ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+    try {
+      const res = await fetch(
+        editingId ? `/api/admin/assignments/${editingId}` : '/api/admin/assignments',
+        {
+          method: editingId ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }
+      )
+      const data = await res.json()
+      if (res.ok) {
+        cancel()
+        router.refresh()
+      } else {
+        alert(data.error ?? 'Failed to save assignment')
       }
-    )
-    const data = await res.json()
-    setLoading(false)
-    if (res.ok) {
-      cancel()
-      router.refresh()
-    } else {
-      alert(data.error ?? 'Failed to save assignment')
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally the Save button stayed disabled until a reload.
+      alert('Could not reach the server — you may be offline. Try again.')
+    } finally {
+      setLoading(false)
     }
   }
 

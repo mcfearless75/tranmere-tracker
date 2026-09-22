@@ -27,17 +27,25 @@ export function GradeSheet({ assignment, students, grades }: Props) {
         grade: values[s.id] ? values[s.id] : null,
       })),
     }
-    const res = await fetch(`/api/admin/assignments/${assignment.id}/grades`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    const data = await res.json()
-    setLoading(false)
-    if (res.ok) {
-      router.refresh()
-    } else {
-      alert(data.error ?? 'Failed to save grades')
+    try {
+      const res = await fetch(`/api/admin/assignments/${assignment.id}/grades`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        router.refresh()
+      } else {
+        alert(data.error ?? 'Failed to save grades')
+      }
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally the Save button stayed disabled until a reload
+      // — with a sheet of typed grades still unsaved behind it.
+      alert('Could not reach the server — you may be offline. Try again.')
+    } finally {
+      setLoading(false)
     }
   }
 

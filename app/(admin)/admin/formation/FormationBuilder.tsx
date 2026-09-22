@@ -137,7 +137,7 @@ export function FormationBuilder({ students, matches, selectedMatchId, initialSq
   })
 
   return (
-    <div className="space-y-4 pb-24 lg:pb-4">
+    <div className="space-y-4 pb-36 lg:pb-4">
       {/* FORMATION PILLS — horizontal scroll on mobile */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 py-1">
         {FORMATION_NAMES.map(f => (
@@ -304,7 +304,7 @@ export function FormationBuilder({ students, matches, selectedMatchId, initialSq
       </div>
 
       {/* STICKY SAVE BAR (mobile) */}
-      <div className="fixed bottom-0 left-0 right-0 lg:hidden z-30 bg-gradient-to-t from-white via-white to-transparent pb-3 pt-6 px-4 pointer-events-none">
+      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 lg:hidden z-30 bg-gradient-to-t from-white via-white to-transparent pb-3 pt-6 px-4 pointer-events-none">
         <div className="pointer-events-auto max-w-md mx-auto flex gap-2">
           <button
             onClick={reset}

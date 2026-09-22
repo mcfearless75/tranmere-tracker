@@ -47,17 +47,24 @@ export function CatapultCodeRoster({
     setBusy(true)
     setMsg(null)
     const updates = students.map(s => ({ id: s.id, code: codes[s.id] ?? '' }))
-    const res = await fetch('/api/admin/catapult-codes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ updates }),
-    })
-    const data = await res.json()
-    setBusy(false)
-    if (!res.ok) setMsg(data.error ?? 'Save failed')
-    else {
-      setMsg(`Saved ${data.saved} player code(s).`)
-      router.refresh()
+    try {
+      const res = await fetch('/api/admin/catapult-codes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates }),
+      })
+      const data = await res.json()
+      if (!res.ok) setMsg(data.error ?? 'Save failed')
+      else {
+        setMsg(`Saved ${data.saved} player code(s).`)
+        router.refresh()
+      }
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally the Save button stayed disabled until a reload.
+      setMsg('Could not reach the server — you may be offline. Try again.')
+    } finally {
+      setBusy(false)
     }
   }
 
