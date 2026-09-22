@@ -27,8 +27,8 @@ function startEditing() {
 
 describe('StudentIdentityForm', () => {
   beforeEach(() => {
-    updateUserNameMock.mockReset().mockResolvedValue(undefined)
-    updateUserYearGroupMock.mockReset().mockResolvedValue(undefined)
+    updateUserNameMock.mockReset().mockResolvedValue({ ok: true })
+    updateUserYearGroupMock.mockReset().mockResolvedValue({ ok: true })
   })
 
   it('shows the current name and year group before editing', () => {
@@ -95,8 +95,8 @@ describe('StudentIdentityForm', () => {
     expect(updateUserYearGroupMock).not.toHaveBeenCalled()
   })
 
-  it('surfaces a failed save instead of silently closing', async () => {
-    updateUserNameMock.mockRejectedValue(new Error('Name cannot be empty'))
+  it('surfaces a returned refusal instead of silently closing', async () => {
+    updateUserNameMock.mockResolvedValue({ ok: false, error: 'Name cannot be empty' })
     renderForm()
     startEditing()
     fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Someone Else' } })
@@ -105,6 +105,43 @@ describe('StudentIdentityForm', () => {
     expect(await screen.findByText('Name cannot be empty')).toBeInTheDocument()
     // Still in edit mode, so the staff member can correct it.
     expect(screen.getByLabelText('Full name')).toBeInTheDocument()
+  })
+
+  it('surfaces a transport failure too', async () => {
+    updateUserNameMock.mockRejectedValue(new Error('Failed to fetch'))
+    renderForm()
+    startEditing()
+    fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Someone Else' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('Failed to fetch')).toBeInTheDocument()
+    expect(screen.getByLabelText('Full name')).toBeInTheDocument()
+  })
+
+  // A refused rename used to let the year group write go ahead anyway and the
+  // form close on "Saved", because neither result was read.
+  it('does not save the year group when the rename is refused', async () => {
+    updateUserNameMock.mockResolvedValue({ ok: false, error: 'Name cannot be empty' })
+    renderForm()
+    startEditing()
+    fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Someone Else' } })
+    fireEvent.change(screen.getByLabelText('Year group'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('Name cannot be empty')).toBeInTheDocument()
+    expect(updateUserYearGroupMock).not.toHaveBeenCalled()
+    expect(screen.queryByText('Saved')).not.toBeInTheDocument()
+  })
+
+  it('reports a refused year group rather than closing on "Saved"', async () => {
+    updateUserYearGroupMock.mockResolvedValue({ ok: false, error: 'sync_year_group_chat failed' })
+    renderForm()
+    startEditing()
+    fireEvent.change(screen.getByLabelText('Year group'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('sync_year_group_chat failed')).toBeInTheDocument()
+    expect(screen.queryByText('Saved')).not.toBeInTheDocument()
   })
 
   it('discards changes on cancel', () => {

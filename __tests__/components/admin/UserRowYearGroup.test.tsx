@@ -3,8 +3,8 @@ import { UserRow } from '@/app/(admin)/admin/users/UserRow'
 
 const updateUserYearGroupMock = jest.fn()
 jest.mock('@/app/(admin)/admin/users/userActions', () => ({
-  updateUserRole: jest.fn(),
-  updateUserCourse: jest.fn(),
+  updateUserRole: jest.fn(async () => ({ ok: true })),
+  updateUserCourse: jest.fn(async () => ({ ok: true })),
   updateUserYearGroup: (...a: any[]) => updateUserYearGroupMock(...a),
 }))
 

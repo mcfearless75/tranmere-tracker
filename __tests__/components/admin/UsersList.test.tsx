@@ -2,9 +2,9 @@ import { render, screen, fireEvent, within } from '@testing-library/react'
 import { UsersList } from '@/app/(admin)/admin/users/UsersList'
 
 jest.mock('@/app/(admin)/admin/users/userActions', () => ({
-  updateUserRole: jest.fn(),
-  updateUserCourse: jest.fn(),
-  updateUserYearGroup: jest.fn(),
+  updateUserRole: jest.fn(async () => ({ ok: true })),
+  updateUserCourse: jest.fn(async () => ({ ok: true })),
+  updateUserYearGroup: jest.fn(async () => ({ ok: true })),
 }))
 
 const COURSES = [{ id: 'c1', name: 'BTEC Sport' }]

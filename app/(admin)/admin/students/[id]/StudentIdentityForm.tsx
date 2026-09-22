@@ -52,9 +52,15 @@ export function StudentIdentityForm({
     setError(null)
     start(async () => {
       try {
-        if (trimmed !== name) await updateUserName(userId, trimmed)
+        // Each action reports its own refusal now, so a rejected rename no
+        // longer lets the year group save and the form close on "Saved".
+        if (trimmed !== name) {
+          const res = await updateUserName(userId, trimmed)
+          if (!res.ok) { setError(res.error ?? 'Save failed'); return }
+        }
         if (isStudent && draftYear !== yearGroup) {
-          await updateUserYearGroup(userId, draftYear)
+          const res = await updateUserYearGroup(userId, draftYear)
+          if (!res.ok) { setError(res.error ?? 'Save failed'); return }
         }
         setEditing(false)
         setMsg('Saved')
