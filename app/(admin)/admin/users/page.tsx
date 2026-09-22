@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CreateUserForm } from './CreateUserForm'
 import { UserRow } from './UserRow'
+import { UserCard } from './UserCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +34,21 @@ export default async function UsersPage() {
       <CreateUserForm courses={courses ?? []} />
 
       <div className="bg-white rounded-xl border overflow-hidden">
-        <div className="overflow-x-auto -webkit-overflow-scrolling-touch">
+        {/* Phone: stacked cards. The table below is min-w-[600px] inside a
+            horizontal scroller, which pushed the Role/Year/Course controls
+            off-screen on a phone — reachable only by scrolling a table
+            sideways, which nobody does. Same controls, same actions, both
+            layouts (see UserFields). */}
+        <div className="sm:hidden">
+          {users?.map(u => (
+            <UserCard key={u.id} user={u as any} courses={courses ?? []} />
+          ))}
+          {!users?.length && (
+            <p className="px-4 py-6 text-center text-muted-foreground">No users yet.</p>
+          )}
+        </div>
+
+        <div className="hidden sm:block overflow-x-auto -webkit-overflow-scrolling-touch">
           <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-gray-50 border-b">
               <tr>
