@@ -42,12 +42,23 @@ describe('users server actions are guarded', () => {
     maybeSingleMock.mockResolvedValue({ data: { role: 'student' } } as any)
   })
 
-  // requireStaffAction still throws: an unauthorised caller is not a
-  // user-correctable condition, and the client's catch covers it.
+  // requireStaffAction throws, but the action converts that to a result: a
+  // thrown reason is redacted in production, so an expired session showed the
+  // same "Not saved — try again" as everything else with nothing to act on.
   it('refuses a caller who is not staff, and writes nothing', async () => {
     requireStaffActionMock.mockRejectedValue(new Error('Unauthorised'))
-    await expect(updateUserYearGroup('s1', 2)).rejects.toThrow('Unauthorised')
+    await expect(updateUserYearGroup('s1', 2)).resolves.toEqual({
+      ok: false,
+      error: 'You do not have permission to make that change — try signing in again',
+    })
     expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('tells an unauthorised caller something they can act on', async () => {
+    requireStaffActionMock.mockRejectedValue(new Error('Forbidden'))
+    const res = await updateUserRole('s1', 'student')
+    expect(res.ok).toBe(false)
+    expect(!res.ok && res.error).toMatch(/signing in again/)
   })
 
   it('stops a coach granting someone an admin role', async () => {
@@ -97,7 +108,7 @@ describe('users server actions are guarded', () => {
 
   it('refuses a rename from a caller who is not staff, and writes nothing', async () => {
     requireStaffActionMock.mockRejectedValue(new Error('Unauthorised'))
-    await expect(updateUserName('s1', 'Javan Moussa')).rejects.toThrow('Unauthorised')
+    await expect(updateUserName('s1', 'Javan Moussa')).resolves.toMatchObject({ ok: false })
     expect(updateMock).not.toHaveBeenCalled()
   })
 

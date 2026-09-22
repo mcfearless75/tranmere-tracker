@@ -1,6 +1,6 @@
 'use server'
 import { revalidatePath } from 'next/cache'
-import { requireStaffAction } from '@/lib/auth/requireRole'
+import { requireStaffAction, type StaffContext } from '@/lib/auth/requireRole'
 import { USER_NAME_MAX } from '@/lib/users/types'
 
 /**
@@ -16,12 +16,38 @@ import { USER_NAME_MAX } from '@/lib/users/types'
  * All four return {ok, error} rather than throwing. Next.js redacts a thrown
  * Server Action error in production into an opaque digest, so a throw cannot
  * carry a reason to the client — "Only an admin can grant staff roles" became
- * a generic "Not saved". A returned error survives. Only requireStaffAction
- * still throws: an unauthorised caller is not a user-correctable condition and
- * the client's catch covers it, alongside transport failure.
+ * a generic "Not saved". A returned error survives.
+ *
+ * That now includes the authorization refusal, which was the last path still
+ * throwing. A signed-out or expired session IS user-correctable — "sign in
+ * again" is something they can act on — but redaction turned it into the same
+ * "Not saved — try again" as everything else. It is returned instead, so the
+ * only throw left is the request genuinely never reaching the server.
  */
 
-export type ActionResult = { ok: boolean; error?: string }
+/**
+ * A discriminated union rather than {ok: boolean; error?: string}: narrowing
+ * on `ok` then guarantees `error` is present, so a caller cannot forget it and
+ * `{ok: false}` with no reason stops compiling.
+ */
+export type ActionResult = { ok: true } | { ok: false; error: string }
+
+const NO_PERMISSION = 'You do not have permission to make that change — try signing in again'
+
+/**
+ * requireStaffAction throws by design (a server action cannot return an HTTP
+ * response). Converting it to a result once here keeps the throw-vs-return
+ * decision in one place instead of at four call sites.
+ */
+async function staffContext(): Promise<
+  { ok: true; ctx: StaffContext } | { ok: false; error: string }
+> {
+  try {
+    return { ok: true, ctx: await requireStaffAction() }
+  } catch {
+    return { ok: false, error: NO_PERMISSION }
+  }
+}
 
 const STAFF_TARGET_ROLES = new Set(['coach', 'teacher', 'admin'])
 const VALID_ROLES = new Set(['student', 'coach', 'teacher', 'admin'])
@@ -29,7 +55,9 @@ const VALID_ROLES = new Set(['student', 'coach', 'teacher', 'admin'])
 const VALID_YEAR_GROUPS = new Set([1, 2])
 
 export async function updateUserRole(userId: string, role: string): Promise<ActionResult> {
-  const { role: callerRole, admin } = await requireStaffAction()
+  const auth = await staffContext()
+  if (!auth.ok) return auth
+  const { role: callerRole, admin } = auth.ctx
   if (!VALID_ROLES.has(role)) return { ok: false, error: 'Invalid role' }
   // Granting staff access is admin-only — same rule the create-user route
   // already enforces, so a coach cannot mint another admin.
@@ -41,16 +69,22 @@ export async function updateUserRole(userId: string, role: string): Promise<Acti
   if (error) return { ok: false, error: error.message }
 
   revalidatePath('/admin/users')
+  // The detail page header renders role and course too, so it goes stale
+  // otherwise — the year group and rename paths already did this.
+  revalidatePath(`/admin/students/${userId}`)
   return { ok: true }
 }
 
 export async function updateUserCourse(userId: string, courseId: string): Promise<ActionResult> {
-  const { admin } = await requireStaffAction()
+  const auth = await staffContext()
+  if (!auth.ok) return auth
+  const { admin } = auth.ctx
 
   const { error } = await admin.from('users').update({ course_id: courseId || null }).eq('id', userId)
   if (error) return { ok: false, error: error.message }
 
   revalidatePath('/admin/users')
+  revalidatePath(`/admin/students/${userId}`)
   return { ok: true }
 }
 
@@ -67,7 +101,9 @@ export async function updateUserCourse(userId: string, courseId: string): Promis
  * the same transaction, so no chat membership change is needed here.
  */
 export async function updateUserYearGroup(userId: string, yearGroup: number): Promise<ActionResult> {
-  const { admin } = await requireStaffAction()
+  const auth = await staffContext()
+  if (!auth.ok) return auth
+  const { admin } = auth.ctx
   if (!VALID_YEAR_GROUPS.has(yearGroup)) return { ok: false, error: 'Invalid year group' }
 
   const { data: target, error: lookupError } = await admin
@@ -101,7 +137,9 @@ export async function updateUserYearGroup(userId: string, yearGroup: number): Pr
  * printed report, so it is trimmed and length-checked rather than stored raw.
  */
 export async function updateUserName(userId: string, name: string): Promise<ActionResult> {
-  const { admin } = await requireStaffAction()
+  const auth = await staffContext()
+  if (!auth.ok) return auth
+  const { admin } = auth.ctx
 
   const trimmed = name.trim()
   if (!trimmed) return { ok: false, error: 'Name cannot be empty' }
