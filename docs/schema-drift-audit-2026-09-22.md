@@ -163,15 +163,88 @@ know the table is shared.
 
 ---
 
-## Recommended order
+## 5. Four RLS policies never called the hardened helpers — found while verifying the fix
 
-1. **Decide on the `users` UPDATE policy** (finding 3) — it is the only
-   security-relevant item.
-2. **Apply the nine missing indexes** (finding 2) — safe, `if not exists`,
-   immediate query benefit.
-3. **Apply `010_lti_platforms.sql`** (finding 1) — needed before Moodle SSO
-   can ever work; harmless until then.
-4. **Record the shared-database coupling** (finding 4).
+**Severity: the most security-relevant finding, and it drifted in both
+directions.** This one only surfaced after findings 1–4 were remediated; the
+count mismatches had been masking it.
+
+`068_rls_staff_helpers_honor_is_active.sql` hardened `is_staff()` and
+`is_admin_or_coach()` to require `is_active`, so a deactivated admin or coach
+loses staff access even if the paired GoTrue ban was ever missed.
+
+What 068 did not notice is that four policies never call those helpers. Three
+inline `EXISTS (select 1 from users where id = auth.uid() and role in
+('admin','coach'))`, reimplementing the check **without** `is_active` — so
+068's hardening simply did not apply to them.
+
+| Policy | Repo | Production |
+|---|---|---|
+| `attendance_records` "staff see all …" | inline | `is_staff()` |
+| `attendance_sessions` "staff manage …" | inline | `is_staff()` |
+| `users` "users_select_admin" | inline | `is_admin_or_coach()` |
+| `match_squads` "players see own squad entries" | `is_staff()` | inline |
+
+For the first three **production was safer than the repo** — someone had
+corrected them by hand. Rebuilding from migrations (a preview branch, a
+restore, a new environment) would have silently reintroduced the gap.
+
+The fourth drifted the other way: `008_fix_rls_recursion.sql` rewrote it to
+use `is_staff()`, but production still had the old inline version, so a
+deactivated coach could read `match_squads` rows.
+
+**Fixed** by `086_rls_policies_use_hardened_helpers.sql`, which settles all
+four on the helper — the hardened form in every case.
+
+---
+
+## Remediation applied — 2026-09-22
+
+All five findings are closed.
+
+| # | Finding | Action |
+|---|---|---|
+| 1 | LTI migration never applied | Applied `010_lti_platforms.sql` to production |
+| 2 | Nine missing indexes | Applied `037`, plus the index statements from `009` and `075` |
+| 3 | Prod-only `users` UPDATE policy | Dropped, in `085` — verified nothing depended on it |
+| 4 | GPS app's `users.shirt_number` | Declared in `085` so migrations cannot drop it |
+| 5 | Policies bypassing the hardened helpers | Fixed in `086` |
+
+On finding 3, the policy was verified unnecessary before dropping: every
+`users` write in this app uses the service-role client (which bypasses RLS);
+the two user-JWT writes touch the caller's own row and are covered by "users
+can update own row"; and all seven `gps_*` functions are `SECURITY DEFINER`.
+The revert statement is recorded in `085`.
+
+### Verification
+
+Replayed all 86 migrations into a fresh Postgres 17 and compared every object
+class against production. **All eight match byte-for-byte:**
+
+| Class | Count | Hash |
+|---|---|---|
+| tables | 68 | `5e615387…` |
+| columns | 568 | `404f42a0…` |
+| constraints | 249 | `814e04e4…` |
+| indexes | 152 | `fa333d9d…` |
+| policies | 130 | `ca46c4e9…` |
+| rls_enabled | 68 | `03647c67…` |
+| functions | 26 | `f449c7cb…` |
+| triggers | 13 | `f81ed705…` |
+
+The only excluded objects are the four `gps_*` tables and seven `gps_*`
+functions belonging to the other application (finding 4), which this repo
+deliberately does not own.
+
+### A note on comparing function bodies
+
+20 of 26 functions initially appeared to differ. All of it was formatting:
+production's bodies use CRLF, are collapsed onto single lines, and have their
+comments stripped, because they were applied through the Supabase SQL editor
+rather than from the repo files. Comparing `pg_get_functiondef` directly is
+therefore useless here. Strip `--` comments and **all** whitespace before
+hashing — collapsing runs of whitespace to a single space is not enough,
+because production has no space after commas where the repo does.
 
 ## Reproducing this audit
 
