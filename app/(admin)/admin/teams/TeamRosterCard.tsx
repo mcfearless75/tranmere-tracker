@@ -70,15 +70,15 @@ export function TeamRosterCard({
   return (
     <div className="rounded-2xl border bg-white p-3">
       <div className="flex items-center justify-between gap-2 mb-2">
-        <h2 className="text-sm font-semibold text-tranmere-blue flex items-center gap-2">
-          {team ? team.name : 'Unassigned'}
-          <span className="text-xs font-normal text-muted-foreground">{roster.length}</span>
+        <h2 className="text-sm font-semibold text-tranmere-blue flex items-center gap-2 min-w-0">
+          <span className="flex-1 min-w-0 truncate">{team ? team.name : 'Unassigned'}</span>
+          <span className="text-xs font-normal text-muted-foreground shrink-0">{roster.length}</span>
         </h2>
         {team && (
           <button
             onClick={() => setAdding(v => !v)}
             disabled={pending}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-tranmere-blue disabled:opacity-60"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-tranmere-blue disabled:opacity-60 shrink-0"
           >
             <UserPlus size={13} /> {adding ? 'Cancel' : 'Add players'}
           </button>
