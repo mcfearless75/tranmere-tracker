@@ -1,5 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { FormationBuilder } from './FormationBuilder'
+import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +30,9 @@ export default async function FormationPage({ searchParams }: { searchParams: { 
 
   return (
     <div className="space-y-5">
+      <Link href="/admin/home" className="inline-flex items-center gap-1 text-sm text-tranmere-blue hover:underline">
+        <ArrowLeft size={14} /> Back
+      </Link>
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-tranmere-blue">Formation Builder</h1>
         <p className="text-sm text-muted-foreground mt-1">
