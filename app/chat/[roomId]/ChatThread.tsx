@@ -434,15 +434,25 @@ export function ChatThread({
     // Symmetric with vote(): one write per poll at a time.
     if (busyPollId === pollId) return
     setBusyPollId(pollId)
-    const result = await closePoll(pollId)
-    setBusyPollId(prev => (prev === pollId ? null : prev))
-    if (!result?.ok) {
-      alert(`Could not close the poll: ${result?.error ?? 'Unknown error'}`)
-      return
+    try {
+      const result = await closePoll(pollId)
+      if (!result?.ok) {
+        alert(`Could not close the poll: ${result?.error ?? 'Unknown error'}`)
+        return
+      }
+      setPolls(prev => prev.map(p => (
+        p.id === pollId && !p.closed_at ? { ...p, closed_at: new Date().toISOString() } : p
+      )))
+    } catch {
+      // A Server Action REJECTS rather than returning { ok: false } when the
+      // request itself fails — offline phone, 5xx, a deploy landing mid-call.
+      // Without this the poll stays busy forever and its controls are dead
+      // until a reload, with nothing on screen to say why. Same unguarded
+      // shape as the sign-out bug fixed in 8767921.
+      alert('Could not close the poll — you may be offline. Try again.')
+    } finally {
+      setBusyPollId(prev => (prev === pollId ? null : prev))
     }
-    setPolls(prev => prev.map(p => (
-      p.id === pollId && !p.closed_at ? { ...p, closed_at: new Date().toISOString() } : p
-    )))
   }
 
   // Staff-only voter list, loaded on demand from the client — this is where

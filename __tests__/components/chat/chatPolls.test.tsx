@@ -402,6 +402,36 @@ describe('polls in the thread', () => {
       alertSpy.mockRestore()
     })
 
+    // A Server Action REJECTS rather than resolving { ok: false } when the
+    // request itself fails — offline, 5xx, a deploy landing mid-call. Without
+    // a finally, busyPollId was never cleared and every control for that poll
+    // stayed disabled until a page reload, silently.
+    it('recovers when closePoll rejects outright rather than returning an error', async () => {
+      const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {})
+      closePollMock.mockImplementation(() => Promise.reject(new Error('Failed to fetch')))
+      await act(async () => { renderThreadWithPoll() })
+
+      await act(async () => { fireEvent.click(screen.getByText('Close poll')) })
+
+      expect(alertSpy).toHaveBeenCalledWith(
+        'Could not close the poll — you may be offline. Try again.')
+      // Still open, and — the point of the test — still operable: the poll's
+      // controls must not be left disabled.
+      const closeButton = screen.getByText('Close poll')
+      expect(closeButton).toBeInTheDocument()
+      expect(closeButton).not.toBeDisabled()
+      expect(screen.getByRole('button', { name: /Yes/ })).not.toBeDisabled()
+
+      // And a retry actually reaches the server rather than being swallowed
+      // by a stale busy flag.
+      closePollMock.mockImplementation(() => Promise.resolve({ ok: true }))
+      await act(async () => { fireEvent.click(screen.getByText('Close poll')) })
+      expect(closePollMock).toHaveBeenCalledTimes(2)
+      expect(screen.getByText('Poll closed')).toBeInTheDocument()
+
+      alertSpy.mockRestore()
+    })
+
     // Symmetric with vote(), which already guarded. Harmless but
     // inconsistent: two taps used to fire two closePoll calls.
     it('fires closePoll once for a double tap', async () => {
