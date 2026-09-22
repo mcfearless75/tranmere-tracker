@@ -22,26 +22,39 @@ export function UkFoodSearch({ studentId }: { studentId: string }) {
   const [mealType, setMealType] = useState<MealType>(guessMealType())
   const [saving, setSaving] = useState<string | null>(null)
   const [justAdded, setJustAdded] = useState<string | null>(null)
+  const [error, setError] = useState('')
 
   const results = useMemo(() => q.trim() ? searchFoods(q, 40) : [], [q])
   const showing = q.trim() ? results : QUICK_PICKS
 
   async function log(food: UkFood) {
     setSaving(food.name)
-    const supabase = createClient()
-    await supabase.from('nutrition_logs').insert({
-      student_id: studentId,
-      meal_type: mealType,
-      food_name: `${food.name} (${food.serving})`,
-      calories: Math.round(food.calories),
-      protein_g: +food.protein_g.toFixed(1),
-      carbs_g: +food.carbs_g.toFixed(1),
-      fat_g: +food.fat_g.toFixed(1),
-    })
-    setSaving(null)
-    setJustAdded(food.name)
-    setTimeout(() => setJustAdded(null), 1500)
-    router.refresh()
+    setError('')
+    try {
+      const supabase = createClient()
+      const { error: writeError } = await supabase.from('nutrition_logs').insert({
+        student_id: studentId,
+        meal_type: mealType,
+        food_name: `${food.name} (${food.serving})`,
+        calories: Math.round(food.calories),
+        protein_g: +food.protein_g.toFixed(1),
+        carbs_g: +food.carbs_g.toFixed(1),
+        fat_g: +food.fat_g.toFixed(1),
+      })
+      // The green tick is the only confirmation here, so it must not fire on a
+      // failed insert — that tick was previously shown unconditionally.
+      if (writeError) {
+        setError(`Could not log ${food.name}: ${writeError.message || 'try again.'}`)
+        return
+      }
+      setJustAdded(food.name)
+      setTimeout(() => setJustAdded(null), 1500)
+      router.refresh()
+    } catch {
+      setError(`Could not log ${food.name} — you may be offline. Try again.`)
+    } finally {
+      setSaving(null)
+    }
   }
 
   return (
@@ -61,6 +74,8 @@ export function UkFoodSearch({ studentId }: { studentId: string }) {
           <option value="snack">Snack</option>
         </select>
       </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="relative">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
