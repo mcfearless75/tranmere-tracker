@@ -1,6 +1,6 @@
 'use server'
 import { revalidatePath } from 'next/cache'
-import { requireStaffAction } from '@/lib/auth/requireRole'
+import { requireStaffAction, type StaffContext } from '@/lib/auth/requireRole'
 import { TEAM_NAME_MAX, type ActionResult } from '@/lib/teams/types'
 
 /**
@@ -9,8 +9,38 @@ import { TEAM_NAME_MAX, type ActionResult } from '@/lib/teams/types'
  * These run with the service-role client, which bypasses RLS entirely, and a
  * Next.js server action is reachable by anyone who has the action id from the
  * client bundle — it is NOT implicitly protected by the /admin layout. So each
- * one verifies the caller itself, per the contract in lib/auth/requireRole.ts.
+ * one verifies the caller itself, per the contract in lib/auth/requireRole.ts:
+ * "every route or action that uses it MUST verify the caller's role in
+ * application code".
+ *
+ * All six return {ok, error} rather than throwing. Next.js redacts a thrown
+ * Server Action error in production into an opaque digest, so a throw cannot
+ * carry a reason to the client — "You need permission" became a generic "Not
+ * saved". A returned error survives.
+ *
+ * That now includes the authorization refusal, which was the last path still
+ * throwing. A signed-out or expired session IS user-correctable — "sign in
+ * again" is something they can act on — but redaction turned it into the same
+ * "Not saved — try again" as everything else. It is returned instead, so the
+ * only throw left is the request genuinely never reaching the server.
  */
+
+const NO_PERMISSION = 'You do not have permission to make that change — try signing in again'
+
+/**
+ * requireStaffAction throws by design (a server action cannot return an HTTP
+ * response). Converting it to a result once here keeps the throw-vs-return
+ * decision in one place instead of at six call sites.
+ */
+async function staffContext(): Promise<
+  { ok: true; ctx: StaffContext } | { ok: false; error: string }
+> {
+  try {
+    return { ok: true, ctx: await requireStaffAction() }
+  } catch {
+    return { ok: false, error: NO_PERMISSION }
+  }
+}
 
 function revalidate() {
   revalidatePath('/admin/teams')
@@ -40,7 +70,10 @@ function cleanName(name: string): { name: string } | { error: string } {
  * which a player accumulates two teams.
  */
 export async function setUserTeam(userId: string, teamId: string | null): Promise<ActionResult> {
-  const { admin } = await requireStaffAction()
+  const auth = await staffContext()
+  if (!auth.ok) return auth
+  const { admin } = auth.ctx
+
   const { error } = await admin.from('users').update({ team_id: teamId }).eq('id', userId)
   if (error) return { ok: false, error: error.message }
   revalidate()
@@ -49,7 +82,10 @@ export async function setUserTeam(userId: string, teamId: string | null): Promis
 
 /** Bulk form of setUserTeam, for the Add players flow. */
 export async function setUsersTeam(userIds: string[], teamId: string | null): Promise<ActionResult> {
-  const { admin } = await requireStaffAction()
+  const auth = await staffContext()
+  if (!auth.ok) return auth
+  const { admin } = auth.ctx
+
   if (userIds.length === 0) return { ok: true }
   const { error } = await admin.from('users').update({ team_id: teamId }).in('id', userIds)
   if (error) return { ok: false, error: error.message }
@@ -58,7 +94,10 @@ export async function setUsersTeam(userIds: string[], teamId: string | null): Pr
 }
 
 export async function createTeam(name: string): Promise<ActionResult> {
-  const { admin } = await requireStaffAction()
+  const auth = await staffContext()
+  if (!auth.ok) return auth
+  const { admin } = auth.ctx
+
   const clean = cleanName(name)
   if ('error' in clean) return { ok: false, error: clean.error }
 
@@ -72,7 +111,10 @@ export async function createTeam(name: string): Promise<ActionResult> {
 }
 
 export async function renameTeam(teamId: string, name: string): Promise<ActionResult> {
-  const { admin } = await requireStaffAction()
+  const auth = await staffContext()
+  if (!auth.ok) return auth
+  const { admin } = auth.ctx
+
   const clean = cleanName(name)
   if ('error' in clean) return { ok: false, error: clean.error }
 
@@ -83,7 +125,10 @@ export async function renameTeam(teamId: string, name: string): Promise<ActionRe
 }
 
 export async function reorderTeams(orderedIds: string[]): Promise<ActionResult> {
-  const { admin } = await requireStaffAction()
+  const auth = await staffContext()
+  if (!auth.ok) return auth
+  const { admin } = auth.ctx
+
   for (let i = 0; i < orderedIds.length; i++) {
     const { error } = await admin.from('teams').update({ sort_order: i }).eq('id', orderedIds[i])
     if (error) return { ok: false, error: error.message }
@@ -100,7 +145,10 @@ export async function reorderTeams(orderedIds: string[]): Promise<ActionResult> 
  * everywhere a picker asks for active teams.
  */
 export async function setTeamActive(teamId: string, active: boolean): Promise<ActionResult> {
-  const { admin } = await requireStaffAction()
+  const auth = await staffContext()
+  if (!auth.ok) return auth
+  const { admin } = auth.ctx
+
   const { error } = await admin.from('teams').update({ is_active: active }).eq('id', teamId)
   if (error) return { ok: false, error: error.message }
   revalidate()

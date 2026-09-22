@@ -31,13 +31,11 @@ export interface TeamRef {
 /**
  * What every team server action returns.
  *
- * Actions do not throw: Next.js redacts a thrown Server Action error in
- * production into an opaque digest, so the reason never reaches the client and
- * every failure collapses into a generic "Not saved". A returned error
- * survives. Only requireStaffAction still throws — an unauthorised caller is
- * not a user-correctable condition.
+ * A discriminated union rather than {ok: boolean; error?: string}: narrowing
+ * on `ok` then guarantees `error` is present, so a caller cannot forget it and
+ * `{ok: false}` with no reason stops compiling.
  *
- * If userActions.ts's identical ActionResult moves somewhere shared, collapse
- * these two into one.
+ * Duplicated from userActions.ts — do not merge into a shared type until both
+ * codepaths are updated together, to avoid a merge conflict.
  */
-export type ActionResult = { ok: boolean; error?: string }
+export type ActionResult = { ok: true } | { ok: false; error: string }
