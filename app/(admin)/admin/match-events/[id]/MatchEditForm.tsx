@@ -6,8 +6,9 @@ import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import type { Team } from '@/lib/teams/types'
 
-export function MatchEditForm({ match }: {
+export function MatchEditForm({ match, teams }: {
   match: {
     id: string
     match_date: string
@@ -17,7 +18,13 @@ export function MatchEditForm({ match }: {
     location: string | null
     notes: string | null
     status: string
+    team_id: string | null
+    // The embedded name for match.team_id, regardless of whether that team
+    // is still active — this is how a retired team's name survives being
+    // dropped from `teams` (active-only) below.
+    teams?: { name: string } | null
   }
+  teams: Team[]
 }) {
   const router = useRouter()
   const [date, setDate] = useState(match.match_date?.slice(0, 10) ?? '')
@@ -27,8 +34,16 @@ export function MatchEditForm({ match }: {
   const [location, setLocation] = useState(match.location ?? '')
   const [notes, setNotes] = useState(match.notes ?? '')
   const [status, setStatus] = useState(match.status)
+  const [teamId, setTeamId] = useState(match.team_id ?? '')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+
+  // teams prop is active teams only. If the fixture's own team has since
+  // been retired, it's absent from that list — without this, the select
+  // shows "No team" (falls back to the first, unmatched option) even though
+  // match.team_id still holds the real id and every other field's save
+  // leaves it untouched. Surfacing it, labelled, keeps the control honest.
+  const currentTeamIsRetired = !!match.team_id && !teams.some(t => t.id === match.team_id)
 
   async function save() {
     setSaving(true)
@@ -41,6 +56,12 @@ export function MatchEditForm({ match }: {
       location: location || null,
       notes: notes || null,
       status,
+      // The only place a fixture's team could be set was at creation
+      // (CreateMatchForm) — a wrong pick, or "set it later", meant deleting
+      // and re-creating the fixture, which drops match_squads and re-sends
+      // every squad-invite push. null, not '', for "no team" — team_id is a
+      // nullable FK and an empty string is a different (wrong) value.
+      team_id: teamId || null,
     }
     if (meetTime) patch.meet_time = meetTime
     const { error } = await supabase.from('match_events').update(patch).eq('id', match.id)
@@ -74,6 +95,23 @@ export function MatchEditForm({ match }: {
             <option value="upcoming">Upcoming</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="edit-match-team" className="text-xs text-muted-foreground">Team</label>
+          <select
+            id="edit-match-team"
+            value={teamId}
+            onChange={e => setTeamId(e.target.value)}
+            className="w-full border rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="">No team</option>
+            {currentTeamIsRetired && (
+              <option value={match.team_id ?? ''}>
+                {match.teams?.name ?? 'Unknown team'} (retired)
+              </option>
+            )}
+            {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </div>
         <div className="space-y-1 col-span-2">

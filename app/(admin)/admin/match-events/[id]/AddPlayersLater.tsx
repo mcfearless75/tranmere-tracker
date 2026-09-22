@@ -4,15 +4,20 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { TeamBadge } from '@/components/TeamBadge'
+import { sortByTeamFirst } from '@/lib/teams/players'
+import type { TeamRef } from '@/lib/teams/types'
 
 export function AddPlayersLater({
   matchId,
   opponent,
+  matchTeamId,
   available,
 }: {
   matchId: string
   opponent: string
-  available: { id: string; name: string }[]
+  matchTeamId: string | null
+  available: { id: string; name: string; team_id: string | null; teams: TeamRef | null }[]
 }) {
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -55,20 +60,23 @@ export function AddPlayersLater({
 
   if (available.length === 0) return null
 
+  const ordered = sortByTeamFirst(available, matchTeamId)
+
   return (
     <div className="bg-white rounded-xl border p-4 space-y-3">
       <p className="font-semibold text-sm">Add players later</p>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
-        {available.map(s => (
+        {ordered.map(s => (
           <button
             key={s.id}
             type="button"
             onClick={() => toggle(s.id)}
-            className={`text-sm px-3 py-2 rounded-lg border text-left ${
+            className={`flex items-center justify-between gap-1.5 text-sm px-3 py-2 rounded-lg border text-left ${
               selected.has(s.id) ? 'bg-tranmere-blue text-white border-tranmere-blue' : 'border-gray-200'
             }`}
           >
-            {s.name}
+            <span className="truncate">{s.name}</span>
+            <TeamBadge team={s.teams} />
           </button>
         ))}
       </div>

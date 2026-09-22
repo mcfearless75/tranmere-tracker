@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import Image from 'next/image'
-import { X, Users, Bell, BarChart2, GraduationCap, LogOut, Calendar, CalendarDays, CalendarClock, LayoutGrid, Plug, MessageSquare, Megaphone, Home, Satellite, MoreHorizontal, ClipboardList, ClipboardCheck, ShieldAlert, Network, UserPlus, Users2, Banknote, FolderOpen, Heart, UsersRound } from 'lucide-react'
+import { X, Users, Bell, BarChart2, GraduationCap, LogOut, Calendar, CalendarDays, CalendarClock, LayoutGrid, Plug, MessageSquare, Megaphone, Home, Satellite, MoreHorizontal, ClipboardList, ClipboardCheck, ShieldAlert, Network, UserPlus, Users2, Banknote, FolderOpen, Heart, UsersRound, Shirt } from 'lucide-react'
 import { signOut } from '@/app/(auth)/login/actions'
 import { MOODLE_TEACHER_URL } from '@/lib/config/moodle'
 
@@ -20,6 +20,7 @@ const nav = [
   { href: MOODLE_TEACHER_URL, label: 'Moodle', icon: GraduationCap, external: true },
   { href: '/admin/match-events', label: 'Match Squads', icon: Calendar, teacherHidden: true },
   { href: '/admin/formation', label: 'Formation', icon: LayoutGrid, teacherHidden: true },
+  { href: '/admin/teams', label: 'Teams', icon: Shirt, teacherHidden: true },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
   { href: '/admin/chat-groups', label: 'Chat Groups', icon: UsersRound },
   { href: '/admin/broadcast', label: 'Broadcast', icon: Megaphone },

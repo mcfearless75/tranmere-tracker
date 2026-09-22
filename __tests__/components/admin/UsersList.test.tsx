@@ -7,7 +7,12 @@ jest.mock('@/app/(admin)/admin/users/userActions', () => ({
   updateUserYearGroup: jest.fn(async () => ({ ok: true })),
 }))
 
+jest.mock('@/app/(admin)/admin/teams/teamActions', () => ({
+  setUserTeam: jest.fn(async () => ({ ok: true })),
+}))
+
 const COURSES = [{ id: 'c1', name: 'BTEC Sport' }]
+const TEAMS = [{ id: 't1', name: 'Prem', sort_order: 0, is_active: true }]
 
 function user(over: Record<string, unknown> = {}) {
   return {
@@ -24,7 +29,7 @@ const USERS = [
 ]
 
 function renderList(users = USERS) {
-  return render(<UsersList users={users} courses={COURSES} />)
+  return render(<UsersList users={users} courses={COURSES} teams={TEAMS} />)
 }
 
 /**

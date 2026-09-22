@@ -5,13 +5,16 @@ import {
   RoleSelect,
   YearGroupSelect,
   CourseSelect,
+  TeamSelect,
   type UserListItem,
   type Course,
 } from './UserFields'
+import type { Team } from '@/lib/teams/types'
 
 interface Props {
   user: UserListItem
   courses: Course[]
+  teams: Team[]
 }
 
 /**
@@ -19,7 +22,7 @@ interface Props {
  * min-w-[600px] inside a horizontal scroller, which put the Role/Year/Course
  * controls off-screen on a phone.
  */
-export function UserRow({ user, courses }: Props) {
+export function UserRow({ user, courses, teams }: Props) {
   return (
     <tr className="border-b last:border-0 hover:bg-gray-50">
       <td className="px-4 py-3">
@@ -37,6 +40,9 @@ export function UserRow({ user, courses }: Props) {
       </td>
       <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
         <YearGroupSelect user={user} />
+      </td>
+      <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
+        <TeamSelect user={user} teams={teams} />
       </td>
       <td className="px-4 py-3">
         <CourseSelect user={user} courses={courses} className="max-w-[180px]" />

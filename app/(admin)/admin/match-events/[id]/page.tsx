@@ -1,4 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { eligiblePlayers } from '@/lib/teams/players'
+import type { Team, TeamRef } from '@/lib/teams/types'
+import { PlayerLoadError } from '@/components/PlayerLoadError'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, LayoutGrid } from 'lucide-react'
@@ -8,27 +11,47 @@ import { AddPlayersLater } from './AddPlayersLater'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * The pickable-player shape eligiblePlayers() now returns here. This is also
+ * the bug fix: the old query (`role = 'student'`, no `is_active` filter) let
+ * deactivated students keep appearing in "Add players later" — its two
+ * sibling queries on this page already filtered is_active correctly.
+ */
+type EligiblePlayer = {
+  id: string
+  name: string
+  year_group: number | null
+  role: string
+  team_id: string | null
+  teams: TeamRef | null
+}
+
 export default async function MatchDetailPage({ params }: { params: { id: string } }) {
   const supabase = createAdminClient()
 
+  // teams:team_id(name) alongside '*' so MatchEditForm can label the
+  // fixture's own team even if it has since been retired — the active-teams
+  // list below would otherwise silently drop it from the select's options.
   const { data: match } = await supabase
     .from('match_events')
-    .select('*')
+    .select('*, teams:team_id(name)')
     .eq('id', params.id)
     .single()
 
   if (!match) notFound()
 
-  const [{ data: squad }, { data: students }] = await Promise.all([
+  const [{ data: squad }, { data: students, error: studentsError }, { data: teams }] = await Promise.all([
     supabase
       .from('match_squads')
       .select('id, player_id, status, position, coach_rating, coach_notes, goals, assists, minutes_played, yellow_card, red_card, users:player_id(name, avatar_url, year_group)')
       .eq('match_id', params.id),
-    supabase.from('users').select('id, name').eq('role', 'student').order('name'),
+    eligiblePlayers(supabase, 'id, name, year_group, role, team_id, teams(id, name)'),
+    supabase.from('teams').select('id, name, sort_order, is_active')
+      .eq('is_active', true).order('sort_order'),
   ])
 
   const inSquad = new Set((squad ?? []).map((s: { player_id: string }) => s.player_id))
-  const available = (students ?? []).filter(s => !inSquad.has(s.id))
+  const available = ((students ?? []) as unknown as EligiblePlayer[]).filter(s => !inSquad.has(s.id))
 
   return (
     <div className="space-y-5">
@@ -44,8 +67,12 @@ export default async function MatchDetailPage({ params }: { params: { id: string
         </Link>
       </div>
 
-      <MatchEditForm match={match} />
-      <AddPlayersLater matchId={match.id} opponent={match.opponent} available={available} />
+      <MatchEditForm match={match} teams={(teams ?? []) as Team[]} />
+      {studentsError ? (
+        <PlayerLoadError />
+      ) : (
+        <AddPlayersLater matchId={match.id} opponent={match.opponent} matchTeamId={match.team_id} available={available} />
+      )}
       <MatchReport match={match} squad={(squad ?? []) as any} />
     </div>
   )

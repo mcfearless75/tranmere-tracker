@@ -8,16 +8,20 @@ jest.mock('@/app/(admin)/admin/users/userActions', () => ({
   updateUserYearGroup: (...a: any[]) => updateUserYearGroupMock(...a),
 }))
 
+jest.mock('@/app/(admin)/admin/teams/teamActions', () => ({
+  setUserTeam: jest.fn(async () => ({ ok: true })),
+}))
+
 function student(over: Record<string, unknown> = {}) {
   return {
     id: 's1', name: 'Javan Moussa', email: 'javanm@x.internal', role: 'student',
-    course_id: null, created_at: '2026-09-10T11:02:14Z', year_group: 1, courses: null,
+    course_id: null, created_at: '2026-09-10T11:02:14Z', year_group: 1, team_id: null, courses: null,
     ...over,
   } as any
 }
 
 function renderRow(user: any) {
-  return render(<table><tbody><UserRow user={user} courses={[]} /></tbody></table>)
+  return render(<table><tbody><UserRow user={user} courses={[]} teams={[]} /></tbody></table>)
 }
 
 describe('UserRow year group', () => {
