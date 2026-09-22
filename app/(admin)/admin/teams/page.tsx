@@ -13,14 +13,23 @@ type Member = { id: string; name: string; role: string; year_group: number | nul
 export default async function TeamsPage() {
   const supabase = createAdminClient()
 
-  const [{ data: teams }, { data: people }] = await Promise.all([
+  const [{ data: teams }, { data: retired }, { data: people }] = await Promise.all([
     supabase.from('teams').select('id, name, sort_order, is_active')
       .eq('is_active', true).order('sort_order'),
+    // Retired teams never show up in the query above (it's the same source
+    // ManageTeams renders as "active"), so without this the only way back
+    // from a retire is manual SQL — restore has to see what it's restoring.
+    supabase.from('teams').select('id, name, sort_order, is_active')
+      .eq('is_active', false).order('name'),
+    // The AI Coach bot is a real public.users row (migration 012) — excluded
+    // here alongside parents so it never appears as a person to place in a
+    // team, which would make it squad-eligible (see ELIGIBLE_PLAYER_FILTER).
     supabase.from('users').select('id, name, role, year_group, team_id')
-      .eq('is_active', true).neq('role', 'parent').order('name'),
+      .eq('is_active', true).neq('role', 'parent').neq('role', 'bot').order('name'),
   ])
 
   const activeTeams = (teams ?? []) as Team[]
+  const retiredTeams = (retired ?? []) as Team[]
   const activeTeamIds = new Set(activeTeams.map(t => t.id))
   const members = (people ?? []) as Member[]
 
@@ -59,7 +68,7 @@ export default async function TeamsPage() {
         />
       ))}
 
-      <ManageTeams teams={activeTeams} />
+      <ManageTeams teams={activeTeams} retiredTeams={retiredTeams} />
     </div>
   )
 }

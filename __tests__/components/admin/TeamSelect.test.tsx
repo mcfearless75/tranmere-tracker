@@ -69,6 +69,15 @@ describe('TeamSelect', () => {
     expect(setUserTeamMock).not.toHaveBeenCalledWith('u1', '')
   })
 
+  // Finding 6 from the whole-branch review: the AI Coach is a real
+  // public.users row (role='bot', migration 012). Giving it a team would make
+  // it squad-eligible via ELIGIBLE_PLAYER_FILTER's team_id.not.is.null — it
+  // must never be offered the control at all, not just discouraged from it.
+  it('does not render a team select for a bot user', () => {
+    render(<TeamSelect user={user({ role: 'bot', name: 'AI Coach' })} teams={TEAMS} />)
+    expect(screen.queryByLabelText('Team for AI Coach')).not.toBeInTheDocument()
+  })
+
   it('reverts to the previous value when the save is refused', async () => {
     setUserTeamMock.mockResolvedValue({ ok: false, error: 'Not saved — try again' })
     render(<TeamSelect user={user({ team_id: 't1' })} teams={TEAMS} />)

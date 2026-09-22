@@ -4,6 +4,7 @@ import { eligiblePlayers } from '@/lib/teams/players'
 import type { Team, TeamRef } from '@/lib/teams/types'
 import { CreateMatchForm } from './CreateMatchForm'
 import { MatchEventList } from './MatchEventList'
+import { PlayerLoadError } from '@/components/PlayerLoadError'
 import Link from 'next/link'
 import { LayoutGrid } from 'lucide-react'
 
@@ -32,12 +33,13 @@ export default async function MatchEventsPage() {
   const { data: { user } } = await auth.auth.getUser()
   const supabase = createAdminClient()
 
-  const [{ data: students }, { data: matches }, { data: teams }] = await Promise.all([
+  const [{ data: students, error: studentsError }, { data: matches }, { data: teams }] = await Promise.all([
     eligiblePlayers(supabase, 'id, name, year_group, role, team_id, teams(id, name)'),
     supabase
       .from('match_events')
       .select(`
-        id, match_date, kick_off_time, opponent, location, status, notes,
+        id, match_date, kick_off_time, opponent, location, status, notes, team_id,
+        teams:team_id ( id, name ),
         match_squads (
           id, player_id, status, coach_rating, position,
           users:player_id (name)
@@ -62,11 +64,15 @@ export default async function MatchEventsPage() {
           <LayoutGrid size={16} /> Open Formation Pitch
         </Link>
       </div>
-      <CreateMatchForm
-        students={(students ?? []) as unknown as EligiblePlayer[]}
-        teams={(teams ?? []) as Team[]}
-        coachId={user!.id}
-      />
+      {studentsError ? (
+        <PlayerLoadError />
+      ) : (
+        <CreateMatchForm
+          students={(students ?? []) as unknown as EligiblePlayer[]}
+          teams={(teams ?? []) as Team[]}
+          coachId={user!.id}
+        />
+      )}
       <MatchEventList matches={(matches ?? []) as any} />
     </div>
   )

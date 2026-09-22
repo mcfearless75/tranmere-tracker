@@ -124,3 +124,39 @@ describe('retiring a team', () => {
     await waitFor(() => expect(setTeamActiveMock).toHaveBeenCalledWith('t2', false))
   })
 })
+
+/**
+ * Finding 1 from the whole-branch review: retiring a team had no way back —
+ * setTeamActive(id, true) existed but had no caller anywhere, so a
+ * mis-tapped Retire meant manual SQL to undo. These prove the restore path
+ * is real, not just present in the source.
+ */
+describe('retired teams', () => {
+  const reserves = { id: 't4', name: 'Reserves', sort_order: 3, is_active: false }
+
+  it('renders nothing for the retired section when there are no retired teams', () => {
+    render(<ManageTeams teams={teams} retiredTeams={[]} />)
+    expect(screen.queryByText('Retired')).not.toBeInTheDocument()
+  })
+
+  it('lists a retired team with a restore control, separately from the editable list', () => {
+    render(<ManageTeams teams={teams} retiredTeams={[reserves]} />)
+
+    expect(screen.getByText('Retired')).toBeInTheDocument()
+    expect(screen.getByText('Reserves')).toBeInTheDocument()
+    expect(screen.getByLabelText('Restore Reserves')).toBeInTheDocument()
+
+    // A retired team is not one of the editable rows above — it must not
+    // also get a rename input or reorder/retire controls.
+    expect(screen.queryByLabelText('Rename Reserves')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Retire Reserves')).not.toBeInTheDocument()
+  })
+
+  it('calls setTeamActive(id, true) when Restore is clicked', async () => {
+    render(<ManageTeams teams={teams} retiredTeams={[reserves]} />)
+
+    fireEvent.click(screen.getByLabelText('Restore Reserves'))
+
+    await waitFor(() => expect(setTeamActiveMock).toHaveBeenCalledWith('t4', true))
+  })
+})

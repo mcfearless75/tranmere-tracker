@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 import { CheckCircle, XCircle, Clock, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
 import { formatEventTime } from '@/lib/calendar/calendarUtils'
+import { TeamBadge } from '@/components/TeamBadge'
+import type { TeamRef } from '@/lib/teams/types'
 
 type Squad = {
   id: string
@@ -23,6 +25,8 @@ type Match = {
   location: string | null
   status: string
   notes: string | null
+  team_id: string | null
+  teams: TeamRef | null
   match_squads: Squad[]
 }
 
@@ -69,6 +73,7 @@ export function MatchEventList({ matches }: { matches: Match[] }) {
               vs {m.opponent}
               <ExternalLink size={12} className="opacity-60" />
             </Link>
+            {m.teams && <TeamBadge team={m.teams} className="ml-2 align-middle" />}
             <p className="text-sm text-muted-foreground">
               {new Date(m.match_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
               {m.kick_off_time && ` · ${formatEventTime(m.kick_off_time)}`}

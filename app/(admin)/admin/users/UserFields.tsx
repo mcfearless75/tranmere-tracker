@@ -161,6 +161,10 @@ export function TeamSelect({
   const { value, change, error, pending } = useSavedSelect(user.team_id ?? '', next =>
     setUserTeam(user.id, next || null)
   )
+  // The AI Coach (migration 012) is a real public.users row with role='bot'.
+  // It is never a player, so it must not be assignable to a team — a team is
+  // what makes someone squad-eligible (ELIGIBLE_PLAYER_FILTER).
+  if (user.role === 'bot') return <span className="text-muted-foreground">—</span>
   return (
     <>
       <select

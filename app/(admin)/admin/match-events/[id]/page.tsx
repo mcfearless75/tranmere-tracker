@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { eligiblePlayers } from '@/lib/teams/players'
-import type { TeamRef } from '@/lib/teams/types'
+import type { Team, TeamRef } from '@/lib/teams/types'
+import { PlayerLoadError } from '@/components/PlayerLoadError'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, LayoutGrid } from 'lucide-react'
@@ -36,12 +37,14 @@ export default async function MatchDetailPage({ params }: { params: { id: string
 
   if (!match) notFound()
 
-  const [{ data: squad }, { data: students }] = await Promise.all([
+  const [{ data: squad }, { data: students, error: studentsError }, { data: teams }] = await Promise.all([
     supabase
       .from('match_squads')
       .select('id, player_id, status, position, coach_rating, coach_notes, goals, assists, minutes_played, yellow_card, red_card, users:player_id(name, avatar_url, year_group)')
       .eq('match_id', params.id),
     eligiblePlayers(supabase, 'id, name, year_group, role, team_id, teams(id, name)'),
+    supabase.from('teams').select('id, name, sort_order, is_active')
+      .eq('is_active', true).order('sort_order'),
   ])
 
   const inSquad = new Set((squad ?? []).map((s: { player_id: string }) => s.player_id))
@@ -61,8 +64,12 @@ export default async function MatchDetailPage({ params }: { params: { id: string
         </Link>
       </div>
 
-      <MatchEditForm match={match} />
-      <AddPlayersLater matchId={match.id} opponent={match.opponent} matchTeamId={match.team_id} available={available} />
+      <MatchEditForm match={match} teams={(teams ?? []) as Team[]} />
+      {studentsError ? (
+        <PlayerLoadError />
+      ) : (
+        <AddPlayersLater matchId={match.id} opponent={match.opponent} matchTeamId={match.team_id} available={available} />
+      )}
       <MatchReport match={match} squad={(squad ?? []) as any} />
     </div>
   )

@@ -101,7 +101,21 @@ export async function createTeam(name: string): Promise<ActionResult> {
   const clean = cleanName(name)
   if ('error' in clean) return { ok: false, error: clean.error }
 
-  const { error } = await admin.from('teams').insert({ name: clean.name, sort_order: 0 })
+  // A new team must land AFTER every existing one — sort_order: 0 collided
+  // with the seeded Prem (also 0), leaving .order('sort_order') with an
+  // unbroken tie and the new team's on-page position nondeterministic between
+  // loads. Retired teams are included in the max: a team retired at the end
+  // of the list should not free up its old slot for a new one to (sometimes)
+  // sort ahead of teams that were never touched.
+  const { data: existing, error: maxError } = await admin
+    .from('teams')
+    .select('sort_order')
+    .order('sort_order', { ascending: false })
+    .limit(1)
+  if (maxError) return { ok: false, error: maxError.message }
+  const nextSortOrder = ((existing?.[0] as { sort_order: number } | undefined)?.sort_order ?? -1) + 1
+
+  const { error } = await admin.from('teams').insert({ name: clean.name, sort_order: nextSortOrder })
   // The partial unique index is the backstop against two coaches adding the
   // same team at once, so a race surfaces here as a reported error rather
   // than a duplicate row.
@@ -129,10 +143,33 @@ export async function reorderTeams(orderedIds: string[]): Promise<ActionResult> 
   if (!auth.ok) return auth
   const { admin } = auth.ctx
 
-  for (let i = 0; i < orderedIds.length; i++) {
-    const { error } = await admin.from('teams').update({ sort_order: i }).eq('id', orderedIds[i])
-    if (error) return { ok: false, error: error.message }
-  }
+  if (orderedIds.length === 0) return { ok: true }
+
+  // One upsert, not one UPDATE per team: the previous per-row loop was N
+  // round trips for a single chevron tap, AND returned on the first error —
+  // a failure partway through left the order half-applied (team 1
+  // renumbered, 2 and 3 not) rather than atomically all-or-nothing.
+  //
+  // teams.name is NOT NULL with no default, so an upsert row carrying only
+  // {id, sort_order} fails Postgres's NOT NULL check on the candidate insert
+  // row even though every id here already exists and can only ever hit the
+  // ON CONFLICT branch — the existing name/is_active have to come along too.
+  const { data: current, error: readError } = await admin
+    .from('teams')
+    .select('id, name, is_active')
+    .in('id', orderedIds)
+  if (readError) return { ok: false, error: readError.message }
+
+  const byId = new Map(
+    (current ?? []).map((t: { id: string; name: string; is_active: boolean }) => [t.id, t])
+  )
+  const rows = orderedIds.map((id, sort_order) => {
+    const t = byId.get(id)
+    return { id, sort_order, name: t?.name ?? '', is_active: t?.is_active ?? true }
+  })
+
+  const { error } = await admin.from('teams').upsert(rows)
+  if (error) return { ok: false, error: error.message }
   revalidate()
   return { ok: true }
 }

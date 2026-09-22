@@ -20,8 +20,29 @@
 -- role='student', so he could never be picked. Having a team is now what makes
 -- someone pickable.
 --
--- Idempotent: safe to re-run. The seed only fills a NULL team_id, so it can
--- never stamp over a coach's later reassignment.
+-- ⚠ RE-RUN WARNING — READ BEFORE RE-APPLYING THIS FILE AFTER GO-LIVE ⚠
+--
+-- The table/column/policy DDL above is genuinely idempotent (IF NOT EXISTS /
+-- CREATE OR REPLACE POLICY throughout). The roster SEED below is NOT safe to
+-- re-run once a coach has started using the Teams page.
+--
+-- The seed's `u.team_id is null` guard only protects a MOVE (A → B leaves
+-- team_id non-null, so a re-run correctly skips it). It does NOT protect a
+-- REMOVAL: taking a player out of a team sets team_id back to NULL — exactly
+-- the state the guard is watching for — so re-running this file after a coach
+-- has removed someone will silently put them straight back on the roster
+-- (e.g. Javan Moussa back in Blue after being deliberately removed). There is
+-- no "was this ever touched" marker, and adding one would be over-engineering
+-- for a script that should just not be re-run.
+--
+-- So: this file is safe to apply exactly once, before the Teams page is used
+-- for real. After that, re-running it is a live-data hazard, not a no-op.
+--
+-- The team INSERT below has a smaller version of the same hazard: it matches
+-- an ACTIVE team named 'Prem' (etc). If a coach renames Prem before a re-run,
+-- the name no longer matches, `not exists` is true, and re-running creates a
+-- second, empty 'Prem' — the unique index only blocks two teams sharing a
+-- name, and a renamed team no longer shares it.
 --
 -- NOTE FOR MIGRATION REPLAY: the seed is an UPDATE against hardcoded production
 -- user ids. On a blank database it matches zero rows and succeeds. Do NOT turn

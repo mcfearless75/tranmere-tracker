@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Plus, Archive, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plus, Archive, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react'
 import { createTeam, renameTeam, setTeamActive, reorderTeams } from './teamActions'
 import { TEAM_NAME_MAX, type Team, type ActionResult } from '@/lib/teams/types'
 
@@ -13,7 +13,7 @@ function move(teams: Team[], from: number, to: number): string[] {
   return ids
 }
 
-export function ManageTeams({ teams }: { teams: Team[] }) {
+export function ManageTeams({ teams, retiredTeams = [] }: { teams: Team[]; retiredTeams?: Team[] }) {
   const [newName, setNewName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
@@ -70,7 +70,7 @@ export function ManageTeams({ teams }: { teams: Team[] }) {
             </button>
             <button
               onClick={() => {
-                if (confirm(`Retire ${t.name}? Its players become unassigned until it is restored.`)) {
+                if (confirm(`Retire ${t.name}? Its players show as unassigned until it is restored — restore it from the Retired list below.`)) {
                   run(() => setTeamActive(t.id, false))
                 }
               }}
@@ -106,6 +106,34 @@ export function ManageTeams({ teams }: { teams: Team[] }) {
           <Plus size={14} /> Add
         </button>
       </div>
+
+      {/* Secondary on purpose: retiring is the rare/regretted action, restoring
+          is its only way back (setTeamActive(id, true) has no other caller),
+          so this list must be visible — but muted, not competing with the
+          active teams above it for attention. Renders nothing when empty
+          rather than an empty "Retired" heading nobody needs to see. */}
+      {retiredTeams.length > 0 && (
+        <div className="mt-3 border-t pt-3">
+          <h3 className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground mb-2">
+            Retired
+          </h3>
+          <ul className="space-y-1">
+            {retiredTeams.map(t => (
+              <li key={t.id} className="flex items-center gap-2 text-muted-foreground">
+                <span className="flex-1 min-w-0 truncate text-sm">{t.name}</span>
+                <button
+                  onClick={() => run(() => setTeamActive(t.id, true))}
+                  disabled={pending}
+                  aria-label={`Restore ${t.name}`}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-tranmere-blue disabled:opacity-60 shrink-0 px-2 py-1"
+                >
+                  <RotateCcw size={13} /> Restore
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }

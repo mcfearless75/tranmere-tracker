@@ -55,7 +55,7 @@ function PlayerButton({ student, selected, onToggle, showTeam }: PlayerButtonPro
         <span className="truncate">{student.name}</span>
         <span className="flex items-center gap-1 shrink-0">
           {showTeam && <TeamBadge team={student.teams} />}
-          <YearBadge year={student.year_group} />
+          {student.role === 'student' && <YearBadge year={student.year_group} />}
         </span>
       </span>
     </button>
