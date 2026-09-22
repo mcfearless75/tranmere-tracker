@@ -1,11 +1,13 @@
 /**
  * @jest-environment node
  */
+type WriteResult = { error: { message: string } | null }
+
 const requireStaffActionMock = jest.fn()
-const updateEqMock = jest.fn(async () => ({ error: null }))
-const updateInMock = jest.fn(async () => ({ error: null }))
+const updateEqMock = jest.fn(async (): Promise<WriteResult> => ({ error: null }))
+const updateInMock = jest.fn(async (): Promise<WriteResult> => ({ error: null }))
 const updateMock = jest.fn(() => ({ eq: updateEqMock, in: updateInMock }))
-const insertMock = jest.fn(async () => ({ error: null }))
+const insertMock = jest.fn(async (): Promise<WriteResult> => ({ error: null }))
 
 jest.mock('@/lib/auth/requireRole', () => ({
   requireStaffAction: () => requireStaffActionMock(),
