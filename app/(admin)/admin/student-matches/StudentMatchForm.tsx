@@ -11,6 +11,7 @@ export function StudentMatchForm({ students }: { students: Student[] }) {
   const [, startTransition] = useTransition()
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
     student_id: '',
     match_date: new Date().toISOString().split('T')[0],
@@ -32,11 +33,22 @@ export function StudentMatchForm({ students }: { students: Student[] }) {
     e.preventDefault()
     if (!form.student_id || !form.opponent) return
     setSaving(true)
+    setError(null)
     startTransition(async () => {
-      await logStudentMatch(form)
-      setSuccess(true)
-      setForm(f => ({ ...f, opponent: '', goals: '0', assists: '0', rating: '7', notes: '' }))
-      setSaving(false)
+      try {
+        await logStudentMatch(form)
+        setSuccess(true)
+        setForm(f => ({ ...f, opponent: '', goals: '0', assists: '0', rating: '7', notes: '' }))
+      } catch (e) {
+        // logStudentMatch returns void, so a rejection is the ONLY failure
+        // signal that reaches the client. Without this the form sat stuck on
+        // "Saving…" with nothing on screen to say why.
+        setError(e instanceof Error && e.message
+          ? e.message
+          : 'Could not log the match — you may be offline. Try again.')
+      } finally {
+        setSaving(false)
+      }
     })
   }
 
@@ -44,6 +56,7 @@ export function StudentMatchForm({ students }: { students: Student[] }) {
     <form onSubmit={handleSubmit} className="bg-white rounded-xl border p-4 space-y-4">
       <h2 className="font-semibold text-sm">Log Match for Student</h2>
       {success && <p className="text-green-600 text-sm">Match logged successfully!</p>}
+      {error && <p className="text-red-600 text-sm">{error}</p>}
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2 space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Student</label>

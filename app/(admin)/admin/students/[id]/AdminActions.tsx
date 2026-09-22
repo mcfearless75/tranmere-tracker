@@ -61,37 +61,51 @@ export function AdminActions({ userId, userName, email }: Props) {
     if (final !== 'delete') return
 
     setDeleting(true)
-    const res = await fetch('/api/admin/delete-user', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
-    })
-    const data = await res.json()
-    if (data.error) {
-      alert(`Error: ${data.error}`)
+    try {
+      const res = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+      const data = await res.json()
+      if (data.error) {
+        alert(`Error: ${data.error}`)
+        setDeleting(false)
+      } else {
+        // Navigating away — deliberately leave `deleting` true so the button
+        // cannot be pressed twice while the route transition is in flight.
+        router.push('/admin/users')
+        router.refresh()
+      }
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without this the Delete button stayed disabled until a reload.
+      alert('Could not reach the server — you may be offline. Try again.')
       setDeleting(false)
-    } else {
-      router.push('/admin/users')
-      router.refresh()
     }
   }
 
   async function sendTestPush() {
     setTesting(true)
     setTestMsg(null)
-    const res = await fetch('/api/admin/send-reminder', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        studentId: userId,
-        title: `Hey ${userName.split(' ')[0]}!`,
-        body: 'Your coach is checking in. Open the app to see your latest stats.',
-        url: '/dashboard',
-      }),
-    })
-    const data = await res.json()
-    setTesting(false)
-    setTestMsg(data.message ?? data.error ?? 'Sent')
+    try {
+      const res = await fetch('/api/admin/send-reminder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: userId,
+          title: `Hey ${userName.split(' ')[0]}!`,
+          body: 'Your coach is checking in. Open the app to see your latest stats.',
+          url: '/dashboard',
+        }),
+      })
+      const data = await res.json()
+      setTestMsg(data.message ?? data.error ?? 'Sent')
+    } catch {
+      setTestMsg('Could not reach the server — you may be offline. Try again.')
+    } finally {
+      setTesting(false)
+    }
   }
 
   const username = extractUsername(email)
