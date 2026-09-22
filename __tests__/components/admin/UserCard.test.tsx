@@ -24,9 +24,9 @@ function student(over: Record<string, unknown> = {}) {
 
 describe('UserCard (phone layout)', () => {
   beforeEach(() => {
-    updateUserRoleMock.mockReset()
-    updateUserCourseMock.mockReset()
-    updateUserYearGroupMock.mockReset()
+    updateUserRoleMock.mockReset().mockResolvedValue({ ok: true })
+    updateUserCourseMock.mockReset().mockResolvedValue({ ok: true })
+    updateUserYearGroupMock.mockReset().mockResolvedValue({ ok: true })
   })
 
   it('shows the name and email', () => {

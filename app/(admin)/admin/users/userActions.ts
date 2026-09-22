@@ -12,29 +12,46 @@ import { USER_NAME_MAX } from '@/lib/users/types'
  * one verifies the caller itself, per the contract in lib/auth/requireRole.ts:
  * "every route or action that uses it MUST verify the caller's role in
  * application code".
+ *
+ * All four return {ok, error} rather than throwing. Next.js redacts a thrown
+ * Server Action error in production into an opaque digest, so a throw cannot
+ * carry a reason to the client — "Only an admin can grant staff roles" became
+ * a generic "Not saved". A returned error survives. Only requireStaffAction
+ * still throws: an unauthorised caller is not a user-correctable condition and
+ * the client's catch covers it, alongside transport failure.
  */
+
+export type ActionResult = { ok: boolean; error?: string }
 
 const STAFF_TARGET_ROLES = new Set(['coach', 'teacher', 'admin'])
 const VALID_ROLES = new Set(['student', 'coach', 'teacher', 'admin'])
 /** Mirrors chat_rooms_sync_year_group_check (044_group_chat.sql). */
 const VALID_YEAR_GROUPS = new Set([1, 2])
 
-export async function updateUserRole(userId: string, role: string) {
+export async function updateUserRole(userId: string, role: string): Promise<ActionResult> {
   const { role: callerRole, admin } = await requireStaffAction()
-  if (!VALID_ROLES.has(role)) throw new Error('Invalid role')
+  if (!VALID_ROLES.has(role)) return { ok: false, error: 'Invalid role' }
   // Granting staff access is admin-only — same rule the create-user route
   // already enforces, so a coach cannot mint another admin.
   if (STAFF_TARGET_ROLES.has(role) && callerRole !== 'admin') {
-    throw new Error('Only an admin can grant staff roles')
+    return { ok: false, error: 'Only an admin can grant staff roles' }
   }
-  await admin.from('users').update({ role }).eq('id', userId)
+
+  const { error } = await admin.from('users').update({ role }).eq('id', userId)
+  if (error) return { ok: false, error: error.message }
+
   revalidatePath('/admin/users')
+  return { ok: true }
 }
 
-export async function updateUserCourse(userId: string, courseId: string) {
+export async function updateUserCourse(userId: string, courseId: string): Promise<ActionResult> {
   const { admin } = await requireStaffAction()
-  await admin.from('users').update({ course_id: courseId || null }).eq('id', userId)
+
+  const { error } = await admin.from('users').update({ course_id: courseId || null }).eq('id', userId)
+  if (error) return { ok: false, error: error.message }
+
   revalidatePath('/admin/users')
+  return { ok: true }
 }
 
 /**
@@ -49,19 +66,27 @@ export async function updateUserCourse(userId: string, courseId: string) {
  * The sync_year_group_chat trigger moves them between the Year 1/2 chats in
  * the same transaction, so no chat membership change is needed here.
  */
-export async function updateUserYearGroup(userId: string, yearGroup: number) {
+export async function updateUserYearGroup(userId: string, yearGroup: number): Promise<ActionResult> {
   const { admin } = await requireStaffAction()
-  if (!VALID_YEAR_GROUPS.has(yearGroup)) throw new Error('Invalid year group')
+  if (!VALID_YEAR_GROUPS.has(yearGroup)) return { ok: false, error: 'Invalid year group' }
 
-  const { data: target } = await admin
+  const { data: target, error: lookupError } = await admin
     .from('users').select('role').eq('id', userId).maybeSingle()
+  // Distinguished from "not a student": a failed lookup also leaves target
+  // null, and reporting that as "applies to students only" would send staff
+  // looking for a problem with the account rather than with the request.
+  if (lookupError) return { ok: false, error: lookupError.message }
+  if (!target) return { ok: false, error: 'That user no longer exists' }
   // year_group is only meaningful for students — it defaults to 1 on every
   // row, staff included, and setting it on staff would be noise.
-  if (target?.role !== 'student') throw new Error('Year group applies to students only')
+  if (target.role !== 'student') return { ok: false, error: 'Year group applies to students only' }
 
-  await admin.from('users').update({ year_group: yearGroup }).eq('id', userId)
+  const { error } = await admin.from('users').update({ year_group: yearGroup }).eq('id', userId)
+  if (error) return { ok: false, error: error.message }
+
   revalidatePath('/admin/users')
   revalidatePath(`/admin/students/${userId}`)
+  return { ok: true }
 }
 
 /**
@@ -75,16 +100,19 @@ export async function updateUserYearGroup(userId: string, yearGroup: number) {
  * The name is what identifies a student in the roster, chat, squads and every
  * printed report, so it is trimmed and length-checked rather than stored raw.
  */
-export async function updateUserName(userId: string, name: string) {
+export async function updateUserName(userId: string, name: string): Promise<ActionResult> {
   const { admin } = await requireStaffAction()
 
   const trimmed = name.trim()
-  if (!trimmed) throw new Error('Name cannot be empty')
+  if (!trimmed) return { ok: false, error: 'Name cannot be empty' }
   if (trimmed.length > USER_NAME_MAX) {
-    throw new Error(`Name cannot be longer than ${USER_NAME_MAX} characters`)
+    return { ok: false, error: `Name cannot be longer than ${USER_NAME_MAX} characters` }
   }
 
-  await admin.from('users').update({ name: trimmed }).eq('id', userId)
+  const { error } = await admin.from('users').update({ name: trimmed }).eq('id', userId)
+  if (error) return { ok: false, error: error.message }
+
   revalidatePath('/admin/users')
   revalidatePath(`/admin/students/${userId}`)
+  return { ok: true }
 }

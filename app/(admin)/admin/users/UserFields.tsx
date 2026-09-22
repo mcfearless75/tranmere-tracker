@@ -54,13 +54,13 @@ const SAVE_FAILED = 'Not saved — try again'
  * So: controlled, optimistic, and reverted to the last known-good value if
  * the save does not land.
  *
- * Note the message is deliberately generic. Next.js redacts Server Action
- * errors in production, so the real reason ("Only an admin can grant staff
- * roles") is not available to us here — claiming a specific cause would be a
- * guess. Making these actions return {ok, error} instead of throwing would
- * fix that properly, and is a bigger change than this one.
+ * The actions now return {ok, error} rather than throwing, so a refusal
+ * arrives with its real reason ("Only an admin can grant staff roles") intact
+ * — Next.js would have redacted that had it been thrown. SAVE_FAILED is kept
+ * for the one case with genuinely no reason to report: the request never
+ * reaching the server, which still rejects.
  */
-function useSavedSelect<T>(initial: T, save: (next: T) => Promise<unknown>) {
+function useSavedSelect<T>(initial: T, save: (next: T) => Promise<{ ok: boolean; error?: string }>) {
   const [value, setValue] = useState<T>(initial)
   const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
@@ -71,7 +71,11 @@ function useSavedSelect<T>(initial: T, save: (next: T) => Promise<unknown>) {
     setError(null)
     start(async () => {
       try {
-        await save(next)
+        const res = await save(next)
+        if (!res.ok) {
+          setValue(previous)
+          setError(res.error ?? SAVE_FAILED)
+        }
       } catch {
         setValue(previous)
         setError(SAVE_FAILED)

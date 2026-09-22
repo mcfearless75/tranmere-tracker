@@ -13,6 +13,7 @@ jest.mock('next/cache', () => ({ revalidatePath: jest.fn() }))
 
 import {
   updateUserRole,
+  updateUserCourse,
   updateUserYearGroup,
   updateUserName,
 } from '@/app/(admin)/admin/users/userActions'
@@ -35,10 +36,14 @@ describe('users server actions are guarded', () => {
   beforeEach(() => {
     requireStaffActionMock.mockReset()
     updateMock.mockClear()
+    eqMock.mockClear()
+    eqMock.mockResolvedValue({ error: null } as any)
     maybeSingleMock.mockClear()
     maybeSingleMock.mockResolvedValue({ data: { role: 'student' } } as any)
   })
 
+  // requireStaffAction still throws: an unauthorised caller is not a
+  // user-correctable condition, and the client's catch covers it.
   it('refuses a caller who is not staff, and writes nothing', async () => {
     requireStaffActionMock.mockRejectedValue(new Error('Unauthorised'))
     await expect(updateUserYearGroup('s1', 2)).rejects.toThrow('Unauthorised')
@@ -47,38 +52,46 @@ describe('users server actions are guarded', () => {
 
   it('stops a coach granting someone an admin role', async () => {
     requireStaffActionMock.mockResolvedValue(ctx('coach'))
-    await expect(updateUserRole('s1', 'admin')).rejects.toThrow(/admin/i)
+    await expect(updateUserRole('s1', 'admin')).resolves.toEqual({
+      ok: false, error: 'Only an admin can grant staff roles',
+    })
     expect(updateMock).not.toHaveBeenCalled()
   })
 
   it('lets an admin grant a staff role', async () => {
     requireStaffActionMock.mockResolvedValue(ctx('admin'))
-    await updateUserRole('s1', 'coach')
+    await expect(updateUserRole('s1', 'coach')).resolves.toEqual({ ok: true })
     expect(updateMock).toHaveBeenCalledWith({ role: 'coach' })
   })
 
   it('rejects a role that is not a real role', async () => {
     requireStaffActionMock.mockResolvedValue(ctx('admin'))
-    await expect(updateUserRole('s1', 'superuser')).rejects.toThrow('Invalid role')
+    await expect(updateUserRole('s1', 'superuser')).resolves.toEqual({
+      ok: false, error: 'Invalid role',
+    })
     expect(updateMock).not.toHaveBeenCalled()
   })
 
   it('rejects a year group outside 1 and 2', async () => {
     requireStaffActionMock.mockResolvedValue(ctx('admin'))
-    await expect(updateUserYearGroup('s1', 3)).rejects.toThrow('Invalid year group')
+    await expect(updateUserYearGroup('s1', 3)).resolves.toEqual({
+      ok: false, error: 'Invalid year group',
+    })
     expect(updateMock).not.toHaveBeenCalled()
   })
 
   it('sets the year group for a student', async () => {
     requireStaffActionMock.mockResolvedValue(ctx('coach'))
-    await updateUserYearGroup('s1', 2)
+    await expect(updateUserYearGroup('s1', 2)).resolves.toEqual({ ok: true })
     expect(updateMock).toHaveBeenCalledWith({ year_group: 2 })
   })
 
   it('refuses to set a year group on a staff account', async () => {
     requireStaffActionMock.mockResolvedValue(ctx('admin'))
     maybeSingleMock.mockResolvedValue({ data: { role: 'coach' } } as any)
-    await expect(updateUserYearGroup('c1', 2)).rejects.toThrow(/students only/i)
+    await expect(updateUserYearGroup('c1', 2)).resolves.toEqual({
+      ok: false, error: 'Year group applies to students only',
+    })
     expect(updateMock).not.toHaveBeenCalled()
   })
 
@@ -90,13 +103,15 @@ describe('users server actions are guarded', () => {
 
   it('renames a user, trimming surrounding whitespace', async () => {
     requireStaffActionMock.mockResolvedValue(ctx('coach'))
-    await updateUserName('s1', '  Javan Moussa  ')
+    await expect(updateUserName('s1', '  Javan Moussa  ')).resolves.toEqual({ ok: true })
     expect(updateMock).toHaveBeenCalledWith({ name: 'Javan Moussa' })
   })
 
   it('rejects an empty or whitespace-only name', async () => {
     requireStaffActionMock.mockResolvedValue(ctx('admin'))
-    await expect(updateUserName('s1', '   ')).rejects.toThrow(/empty/i)
+    await expect(updateUserName('s1', '   ')).resolves.toEqual({
+      ok: false, error: 'Name cannot be empty',
+    })
     expect(updateMock).not.toHaveBeenCalled()
   })
 
@@ -104,13 +119,78 @@ describe('users server actions are guarded', () => {
   // that bit the chat/folder name fields.
   it('rejects an over-long name rather than truncating it', async () => {
     requireStaffActionMock.mockResolvedValue(ctx('admin'))
-    await expect(updateUserName('s1', 'x'.repeat(USER_NAME_MAX + 1))).rejects.toThrow(/longer than/i)
+    await expect(updateUserName('s1', 'x'.repeat(USER_NAME_MAX + 1))).resolves.toEqual({
+      ok: false, error: `Name cannot be longer than ${USER_NAME_MAX} characters`,
+    })
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  /**
+   * These four updates used to drop the write error entirely. A Server Action
+   * plus revalidatePath mostly self-reports — the refetched value simply
+   * hasn't changed — but "it didn't change" is not the same as being told why,
+   * and the selects in UserFields are optimistic, so they kept showing the
+   * value the user had picked.
+   */
+  it('reports a failed role write instead of returning ok', async () => {
+    requireStaffActionMock.mockResolvedValue(ctx('admin'))
+    eqMock.mockResolvedValue({ error: { message: 'permission denied for table users' } } as any)
+    await expect(updateUserRole('s1', 'student')).resolves.toEqual({
+      ok: false, error: 'permission denied for table users',
+    })
+  })
+
+  it('reports a failed year group write instead of returning ok', async () => {
+    requireStaffActionMock.mockResolvedValue(ctx('admin'))
+    eqMock.mockResolvedValue({ error: { message: 'sync_year_group_chat failed' } } as any)
+    await expect(updateUserYearGroup('s1', 2)).resolves.toEqual({
+      ok: false, error: 'sync_year_group_chat failed',
+    })
+  })
+
+  it('reports a failed rename instead of returning ok', async () => {
+    requireStaffActionMock.mockResolvedValue(ctx('admin'))
+    eqMock.mockResolvedValue({ error: { message: 'value too long' } } as any)
+    await expect(updateUserName('s1', 'Javan Moussa')).resolves.toEqual({
+      ok: false, error: 'value too long',
+    })
+  })
+
+  it('reports a failed course write instead of returning ok', async () => {
+    requireStaffActionMock.mockResolvedValue(ctx('admin'))
+    eqMock.mockResolvedValue({ error: { message: 'course_id fkey violation' } } as any)
+    await expect(updateUserCourse('s1', 'c-nope')).resolves.toEqual({
+      ok: false, error: 'course_id fkey violation',
+    })
+  })
+
+  it('clears the course when given an empty id', async () => {
+    requireStaffActionMock.mockResolvedValue(ctx('admin'))
+    await expect(updateUserCourse('s1', '')).resolves.toEqual({ ok: true })
+    expect(updateMock).toHaveBeenCalledWith({ course_id: null })
+  })
+
+  // A failed role lookup also leaves target null; reporting that as "students
+  // only" would send staff looking at the account rather than the request.
+  it('separates a failed lookup from a genuine non-student', async () => {
+    requireStaffActionMock.mockResolvedValue(ctx('admin'))
+    maybeSingleMock.mockResolvedValue({ data: null, error: { message: 'timeout' } } as any)
+    await expect(updateUserYearGroup('s1', 2)).resolves.toEqual({ ok: false, error: 'timeout' })
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('reports a missing user rather than blaming their role', async () => {
+    requireStaffActionMock.mockResolvedValue(ctx('admin'))
+    maybeSingleMock.mockResolvedValue({ data: null, error: null } as any)
+    await expect(updateUserYearGroup('gone', 2)).resolves.toEqual({
+      ok: false, error: 'That user no longer exists',
+    })
     expect(updateMock).not.toHaveBeenCalled()
   })
 
   it('accepts a name exactly at the limit', async () => {
     requireStaffActionMock.mockResolvedValue(ctx('admin'))
-    await updateUserName('s1', 'x'.repeat(USER_NAME_MAX))
+    await expect(updateUserName('s1', 'x'.repeat(USER_NAME_MAX))).resolves.toEqual({ ok: true })
     expect(updateMock).toHaveBeenCalledWith({ name: 'x'.repeat(USER_NAME_MAX) })
   })
 })
