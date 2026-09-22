@@ -16,7 +16,7 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
   // Student profile
   const { data: student } = await supabase
     .from('users')
-    .select('id, name, email, avatar_url, role, year_group, course_id, courses(name), date_of_birth, position, height_cm, weight_kg, build, dominant_foot')
+    .select('id, name, email, avatar_url, role, year_group, team_id, course_id, courses(name), date_of_birth, position, height_cm, weight_kg, build, dominant_foot')
     .eq('id', studentId)
     .single()
 
@@ -34,6 +34,7 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
     { data: gpsSessions },
     { data: matches },
     { data: reviews },
+    { data: teams },
   ] = await Promise.all([
     supabase
       .from('gps_sessions')
@@ -53,6 +54,9 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
       .eq('student_id', studentId)
       .order('created_at', { ascending: false })
       .limit(10),
+    // Fetched the same way as app/(admin)/admin/users/page.tsx, so the team
+    // control here offers the same active-teams list as the Users list.
+    supabase.from('teams').select('id, name, sort_order, is_active').eq('is_active', true).order('sort_order'),
   ])
 
   const initials = student.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) ?? 'S'
@@ -80,14 +84,17 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
         </div>
       </div>
 
-      {/* Name/year group: every role lands on this page from the Users list,
-          and a name is editable for all of them. Year group is students-only —
-          the form hides it for staff, matching updateUserYearGroup. */}
+      {/* Name/team/year group: every role lands on this page from the Users
+          list, and a name and team are editable for all of them — a coach who
+          plays needs a team too. Year group is students-only — the form hides
+          it for staff, matching updateUserYearGroup. */}
       <StudentIdentityForm
         userId={student.id}
         name={student.name ?? ''}
         yearGroup={(student as any).year_group ?? null}
         isStudent={student.role === 'student'}
+        teamId={(student as any).team_id ?? null}
+        teams={teams ?? []}
       />
 
       {/* Student-only: AI Insights, coursework, GPS, matches */}

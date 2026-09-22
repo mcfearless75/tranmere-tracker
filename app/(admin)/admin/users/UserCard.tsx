@@ -5,9 +5,11 @@ import {
   RoleSelect,
   YearGroupSelect,
   CourseSelect,
+  TeamSelect,
   type UserListItem,
   type Course,
 } from './UserFields'
+import type { Team } from '@/lib/teams/types'
 
 /**
  * Phone layout for a user.
@@ -19,7 +21,13 @@ import {
  * control had shipped. This stacks the same controls vertically so every one
  * of them is on screen.
  */
-export function UserCard({ user, courses }: { user: UserListItem; courses: Course[] }) {
+export function UserCard({
+  user, courses, teams,
+}: {
+  user: UserListItem
+  courses: Course[]
+  teams: Team[]
+}) {
   return (
     <div className="border-b last:border-0 p-4 space-y-3">
       <div className="flex items-start justify-between gap-2">
@@ -50,6 +58,15 @@ export function UserCard({ user, courses }: { user: UserListItem; courses: Cours
           </div>
         </label>
       </div>
+
+      {/* Full width, not squeezed into the two-column grid above — renders for
+          every role, not just students (a coach who plays needs a team). */}
+      <label className="block">
+        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Team</span>
+        <div className="mt-0.5">
+          <TeamSelect user={user} teams={teams} className="w-full py-1.5" />
+        </div>
+      </label>
 
       <p className="text-[11px] text-muted-foreground">
         Joined {new Date(user.created_at).toLocaleDateString('en-GB')}

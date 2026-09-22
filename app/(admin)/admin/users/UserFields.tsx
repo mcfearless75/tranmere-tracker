@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { updateUserRole, updateUserCourse, updateUserYearGroup } from './userActions'
+import { setUserTeam } from '../teams/teamActions'
+import type { Team } from '@/lib/teams/types'
 
 /**
  * The three editable controls on a user, shared by the desktop table row
@@ -21,6 +23,7 @@ export interface UserListItem {
   course_id: string | null
   created_at: string
   year_group: number | null
+  team_id: string | null
   courses: { name: string } | null
 }
 
@@ -135,6 +138,40 @@ export function YearGroupSelect({ user, className = '' }: { user: UserListItem; 
       >
         <option value={1}>Year 1</option>
         <option value={2}>Year 2</option>
+      </select>
+      <FieldError message={error} />
+    </>
+  )
+}
+
+/**
+ * Which team the person plays for.
+ *
+ * Unlike YearGroupSelect this renders for EVERY role, not just students — a
+ * coach who plays (Joseph Barton) needs a team too, and having one is what
+ * makes someone pickable for a match squad.
+ */
+export function TeamSelect({
+  user, teams, className = '',
+}: {
+  user: UserListItem
+  teams: Team[]
+  className?: string
+}) {
+  const { value, change, error, pending } = useSavedSelect(user.team_id ?? '', next =>
+    setUserTeam(user.id, next || null)
+  )
+  return (
+    <>
+      <select
+        aria-label={`Team for ${user.name}`}
+        value={value}
+        disabled={pending}
+        onChange={e => change(e.target.value)}
+        className={`text-xs border rounded px-1 py-0.5 bg-white cursor-pointer disabled:opacity-60 ${className}`}
+      >
+        <option value="">No team</option>
+        {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
       </select>
       <FieldError message={error} />
     </>

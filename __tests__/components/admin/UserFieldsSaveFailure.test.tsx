@@ -10,6 +10,10 @@ jest.mock('@/app/(admin)/admin/users/userActions', () => ({
   updateUserYearGroup: (...a: any[]) => updateUserYearGroupMock(...a),
 }))
 
+jest.mock('@/app/(admin)/admin/teams/teamActions', () => ({
+  setUserTeam: jest.fn(async () => ({ ok: true })),
+}))
+
 function student(over: Record<string, unknown> = {}) {
   return {
     id: 's1', name: 'Javan Moussa', email: 'javanm@x.internal', role: 'student',

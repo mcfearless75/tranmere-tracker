@@ -7,12 +7,13 @@ export const dynamic = 'force-dynamic'
 export default async function UsersPage() {
   const supabase = createAdminClient()
 
-  const [{ data: allUsers }, { data: courses }] = await Promise.all([
+  const [{ data: allUsers }, { data: courses }, { data: teams }] = await Promise.all([
     supabase
       .from('users')
-      .select('id, name, email, role, course_id, created_at, is_active, year_group, courses(name)')
+      .select('id, name, email, role, course_id, created_at, is_active, year_group, team_id, courses(name)')
       .order('created_at', { ascending: false }),
     supabase.from('courses').select('id, name').order('name'),
+    supabase.from('teams').select('id, name, sort_order, is_active').eq('is_active', true).order('sort_order'),
   ])
 
   // Soft-hidden accounts (see 053_users_is_active.sql) stay out of the
@@ -35,7 +36,7 @@ export default async function UsersPage() {
       {/* Search and both layouts live in UsersList — filtering is client-side
           because every active user is already fetched above to render the
           list, so there is nothing to gain from a round trip. */}
-      <UsersList users={(users ?? []) as any} courses={courses ?? []} />
+      <UsersList users={(users ?? []) as any} courses={courses ?? []} teams={teams ?? []} />
     </div>
   )
 }

@@ -3,11 +3,21 @@ import { StudentIdentityForm } from '@/app/(admin)/admin/students/[id]/StudentId
 
 const updateUserNameMock = jest.fn()
 const updateUserYearGroupMock = jest.fn()
+const setUserTeamMock = jest.fn()
 
 jest.mock('@/app/(admin)/admin/users/userActions', () => ({
   updateUserName: (...a: any[]) => updateUserNameMock(...a),
   updateUserYearGroup: (...a: any[]) => updateUserYearGroupMock(...a),
 }))
+
+jest.mock('@/app/(admin)/admin/teams/teamActions', () => ({
+  setUserTeam: (...a: any[]) => setUserTeamMock(...a),
+}))
+
+const TEAMS = [
+  { id: 't1', name: 'Prem', sort_order: 0, is_active: true },
+  { id: 't2', name: 'White', sort_order: 1, is_active: true },
+]
 
 function renderForm(over: Record<string, unknown> = {}) {
   return render(
@@ -16,6 +26,8 @@ function renderForm(over: Record<string, unknown> = {}) {
       name="Javan Moussa"
       yearGroup={1}
       isStudent
+      teamId={null}
+      teams={TEAMS}
       {...(over as any)}
     />
   )
@@ -29,12 +41,23 @@ describe('StudentIdentityForm', () => {
   beforeEach(() => {
     updateUserNameMock.mockReset().mockResolvedValue({ ok: true })
     updateUserYearGroupMock.mockReset().mockResolvedValue({ ok: true })
+    setUserTeamMock.mockReset().mockResolvedValue({ ok: true })
   })
 
   it('shows the current name and year group before editing', () => {
     renderForm()
     expect(screen.getByText('Javan Moussa')).toBeInTheDocument()
     expect(screen.getByText('Year 1')).toBeInTheDocument()
+  })
+
+  it('shows the current team before editing, and "No team" when unassigned', () => {
+    renderForm()
+    expect(screen.getByText('No team')).toBeInTheDocument()
+  })
+
+  it('shows the assigned team name before editing', () => {
+    renderForm({ teamId: 't2' })
+    expect(screen.getByText('White')).toBeInTheDocument()
   })
 
   it('renames a user', async () => {
@@ -67,6 +90,52 @@ describe('StudentIdentityForm', () => {
 
     await waitFor(() => expect(updateUserNameMock).toHaveBeenCalledWith('s1', 'Javan M'))
     expect(updateUserYearGroupMock).toHaveBeenCalledWith('s1', 2)
+  })
+
+  it('assigns a team', async () => {
+    renderForm()
+    startEditing()
+    fireEvent.change(screen.getByLabelText('Team'), { target: { value: 't1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(setUserTeamMock).toHaveBeenCalledWith('s1', 't1'))
+    expect(updateUserNameMock).not.toHaveBeenCalled()
+    expect(updateUserYearGroupMock).not.toHaveBeenCalled()
+  })
+
+  // NULL, not an empty string — team_id is a nullable FK, not a text column.
+  it('unassigns a team with NULL when the blank option is chosen', async () => {
+    renderForm({ teamId: 't1' })
+    startEditing()
+    fireEvent.change(screen.getByLabelText('Team'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(setUserTeamMock).toHaveBeenCalledWith('s1', null))
+    expect(setUserTeamMock).not.toHaveBeenCalledWith('s1', '')
+  })
+
+  it('does not call setUserTeam when the team was left unchanged', async () => {
+    renderForm({ teamId: 't1' })
+    startEditing()
+    fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Javan M' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(updateUserNameMock).toHaveBeenCalledWith('s1', 'Javan M'))
+    expect(setUserTeamMock).not.toHaveBeenCalled()
+  })
+
+  // The coach-who-plays invariant: unlike the year group, the team control is
+  // NOT students-only — a coach who plays needs a team too.
+  it('still shows and allows editing the team for staff', async () => {
+    renderForm({ isStudent: false, name: 'Philippa L', yearGroup: null, teamId: null })
+    expect(screen.getByText('No team')).toBeInTheDocument()
+
+    startEditing()
+    expect(screen.getByLabelText('Team')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Team'), { target: { value: 't2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(setUserTeamMock).toHaveBeenCalledWith('s1', 't2'))
   })
 
   it('will not save an empty name', () => {

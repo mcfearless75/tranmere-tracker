@@ -5,6 +5,7 @@ import { Search, X } from 'lucide-react'
 import { UserRow } from './UserRow'
 import { UserCard } from './UserCard'
 import type { UserListItem, Course } from './UserFields'
+import type { Team } from '@/lib/teams/types'
 
 /**
  * The Users list, with search.
@@ -17,7 +18,13 @@ import type { UserListItem, Course } from './UserFields'
  * mean typing "Stu" to find Stuart also surfaces every student, which is
  * worse than no filter at all.
  */
-export function UsersList({ users, courses }: { users: UserListItem[]; courses: Course[] }) {
+export function UsersList({
+  users, courses, teams,
+}: {
+  users: UserListItem[]
+  courses: Course[]
+  teams: Team[]
+}) {
   const [query, setQuery] = useState('')
 
   const needle = query.trim().toLowerCase()
@@ -78,7 +85,7 @@ export function UsersList({ users, courses }: { users: UserListItem[]; courses: 
             layouts (see UserFields). */}
         <div className="sm:hidden">
           {filtered.map(u => (
-            <UserCard key={u.id} user={u} courses={courses} />
+            <UserCard key={u.id} user={u} courses={courses} teams={teams} />
           ))}
           {!filtered.length && (
             <p className="px-4 py-6 text-center text-muted-foreground">{emptyMessage(searching, query)}</p>
@@ -89,18 +96,18 @@ export function UsersList({ users, courses }: { users: UserListItem[]; courses: 
           <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-gray-50 border-b">
               <tr>
-                {['Name', 'Email', 'Role', 'Year', 'Course', 'Joined'].map(h => (
+                {['Name', 'Email', 'Role', 'Year', 'Team', 'Course', 'Joined'].map(h => (
                   <th key={h} className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map(u => (
-                <UserRow key={u.id} user={u} courses={courses} />
+                <UserRow key={u.id} user={u} courses={courses} teams={teams} />
               ))}
               {!filtered.length && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
                     {emptyMessage(searching, query)}
                   </td>
                 </tr>
