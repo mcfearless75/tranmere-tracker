@@ -163,9 +163,22 @@ export async function reorderTeams(orderedIds: string[]): Promise<ActionResult> 
   const byId = new Map(
     (current ?? []).map((t: { id: string; name: string; is_active: boolean }) => [t.id, t])
   )
+
+  // Every id in orderedIds must have resolved to a real row. Upsert on a
+  // primary key that doesn't exist is an INSERT, not a no-op — a missing id
+  // here (a stale client array racing a delete, or a crafted server-action
+  // call; a server action is reachable by action id from anyone who has it)
+  // must never be papered over with a made-up name, or it creates a live
+  // active team with an empty name that then shows up everywhere teams are
+  // picked, and squats the teams_name_active_idx slot for ''.
+  const missing = orderedIds.filter(id => !byId.has(id))
+  if (missing.length > 0) {
+    return { ok: false, error: `Team(s) not found: ${missing.join(', ')}` }
+  }
+
   const rows = orderedIds.map((id, sort_order) => {
-    const t = byId.get(id)
-    return { id, sort_order, name: t?.name ?? '', is_active: t?.is_active ?? true }
+    const t = byId.get(id)!
+    return { id, sort_order, name: t.name, is_active: t.is_active }
   })
 
   const { error } = await admin.from('teams').upsert(rows)

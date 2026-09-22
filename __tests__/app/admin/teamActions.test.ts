@@ -246,5 +246,18 @@ describe('team server actions', () => {
       const result = await reorderTeams(['t1'])
       expect(result.ok).toBe(false)
     })
+
+    // Re-review finding: an id that doesn't resolve to a row from the read
+    // must never fall back to a made-up name and go to upsert() — upsert on
+    // a nonexistent primary key is an INSERT, not a no-op, so that would
+    // create a live active team with an empty name.
+    it('refuses to reorder when an id does not resolve to a real team, and writes nothing', async () => {
+      reorderInMock.mockResolvedValueOnce({ data: [{ id: 't1', name: 'Prem', is_active: true }], error: null })
+
+      const result = await reorderTeams(['t1', 'ghost-id'])
+
+      expect(result.ok).toBe(false)
+      expect(upsertMock).not.toHaveBeenCalled()
+    })
   })
 })

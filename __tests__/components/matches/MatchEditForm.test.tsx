@@ -74,4 +74,27 @@ describe('MatchEditForm — team field', () => {
     ))
     expect(update).not.toHaveBeenCalledWith(expect.objectContaining({ team_id: '' }))
   })
+
+  // Re-review finding: `teams` is active-only, so a fixture whose team has
+  // since been retired dropped out of the options entirely — the select
+  // fell back to showing "No team" even though match.team_id still held the
+  // real id, which is misleading (saving another field silently kept the
+  // real team). The retired team must now show up, labelled, instead.
+  it('shows the fixture\'s own team, labelled retired, even when it is no longer active', () => {
+    render(
+      <MatchEditForm
+        match={{ ...match, team_id: 't-reserves', teams: { name: 'Reserves' } }}
+        teams={TEAMS}
+      />
+    )
+
+    const select = screen.getByLabelText('Team') as HTMLSelectElement
+    expect(select).toHaveValue('t-reserves')
+    expect(screen.getByText('Reserves (retired)')).toBeInTheDocument()
+  })
+
+  it('does not show a retired-team option when the fixture\'s team is active', () => {
+    render(<MatchEditForm match={match} teams={TEAMS} />)
+    expect(screen.queryByText(/\(retired\)/)).not.toBeInTheDocument()
+  })
 })

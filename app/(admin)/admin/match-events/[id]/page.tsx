@@ -29,9 +29,12 @@ type EligiblePlayer = {
 export default async function MatchDetailPage({ params }: { params: { id: string } }) {
   const supabase = createAdminClient()
 
+  // teams:team_id(name) alongside '*' so MatchEditForm can label the
+  // fixture's own team even if it has since been retired — the active-teams
+  // list below would otherwise silently drop it from the select's options.
   const { data: match } = await supabase
     .from('match_events')
-    .select('*')
+    .select('*, teams:team_id(name)')
     .eq('id', params.id)
     .single()
 

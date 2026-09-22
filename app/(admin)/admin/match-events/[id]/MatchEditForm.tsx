@@ -19,6 +19,10 @@ export function MatchEditForm({ match, teams }: {
     notes: string | null
     status: string
     team_id: string | null
+    // The embedded name for match.team_id, regardless of whether that team
+    // is still active — this is how a retired team's name survives being
+    // dropped from `teams` (active-only) below.
+    teams?: { name: string } | null
   }
   teams: Team[]
 }) {
@@ -33,6 +37,13 @@ export function MatchEditForm({ match, teams }: {
   const [teamId, setTeamId] = useState(match.team_id ?? '')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+
+  // teams prop is active teams only. If the fixture's own team has since
+  // been retired, it's absent from that list — without this, the select
+  // shows "No team" (falls back to the first, unmatched option) even though
+  // match.team_id still holds the real id and every other field's save
+  // leaves it untouched. Surfacing it, labelled, keeps the control honest.
+  const currentTeamIsRetired = !!match.team_id && !teams.some(t => t.id === match.team_id)
 
   async function save() {
     setSaving(true)
@@ -95,6 +106,11 @@ export function MatchEditForm({ match, teams }: {
             className="w-full border rounded-lg px-3 py-2 text-sm"
           >
             <option value="">No team</option>
+            {currentTeamIsRetired && (
+              <option value={match.team_id ?? ''}>
+                {match.teams?.name ?? 'Unknown team'} (retired)
+              </option>
+            )}
             {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </div>
