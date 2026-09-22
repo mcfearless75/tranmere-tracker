@@ -13,19 +13,26 @@ export function CreateBroadcastForm() {
     e.preventDefault()
     if (!name.trim()) return
     setLoading(true)
-    const res = await fetch('/api/admin/broadcast', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    })
-    const data = await res.json()
-    setLoading(false)
-    if (data.roomId) {
-      setName('')
-      router.push(`/chat/${data.roomId}`)
-      router.refresh()
-    } else {
-      alert(data.error ?? 'Failed to create broadcast')
+    try {
+      const res = await fetch('/api/admin/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const data = await res.json()
+      if (data.roomId) {
+        setName('')
+        router.push(`/chat/${data.roomId}`)
+        router.refresh()
+      } else {
+        alert(data.error ?? 'Failed to create broadcast')
+      }
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally this button stayed disabled until a reload.
+      alert('Could not reach the server — you may be offline. Try again.')
+    } finally {
+      setLoading(false)
     }
   }
 

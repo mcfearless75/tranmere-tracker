@@ -11,15 +11,22 @@ export function AiInsights({ studentId, studentName }: { studentId: string; stud
   async function generate() {
     setLoading(true)
     setError(null)
-    const res = await fetch('/api/ai/student-insights', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentId }),
-    })
-    const data = await res.json()
-    setLoading(false)
-    if (data.error) setError(data.error)
-    else setInsights(data.insights)
+    try {
+      const res = await fetch('/api/ai/student-insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId }),
+      })
+      const data = await res.json()
+      if (data.error) setError(data.error)
+      else setInsights(data.insights)
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally this button stayed disabled until a reload.
+      setError('Could not reach the server — you may be offline. Try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

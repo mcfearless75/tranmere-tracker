@@ -29,32 +29,40 @@ export function GymLogForm({ onLogged }: GymLogFormProps) {
     setSubmitting(true)
     setError('')
 
-    const res = await fetch('/api/gym/log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        exercise: resolvedExercise,
-        logged_date: date,
-        sets: sets ? parseInt(sets, 10) : null,
-        reps: reps ? parseInt(reps, 10) : null,
-        weight_kg: weightKg ? parseFloat(weightKg) : null,
-        notes: notes.trim() || null,
-      }),
-    })
+    try {
+      const res = await fetch('/api/gym/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          exercise: resolvedExercise,
+          logged_date: date,
+          sets: sets ? parseInt(sets, 10) : null,
+          reps: reps ? parseInt(reps, 10) : null,
+          weight_kg: weightKg ? parseFloat(weightKg) : null,
+          notes: notes.trim() || null,
+        }),
+      })
 
-    if (res.ok) {
-      setExercise('')
-      setCustomExercise('')
-      setSets('')
-      setReps('')
-      setWeightKg('')
-      setNotes('')
-      onLogged()
-    } else {
-      const d = await res.json() as { error?: string }
-      setError(d.error ?? 'Something went wrong')
+      if (res.ok) {
+        setExercise('')
+        setCustomExercise('')
+        setSets('')
+        setReps('')
+        setWeightKg('')
+        setNotes('')
+        onLogged()
+      } else {
+        const d = await res.json() as { error?: string }
+        setError(d.error ?? 'Something went wrong')
+      }
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally a student logging a lift in the gym — where
+      // signal is worst — was left with a dead Save button.
+      setError('Could not save that — you may be offline. Try again.')
+    } finally {
+      setSubmitting(false)
     }
-    setSubmitting(false)
   }
 
   return (

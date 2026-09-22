@@ -20,17 +20,25 @@ export function SetupForm() {
     if (pin !== confirm) { setError('PINs do not match'); return }
     setSaving(true)
     setError('')
-    const res = await fetch('/api/setup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, pin }),
-    })
-    const data = await res.json()
-    if (data.error) {
-      setError(data.error)
+    try {
+      const res = await fetch('/api/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, pin }),
+      })
+      const data = await res.json()
+      if (data.error) {
+        setError(data.error)
+        setSaving(false)
+      } else {
+        // Navigating away — deliberately leave `saving` true so the form
+        // cannot be submitted twice while the route transition is in flight.
+        router.push('/admin-login')
+      }
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response.
+      setError('Could not reach the server — you may be offline. Try again.')
       setSaving(false)
-    } else {
-      router.push('/admin-login')
     }
   }
 

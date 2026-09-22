@@ -9,9 +9,22 @@ export function MarkReviewCompleteButton({ reviewId }: { reviewId: string }) {
 
   async function handleClick() {
     setLoading(true)
-    await fetch(`/api/reviews/${reviewId}/complete`, { method: 'PATCH' })
-    setLoading(false)
-    router.refresh()
+    try {
+      // The response was previously discarded entirely, so a 4xx/5xx looked
+      // identical to success: the row refreshed and the review stayed
+      // incomplete, with nobody told. Check it.
+      const res = await fetch(`/api/reviews/${reviewId}/complete`, { method: 'PATCH' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error ?? 'Could not mark the review complete. Try again.')
+        return
+      }
+      router.refresh()
+    } catch {
+      alert('Could not reach the server — you may be offline. Try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

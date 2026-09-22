@@ -71,18 +71,26 @@ export default function WellbeingPage() {
     if (!survey) return
     setSubmitting(true)
     setError('')
-    const res = await fetch('/api/wellbeing/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ survey_id: survey.id, answers, notes, context_tags: contextTags }),
-    })
-    if (res.ok) {
-      setDone(true)
-    } else {
-      const d = await res.json()
-      setError(d.error ?? 'Something went wrong')
+    try {
+      const res = await fetch('/api/wellbeing/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ survey_id: survey.id, answers, notes, context_tags: contextTags }),
+      })
+      if (res.ok) {
+        setDone(true)
+      } else {
+        const d = await res.json()
+        setError(d.error ?? 'Something went wrong')
+      }
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally a student who lost signal mid-submit was left
+      // with a dead Submit button and no way to send their check-in.
+      setError('Could not send that — you may be offline. Your answers are still here, try again.')
+    } finally {
+      setSubmitting(false)
     }
-    setSubmitting(false)
   }
 
   function toggleTag(tagKey: string) {

@@ -13,11 +13,18 @@ export function SeedDemoButton() {
     if (!confirm('This will create 10 demo players with 8 GPS sessions each, 2 matches, and 3 assignments. Good for a demo — not for production. Continue?')) return
     setLoading(true)
     setMsg(null)
-    const res = await fetch('/api/admin/seed-demo', { method: 'POST' })
-    const data = await res.json()
-    if (data.error) setMsg(`Error: ${data.error}`)
-    else { setMsg(data.message); router.refresh() }
-    setLoading(false)
+    try {
+      const res = await fetch('/api/admin/seed-demo', { method: 'POST' })
+      const data = await res.json()
+      if (data.error) setMsg(`Error: ${data.error}`)
+      else { setMsg(data.message); router.refresh() }
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally this button stayed disabled until a reload.
+      setMsg('Could not reach the server — you may be offline. Try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

@@ -39,31 +39,39 @@ export default function GoalForm({ activeGoals }: GoalFormProps) {
     setSubmitting(true)
     setError('')
 
-    const res = await fetch('/api/goals', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title,
-        category,
-        priority,
-        description: description || undefined,
-        deadline: deadline || undefined,
-      }),
-    })
+    try {
+      const res = await fetch('/api/goals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          category,
+          priority,
+          description: description || undefined,
+          deadline: deadline || undefined,
+        }),
+      })
 
-    if (res.ok) {
-      setTitle('')
-      setDescription('')
-      setDeadline('')
-      setCategory('personal')
-      setPriority('medium')
-      setShowForm(false)
-      router.refresh()
-    } else {
-      const d = await res.json() as { error?: string }
-      setError(d.error ?? 'Something went wrong')
+      if (res.ok) {
+        setTitle('')
+        setDescription('')
+        setDeadline('')
+        setCategory('personal')
+        setPriority('medium')
+        setShowForm(false)
+        router.refresh()
+      } else {
+        const d = await res.json() as { error?: string }
+        setError(d.error ?? 'Something went wrong')
+      }
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally a student on patchy signal was left with a
+      // dead Save button and their typed goal still in the form.
+      setError('Could not save that — you may be offline. Try again.')
+    } finally {
+      setSubmitting(false)
     }
-    setSubmitting(false)
   }
 
   async function handleMarkComplete(goalId: string) {

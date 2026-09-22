@@ -40,21 +40,28 @@ export function CalendarEventsManager({ events }: Props) {
       event_time: form.event_time || null,
       description: form.description.trim() || null,
     }
-    const res = await fetch(
-      editingId ? `/api/admin/calendar-events/${editingId}` : '/api/admin/calendar-events',
-      {
-        method: editingId ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+    try {
+      const res = await fetch(
+        editingId ? `/api/admin/calendar-events/${editingId}` : '/api/admin/calendar-events',
+        {
+          method: editingId ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }
+      )
+      const data = await res.json()
+      if (res.ok) {
+        cancelEdit()
+        router.refresh()
+      } else {
+        alert(data.error ?? 'Failed to save event')
       }
-    )
-    const data = await res.json()
-    setLoading(false)
-    if (res.ok) {
-      cancelEdit()
-      router.refresh()
-    } else {
-      alert(data.error ?? 'Failed to save event')
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally the Save button stayed disabled until a reload.
+      alert('Could not reach the server — you may be offline. Try again.')
+    } finally {
+      setLoading(false)
     }
   }
 

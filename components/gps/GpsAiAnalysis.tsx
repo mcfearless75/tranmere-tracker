@@ -11,11 +11,18 @@ export function GpsAiAnalysis() {
   async function generate() {
     setLoading(true)
     setError(null)
-    const res = await fetch('/api/ai/gps-analysis', { method: 'POST' })
-    const data = await res.json()
-    setLoading(false)
-    if (data.error) setError(data.error)
-    else setAnalysis(data.analysis)
+    try {
+      const res = await fetch('/api/ai/gps-analysis', { method: 'POST' })
+      const data = await res.json()
+      if (data.error) setError(data.error)
+      else setAnalysis(data.analysis)
+    } catch {
+      // fetch REJECTS on a network failure rather than returning a response,
+      // so without the finally this button stayed disabled until a reload.
+      setError('Could not reach the server — you may be offline. Try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
