@@ -1,5 +1,4 @@
 'use server'
-
 import { revalidatePath } from 'next/cache'
 import { requireStaffAction } from '@/lib/auth/requireRole'
 import { TEAM_NAME_MAX, type ActionResult } from '@/lib/teams/types'
@@ -7,21 +6,22 @@ import { TEAM_NAME_MAX, type ActionResult } from '@/lib/teams/types'
 /**
  * Server actions behind the Teams page.
  *
- * These actions are reachable by action id and are NOT protected by the
- * /admin layout, so every action must open with requireStaffAction().
+ * These run with the service-role client, which bypasses RLS entirely, and a
+ * Next.js server action is reachable by anyone who has the action id from the
+ * client bundle — it is NOT implicitly protected by the /admin layout. So each
+ * one verifies the caller itself, per the contract in lib/auth/requireRole.ts.
  */
 
 function revalidate() {
   revalidatePath('/admin/teams')
+  revalidatePath('/admin/users')
+  revalidatePath('/admin/match-events')
 }
 
-type CleanNameResult = { name: string } | { error: string }
-
-function cleanName(name: string): CleanNameResult {
+/** Returns the cleaned name, or the reason it is unusable. */
+function cleanName(name: string): { name: string } | { error: string } {
   const trimmed = name.trim()
-  if (!trimmed) {
-    return { error: 'Team name cannot be empty' }
-  }
+  if (!trimmed) return { error: 'Team name cannot be empty' }
   if (trimmed.length > TEAM_NAME_MAX) {
     return { error: `Team name cannot be longer than ${TEAM_NAME_MAX} characters` }
   }
@@ -36,8 +36,8 @@ function cleanName(name: string): CleanNameResult {
  * team membership is what makes someone pickable for a squad — so refusing
  * non-students here would defeat the point.
  *
- * Assignment replaces: users.team_id holds one value, so there is no stacking
- * or multi-team membership. The update is idempotent.
+ * Assignment replaces: users.team_id holds one value, so there is no state in
+ * which a player accumulates two teams.
  */
 export async function setUserTeam(userId: string, teamId: string | null): Promise<ActionResult> {
   const { admin } = await requireStaffAction()
@@ -47,43 +47,30 @@ export async function setUserTeam(userId: string, teamId: string | null): Promis
   return { ok: true }
 }
 
-/**
- * Bulk-assigns multiple users to the same team, or removes them all with null.
- *
- * Replaces each user's current team_id with the new one. Useful for seeding
- * rosters or moving a squad between teams.
- */
+/** Bulk form of setUserTeam, for the Add players flow. */
 export async function setUsersTeam(userIds: string[], teamId: string | null): Promise<ActionResult> {
   const { admin } = await requireStaffAction()
-  const { error } = await admin.from('users').update({ team_id: teamId }).eq('id', userIds)
+  if (userIds.length === 0) return { ok: true }
+  const { error } = await admin.from('users').update({ team_id: teamId }).in('id', userIds)
   if (error) return { ok: false, error: error.message }
   revalidate()
   return { ok: true }
 }
 
-/**
- * Creates a new team with a staff-given name.
- *
- * The partial unique index (on name, WHERE is_active = true) is the backstop
- * against two coaches adding the same team at once, so a race surfaces here
- * as a reported error rather than a duplicate row.
- */
 export async function createTeam(name: string): Promise<ActionResult> {
   const { admin } = await requireStaffAction()
   const clean = cleanName(name)
   if ('error' in clean) return { ok: false, error: clean.error }
 
   const { error } = await admin.from('teams').insert({ name: clean.name, sort_order: 0 })
+  // The partial unique index is the backstop against two coaches adding the
+  // same team at once, so a race surfaces here as a reported error rather
+  // than a duplicate row.
   if (error) return { ok: false, error: error.message }
   revalidate()
   return { ok: true }
 }
 
-/**
- * Renames an existing team.
- *
- * The name is re-validated server-side before any write.
- */
 export async function renameTeam(teamId: string, name: string): Promise<ActionResult> {
   const { admin } = await requireStaffAction()
   const clean = cleanName(name)
@@ -95,11 +82,6 @@ export async function renameTeam(teamId: string, name: string): Promise<ActionRe
   return { ok: true }
 }
 
-/**
- * Reorders teams by reassigning their sort_order.
- *
- * Takes an array of team IDs in the desired order and assigns sort_order 0, 1, 2, ...
- */
 export async function reorderTeams(orderedIds: string[]): Promise<ActionResult> {
   const { admin } = await requireStaffAction()
   for (let i = 0; i < orderedIds.length; i++) {
