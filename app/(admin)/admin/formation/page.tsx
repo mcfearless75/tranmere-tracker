@@ -1,15 +1,31 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { eligiblePlayers } from '@/lib/teams/players'
+import type { TeamRef } from '@/lib/teams/types'
 import { FormationBuilder } from './FormationBuilder'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
+/** The pickable-player shape eligiblePlayers() now returns here. */
+type EligiblePlayer = {
+  id: string
+  name: string
+  avatar_url: string | null
+  // Nullable in the DB but always populated in practice (DEFAULT 1) — kept
+  // non-null here to match FormationBuilder's existing Student type, which
+  // this task does not touch.
+  year_group: number
+  role: string
+  team_id: string | null
+  teams: TeamRef | null
+}
+
 export default async function FormationPage({ searchParams }: { searchParams: { match?: string } }) {
   const supabase = createAdminClient()
 
   const [{ data: students }, { data: matches }] = await Promise.all([
-    supabase.from('users').select('id, name, avatar_url, year_group').eq('role', 'student').eq('is_active', true).order('name'),
+    eligiblePlayers(supabase, 'id, name, avatar_url, year_group, role, team_id, teams(id, name)'),
     supabase.from('match_events').select('id, match_date, kick_off_time, opponent, status').order('match_date', { ascending: false }).limit(20),
   ])
 
@@ -40,7 +56,7 @@ export default async function FormationPage({ searchParams }: { searchParams: { 
         </p>
       </div>
       <FormationBuilder
-        students={students ?? []}
+        students={(students ?? []) as unknown as EligiblePlayer[]}
         matches={matches ?? []}
         selectedMatchId={searchParams.match ?? null}
         initialSquad={matchSquad}

@@ -1,4 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { eligiblePlayers } from '@/lib/teams/players'
+import type { TeamRef } from '@/lib/teams/types'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, LayoutGrid } from 'lucide-react'
@@ -7,6 +9,21 @@ import { MatchEditForm } from './MatchEditForm'
 import { AddPlayersLater } from './AddPlayersLater'
 
 export const dynamic = 'force-dynamic'
+
+/**
+ * The pickable-player shape eligiblePlayers() now returns here. This is also
+ * the bug fix: the old query (`role = 'student'`, no `is_active` filter) let
+ * deactivated students keep appearing in "Add players later" — its two
+ * sibling queries on this page already filtered is_active correctly.
+ */
+type EligiblePlayer = {
+  id: string
+  name: string
+  year_group: number | null
+  role: string
+  team_id: string | null
+  teams: TeamRef | null
+}
 
 export default async function MatchDetailPage({ params }: { params: { id: string } }) {
   const supabase = createAdminClient()
@@ -24,11 +41,11 @@ export default async function MatchDetailPage({ params }: { params: { id: string
       .from('match_squads')
       .select('id, player_id, status, position, coach_rating, coach_notes, goals, assists, minutes_played, yellow_card, red_card, users:player_id(name, avatar_url, year_group)')
       .eq('match_id', params.id),
-    supabase.from('users').select('id, name').eq('role', 'student').order('name'),
+    eligiblePlayers(supabase, 'id, name, year_group, role, team_id, teams(id, name)'),
   ])
 
   const inSquad = new Set((squad ?? []).map((s: { player_id: string }) => s.player_id))
-  const available = (students ?? []).filter(s => !inSquad.has(s.id))
+  const available = ((students ?? []) as unknown as EligiblePlayer[]).filter(s => !inSquad.has(s.id))
 
   return (
     <div className="space-y-5">

@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { eligiblePlayers } from '@/lib/teams/players'
+import type { TeamRef } from '@/lib/teams/types'
 import { CreateMatchForm } from './CreateMatchForm'
 import { MatchEventList } from './MatchEventList'
 import Link from 'next/link'
@@ -7,18 +9,31 @@ import { LayoutGrid } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * The pickable-player shape this page's queries now return. `role` and
+ * `team_id` aren't rendered here (CreateMatchForm only shows name/year), but
+ * they come back from eligiblePlayers()'s select and carrying them keeps this
+ * type an honest description of the query, not a hand-trimmed subset of it.
+ */
+type EligiblePlayer = {
+  id: string
+  name: string
+  // Nullable in the DB but always populated in practice (DEFAULT 1) — kept
+  // non-null here to match CreateMatchForm's existing Student type, which
+  // this task does not touch.
+  year_group: number
+  role: string
+  team_id: string | null
+  teams: TeamRef | null
+}
+
 export default async function MatchEventsPage() {
   const auth = createClient()
   const { data: { user } } = await auth.auth.getUser()
   const supabase = createAdminClient()
 
   const [{ data: students }, { data: matches }] = await Promise.all([
-    supabase
-      .from('users')
-      .select('id, name, year_group')
-      .eq('role', 'student')
-      .eq('is_active', true)
-      .order('name'),
+    eligiblePlayers(supabase, 'id, name, year_group, role, team_id, teams(id, name)'),
     supabase
       .from('match_events')
       .select(`
@@ -45,7 +60,7 @@ export default async function MatchEventsPage() {
           <LayoutGrid size={16} /> Open Formation Pitch
         </Link>
       </div>
-      <CreateMatchForm students={students ?? []} coachId={user!.id} />
+      <CreateMatchForm students={(students ?? []) as unknown as EligiblePlayer[]} coachId={user!.id} />
       <MatchEventList matches={(matches ?? []) as any} />
     </div>
   )
