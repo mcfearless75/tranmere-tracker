@@ -29,6 +29,9 @@ not a standing roster.
 
 - Season history of team membership. A player has a current team; past teams are not
   tracked.
+- **Player positions** (GK/CB/FB/CM/CF/FW). The Blue sheet carries one per player and
+  they would let the Formation Builder suggest players for a slot, but teams ship
+  first and positions follow — decided explicitly, not by omission.
 - Per-team fixtures lists, league tables, or team-level stats pages.
 - Refactoring the existing client-side `match_squads` writes (see Risks).
 - Changing anything about `youth_squads`.
@@ -41,6 +44,8 @@ not a standing roster.
 | Can a player be in several teams? | **No — exactly one, or none.** |
 | Does a match belong to a team? | **Yes.** A fixture is "Blue vs Marine"; the squad picker pre-fills from that team. |
 | Membership storage | **`users.team_id` FK**, not a `team_members` join table. |
+| Can a non-student be in a team? | **Yes.** At least one coach plays — team membership is role-agnostic. See "Players who are not students". |
+| Positions in scope? | **No.** Teams first, positions as a separate follow-up. |
 
 ### Why `users.team_id` and not a join table
 
@@ -112,9 +117,83 @@ Note `is_staff()` already honours `is_active` (migration 068).
 
 ### Backfill
 
-None. All existing students start unassigned and surface in the Unassigned bucket;
-coaches sort them using the new UI. This is deliberate — we do not have the paper
-allocation in a machine-readable form, and guessing would be worse than empty.
+The three rosters exist — photographed from "College Squad Lists 2026/27" — so the
+migration seeds them rather than leaving coaches to re-enter 46 players by hand.
+
+**46 names on the sheets; all 46 resolved.** 42 matched the `users` table exactly by
+normalised name. Three are spelling variants, each confirmed by Paul (only one person
+with that surname exists in the database, so identity was never in doubt):
+
+| On the sheet | In the app |
+|---|---|
+| Robert Ewan Duncan | Ewan Duncan |
+| Ollie Piercy | Oliver Piercy |
+| Seb Macauley | Sebastian MacAulay |
+
+The 46th, Joseph Barton, is in the database as **"Joseph B" with `role = 'coach'`** —
+see "Players who are not students" below.
+
+**Seed by user id, not by name.** This exercise found three name variants in 46 rows;
+names are not a stable key. The full verified mapping with ids is in the scratchpad
+note `verified-team-rosters.md` and is reproduced in the migration as a literal
+`(team, user_id)` list.
+
+Resulting counts: Prem 17, Blue 14, White 15.
+
+Three active students are on none of the three sheets and stay unassigned:
+**Khalid Eletu** (Y2 — worth asking Chaid whether that is deliberate), **Paul
+McWilliam** (Paul's own account, `role='student'`, not a player) and **RhysJones**
+(malformed name, with a separate inactive "Rhys Jones" — a likely duplicate account,
+out of scope here).
+
+The migration is idempotent: it only sets `team_id` where it is currently null, so
+re-running cannot stamp over a coach's later reassignment.
+
+### Players who are not students
+
+Joseph Barton — "Joseph B" in the app — is a **coach who plays**, and he is on the
+Prem sheet. That breaks an assumption the whole squad flow currently makes.
+
+All three squad pickers hard-filter `role = 'student'`:
+
+- `app/(admin)/admin/match-events/page.tsx:19`
+- `app/(admin)/admin/match-events/[id]/page.tsx:27`
+- `app/(admin)/admin/formation/page.tsx:12`
+
+So today Joseph cannot be picked for a squad at all, and putting him in Prem would
+achieve nothing. `match_squads.player_id` is a plain FK to `users` with no role
+constraint, so the database has never been the obstacle — only these three queries.
+
+**Decision: team membership is role-agnostic, and a team is what makes someone
+pickable.** The three queries change from "active students" to "active students, plus
+any active user who has a `team_id`". Consequences:
+
+- Nothing changes for the 48 students.
+- Joseph becomes pickable because he is in Prem — no new flag, no role change, and
+  no need to misrepresent a coach as a student.
+- A coach with no team is completely unaffected, so no other staff member leaks into
+  a squad picker.
+
+Two knock-on details:
+
+- `setUserTeam` must **not** reject non-students. This is a deliberate departure from
+  `updateUserYearGroup`, which does reject them — year group is a student concept,
+  team membership is not.
+- `TeamSelect` must render a real control for non-students, not the `—` that
+  `YearGroupSelect` renders.
+- `<YearBadge>` renders for any `year_group` of 1 or 2 regardless of role, and
+  Joseph's is the default 1. He would show a false "Y1" badge in squad pickers, so
+  the badge is suppressed for non-students.
+
+### Adjacent bug to fix while here
+
+`app/(admin)/admin/match-events/[id]/page.tsx:27` selects students with **no
+`is_active` filter**, so deactivated students still appear in the "Add players later"
+picker. Its two sibling queries both filter correctly.
+
+This is the same defect class as the three-wave deactivated-students sweep
+(2026-09-11 to 09-13) and is a live instance that sweep missed. The teams work
+rewrites this exact query, so it is fixed here rather than left for a future pass.
 
 ## Application design
 
@@ -161,7 +240,7 @@ Layout, top to bottom, mobile-first:
 
 | Action | Behaviour |
 |---|---|
-| `setUserTeam(userId, teamId \| null)` | Target must be `role === 'student'`. Assignment replaces — no accumulation is possible, the column holds one value. |
+| `setUserTeam(userId, teamId \| null)` | Any role may be assigned — see "Players who are not students". Assignment replaces; no accumulation is possible, the column holds one value. |
 | `setUsersTeam(userIds[], teamId)` | Bulk form of the above for the Add players flow. |
 | `createTeam(name)` | Trim, length-check against `TEAM_NAME_MAX`, reject empty/duplicate-active. |
 | `renameTeam(teamId, name)` | Same validation. |
@@ -178,10 +257,11 @@ bundle and is **not** protected by the `/admin` layout, hence the mandatory
 
 ### Users list and student detail
 
-- `app/(admin)/admin/users/UserFields.tsx` — add `TeamSelect`, built exactly like
-  `YearGroupSelect`: a bare `<select>` in a `useTransition()`, `aria-label`, rendering
-  `—` for non-students. Defined once here so the desktop row and mobile card cannot
-  drift (the bug that file's comment documents).
+- `app/(admin)/admin/users/UserFields.tsx` — add `TeamSelect`, built like
+  `YearGroupSelect` (a bare `<select>` in a `useTransition()`, with an `aria-label`)
+  but **rendered for every role**, not just students — a coach may play. Defined once
+  here so the desktop row and mobile card cannot drift (the bug that file's comment
+  documents).
 - `app/(admin)/admin/users/page.tsx` — select `team_id` and join team names; add
   `Team` to the header array `['Name','Email','Role','Year','Course','Joined']`.
 - `app/(admin)/admin/users/userActions.ts` — re-export nothing; `TeamSelect` calls
@@ -247,12 +327,17 @@ Formation and Match Squads — teams are a coaching concern.
 Jest tests in `__tests__/`:
 
 - `teamActions` — `requireStaffAction` is called before any write (the guard is the
-  security boundary and must be proven, not assumed); non-student targets rejected;
-  reassignment replaces rather than accumulates; name validation rejects rather than
-  truncates; retiring a team preserves `team_id` on its players.
+  security boundary and must be proven, not assumed); reassignment replaces rather
+  than accumulates; name validation rejects rather than truncates; retiring a team
+  preserves `team_id` on its players.
 - `TeamBadge` — renders nothing for a null team; stable colour for a given id.
 - Create-match pre-fill — selecting a team selects exactly that team's active players;
   deselecting the team clears; an inactive student is never pre-ticked.
+- **Squad picker eligibility** — a coach *with* a team appears; a coach *without* one
+  does not; a deactivated student never appears (this is the adjacent bug, and the
+  test is what stops it regressing a fourth time).
+- **Seed migration** — after it runs, the three team counts are 17 / 14 / 15, and
+  re-running it does not overwrite a `team_id` that has since been changed.
 
 Manual verification before merge:
 
