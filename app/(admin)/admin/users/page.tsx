@@ -1,7 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CreateUserForm } from './CreateUserForm'
-import { UserRow } from './UserRow'
-import { UserCard } from './UserCard'
+import { UsersList } from './UsersList'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,41 +32,10 @@ export default async function UsersPage() {
 
       <CreateUserForm courses={courses ?? []} />
 
-      <div className="bg-white rounded-xl border overflow-hidden">
-        {/* Phone: stacked cards. The table below is min-w-[600px] inside a
-            horizontal scroller, which pushed the Role/Year/Course controls
-            off-screen on a phone — reachable only by scrolling a table
-            sideways, which nobody does. Same controls, same actions, both
-            layouts (see UserFields). */}
-        <div className="sm:hidden">
-          {users?.map(u => (
-            <UserCard key={u.id} user={u as any} courses={courses ?? []} />
-          ))}
-          {!users?.length && (
-            <p className="px-4 py-6 text-center text-muted-foreground">No users yet.</p>
-          )}
-        </div>
-
-        <div className="hidden sm:block overflow-x-auto -webkit-overflow-scrolling-touch">
-          <table className="w-full text-sm min-w-[600px]">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                {['Name', 'Email', 'Role', 'Year', 'Course', 'Joined'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 font-semibold text-muted-foreground text-xs uppercase tracking-wide">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {users?.map(u => (
-                <UserRow key={u.id} user={u as any} courses={courses ?? []} />
-              ))}
-              {!users?.length && (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">No users yet.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Search and both layouts live in UsersList — filtering is client-side
+          because every active user is already fetched above to render the
+          list, so there is nothing to gain from a round trip. */}
+      <UsersList users={(users ?? []) as any} courses={courses ?? []} />
     </div>
   )
 }
