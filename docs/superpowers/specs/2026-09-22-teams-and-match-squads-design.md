@@ -71,9 +71,11 @@ quietly forgotten.
 
 ## Data model
 
-New migration: `supabase/migrations/083_teams.sql`.
-(Re-derive the number immediately before writing the file — another session may have
-landed one.)
+New migration: `supabase/migrations/084_teams.sql`.
+
+(It was 083 when this spec was first written; `083_replace_schedule_slots_rpc.sql`
+landed from another session hours later. **Re-derive the number immediately before
+creating the file** — do not trust this line either.)
 
 ### `public.teams`
 
