@@ -60,4 +60,70 @@ describe('CreateMatchForm team pre-fill', () => {
 
     confirmSpy.mockRestore()
   })
+
+  it('does NOT ask to confirm switching from an untouched team to another team', () => {
+    setup()
+    const picker = screen.getByLabelText(/team/i) as HTMLSelectElement
+    fireEvent.change(picker, { target: { value: 't-prem' } })
+    // No manual edits made — selection is exactly Prem's roster.
+
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false)
+    fireEvent.change(picker, { target: { value: 't-blue' } })
+
+    // Nothing manual to lose, so no prompt — and the switch must go through.
+    expect(confirmSpy).not.toHaveBeenCalled()
+    expect(picker.value).toBe('t-blue')
+    expect((screen.getByRole('button', { name: /Alfie Casey/ })).getAttribute('aria-pressed')).toBe('false')
+    expect((screen.getByRole('button', { name: /Lewis Boden/ })).getAttribute('aria-pressed')).toBe('true')
+
+    confirmSpy.mockRestore()
+  })
+
+  it('confirms before replacing an edited team selection with a different team, and applies the switch when accepted', () => {
+    setup()
+    const picker = screen.getByLabelText(/team/i) as HTMLSelectElement
+    fireEvent.change(picker, { target: { value: 't-prem' } })
+    // Edit: call up Lewis (from Blue) on top of Prem's pre-filled roster —
+    // the selection ({p1, p2}) no longer equals prefillFor('t-prem') ({p1}).
+    fireEvent.click(screen.getByRole('button', { name: /Lewis Boden/ }))
+    expect((screen.getByRole('button', { name: /Lewis Boden/ })).getAttribute('aria-pressed')).toBe('true')
+
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true)
+    fireEvent.change(picker, { target: { value: 't-blue' } })
+
+    expect(confirmSpy).toHaveBeenCalled()
+    expect(picker.value).toBe('t-blue')
+    expect((screen.getByRole('button', { name: /Alfie Casey/ })).getAttribute('aria-pressed')).toBe('false')
+    expect((screen.getByRole('button', { name: /Lewis Boden/ })).getAttribute('aria-pressed')).toBe('true')
+
+    confirmSpy.mockRestore()
+  })
+
+  it('confirms before replacing an edited team selection with a different team, and leaves both untouched when declined', () => {
+    setup()
+    const picker = screen.getByLabelText(/team/i) as HTMLSelectElement
+    fireEvent.change(picker, { target: { value: 't-prem' } })
+    // Same edit as above: call up Lewis on top of Prem's roster.
+    fireEvent.click(screen.getByRole('button', { name: /Lewis Boden/ }))
+
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false)
+    fireEvent.change(picker, { target: { value: 't-blue' } })
+
+    // Declined: the dropdown must not have moved, and both the team roster
+    // and the manual call-up must survive intact — a half-applied state
+    // (dropdown moved but selection didn't, or vice versa) is the bug.
+    expect(confirmSpy).toHaveBeenCalled()
+    expect(picker.value).toBe('t-prem')
+    expect((screen.getByRole('button', { name: /Alfie Casey/ })).getAttribute('aria-pressed')).toBe('true')
+    expect((screen.getByRole('button', { name: /Lewis Boden/ })).getAttribute('aria-pressed')).toBe('true')
+
+    confirmSpy.mockRestore()
+  })
+
+  it("shows a call-up candidate's team badge in the Other players section even when a team is chosen", () => {
+    setup()
+    fireEvent.change(screen.getByLabelText(/team/i), { target: { value: 't-prem' } })
+    const lewisButton = screen.getByRole('button', { name: /Lewis Boden/ })
+    expect(lewisButton.textContent).toContain('Blue')
+  })
 })

@@ -21,6 +21,54 @@ type Student = {
 }
 type Props = { students: Student[]; teams: Team[]; coachId: string }
 
+/**
+ * Hoisted to module scope so it keeps a stable function identity across
+ * CreateMatchForm's re-renders (every keystroke in Date/Opponent/Location/
+ * Notes re-renders the form). A component declared inside another
+ * component's render body gets a new type on every render, which makes
+ * React unmount + remount the whole player grid — real, avoidable churn on
+ * a phone with dozens of players. Everything it needs comes in as props.
+ */
+type PlayerButtonProps = {
+  student: Student
+  selected: boolean
+  onToggle: (id: string) => void
+  /** Show the team badge — true for a mixed-team list (Other players / no
+   * team chosen), false inside a single chosen team's own roster where
+   * every tile is the same team and the badge would be redundant. */
+  showTeam: boolean
+}
+
+function PlayerButton({ student, selected, onToggle, showTeam }: PlayerButtonProps) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={() => onToggle(student.id)}
+      className={`text-sm px-3 py-2 rounded-lg border text-left ${
+        selected
+          ? 'bg-tranmere-blue text-white border-tranmere-blue'
+          : 'bg-white text-gray-700 border-gray-200'
+      }`}
+    >
+      <span className="flex items-center justify-between gap-1.5">
+        <span className="truncate">{student.name}</span>
+        <span className="flex items-center gap-1 shrink-0">
+          {showTeam && <TeamBadge team={student.teams} />}
+          <YearBadge year={student.year_group} />
+        </span>
+      </span>
+    </button>
+  )
+}
+
+/** True when both sets contain exactly the same ids. */
+function sameSelection(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false
+  for (const id of a) if (!b.has(id)) return false
+  return true
+}
+
 export function CreateMatchForm({ students, teams, coachId }: Props) {
   const router = useRouter()
   const [date, setDate] = useState('')
@@ -42,11 +90,23 @@ export function CreateMatchForm({ students, teams, coachId }: Props) {
     })
   }
 
+  /** The set the given team id would pre-fill — empty for '' (no team). */
+  function prefillFor(id: string): Set<string> {
+    return id ? new Set(students.filter(s => s.team_id === id).map(s => s.id)) : new Set()
+  }
+
   function pickTeam(next: string) {
-    const manual = selected.size > 0 && teamId === ''
-    if (manual && next && !confirm('Replace the players you have picked with the whole team?')) return
+    // "Manual work" is anything the coach's current selection holds beyond
+    // (or short of) exactly what the CURRENT team would pre-fill — covers
+    // blank+manual-picks, a call-up added on top of a team, and a player
+    // unticked from a team, not just "no team is selected yet". Comparing
+    // teamId === '' alone (the original brief's guard) misses every
+    // team-to-team switch, which is silent data loss for the call-up
+    // workflow this feature exists to support.
+    const hasManualWork = !sameSelection(selected, prefillFor(teamId))
+    if (hasManualWork && !confirm('Replace the players you have picked with the whole team?')) return
     setTeamId(next)
-    setSelected(next ? new Set(students.filter(s => s.team_id === next).map(s => s.id)) : new Set())
+    setSelected(prefillFor(next))
   }
 
   async function handleCreate() {
@@ -122,31 +182,6 @@ export function CreateMatchForm({ students, teams, coachId }: Props) {
   const teamPlayers = teamId ? students.filter(s => s.team_id === teamId) : []
   const otherPlayers = teamId ? students.filter(s => s.team_id !== teamId) : students
 
-  function PlayerButton({ s }: { s: Student }) {
-    const isSelected = selected.has(s.id)
-    return (
-      <button
-        key={s.id}
-        type="button"
-        aria-pressed={isSelected}
-        onClick={() => toggle(s.id)}
-        className={`text-sm px-3 py-2 rounded-lg border text-left ${
-          isSelected
-            ? 'bg-tranmere-blue text-white border-tranmere-blue'
-            : 'bg-white text-gray-700 border-gray-200'
-        }`}
-      >
-        <span className="flex items-center justify-between gap-1.5">
-          <span className="truncate">{s.name}</span>
-          <span className="flex items-center gap-1 shrink-0">
-            {!teamId && <TeamBadge team={s.teams} />}
-            <YearBadge year={s.year_group} />
-          </span>
-        </span>
-      </button>
-    )
-  }
-
   return (
     <div className="bg-white rounded-xl border p-5 space-y-4 max-w-2xl">
       <h2 className="font-semibold">Create New Match</h2>
@@ -195,7 +230,9 @@ export function CreateMatchForm({ students, teams, coachId }: Props) {
         <p className="text-xs font-medium text-muted-foreground mb-2">Squad (optional — add later if you want)</p>
         {teamId && (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto mb-2">
-            {teamPlayers.map(s => <PlayerButton key={s.id} s={s} />)}
+            {teamPlayers.map(s => (
+              <PlayerButton key={s.id} student={s} selected={selected.has(s.id)} onToggle={toggle} showTeam={false} />
+            ))}
           </div>
         )}
         <details open={!teamId}>
@@ -203,7 +240,9 @@ export function CreateMatchForm({ students, teams, coachId }: Props) {
             {teamId ? 'Other players (call-up)' : 'Players'}
           </summary>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto mt-2">
-            {otherPlayers.map(s => <PlayerButton key={s.id} s={s} />)}
+            {otherPlayers.map(s => (
+              <PlayerButton key={s.id} student={s} selected={selected.has(s.id)} onToggle={toggle} showTeam />
+            ))}
           </div>
         </details>
       </div>
