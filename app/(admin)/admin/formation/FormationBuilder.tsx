@@ -1,5 +1,6 @@
 'use client'
 import { YearBadge } from '@/components/YearBadge'
+import { TeamBadge } from '@/components/TeamBadge'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -7,10 +8,20 @@ import { FootballPitch } from '@/components/pitch/FootballPitch'
 import { FORMATIONS, FORMATION_NAMES, Slot } from '@/components/pitch/formations'
 import { createClient } from '@/lib/supabase/client'
 import { formatEventTime } from '@/lib/calendar/calendarUtils'
+import { sortByTeamFirst } from '@/lib/teams/players'
+import type { TeamRef } from '@/lib/teams/types'
 import { RotateCcw, Save, Check, Users } from 'lucide-react'
 
-type Student = { id: string; name: string; avatar_url: string | null; year_group: number }
-type Match = { id: string; match_date: string; kick_off_time?: string | null; opponent: string; status: string }
+type Student = {
+  id: string
+  name: string
+  avatar_url: string | null
+  year_group: number
+  role: string
+  team_id: string | null
+  teams: TeamRef | null
+}
+type Match = { id: string; match_date: string; kick_off_time?: string | null; opponent: string; status: string; team_id: string | null }
 type Placement = { slotId: string; playerId: string; playerName: string; avatarUrl?: string | null }
 
 export function FormationBuilder({ students, matches, selectedMatchId, initialSquad, existingSquadPlayerIds }: {
@@ -52,7 +63,8 @@ export function FormationBuilder({ students, matches, selectedMatchId, initialSq
   }, [formation])
 
   const placedIds = new Set(placements.map(p => p.playerId))
-  const available = students.filter(s => !placedIds.has(s.id))
+  const selectedMatchTeamId = matches.find(m => m.id === matchId)?.team_id ?? null
+  const available = sortByTeamFirst(students.filter(s => !placedIds.has(s.id)), selectedMatchTeamId)
   const placedBySlot = Object.fromEntries(placements.map(p => [p.slotId, p]))
   const selectedSlotRole = slots.find(s => s.id === selectedSlot)?.role
 
@@ -287,7 +299,8 @@ export function FormationBuilder({ students, matches, selectedMatchId, initialSq
                         </span>
                       )}
                       <span className="flex-1 text-sm font-semibold truncate">{shortName}</span>
-                      <YearBadge year={s.year_group} />
+                      {s.role === 'student' && <YearBadge year={s.year_group} />}
+                      <TeamBadge team={s.teams} />
                     </button>
                   )
                 })}

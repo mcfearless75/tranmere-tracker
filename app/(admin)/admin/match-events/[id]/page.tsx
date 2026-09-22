@@ -62,7 +62,7 @@ export default async function MatchDetailPage({ params }: { params: { id: string
       </div>
 
       <MatchEditForm match={match} />
-      <AddPlayersLater matchId={match.id} opponent={match.opponent} available={available} />
+      <AddPlayersLater matchId={match.id} opponent={match.opponent} matchTeamId={match.team_id} available={available} />
       <MatchReport match={match} squad={(squad ?? []) as any} />
     </div>
   )

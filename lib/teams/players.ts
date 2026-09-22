@@ -28,3 +28,29 @@ export function eligiblePlayers(supabase: SupabaseClient, columns: string) {
     .or(ELIGIBLE_PLAYER_FILTER)
     .order('name')
 }
+
+/**
+ * Puts players belonging to `teamId` (a match's own team) before everyone
+ * else, preserving each half's original relative order — a stable
+ * partition, not a full re-sort. eligiblePlayers() already orders
+ * alphabetically, and callers (AddPlayersLater, FormationBuilder) must not
+ * lose that ordering within either half.
+ *
+ * Nothing is filtered out: a player not on the match's team still appears,
+ * just after the match's own team. When `teamId` is null/undefined (no team
+ * on the match, or no match selected yet), the input order passes through
+ * unchanged.
+ */
+export function sortByTeamFirst<T extends { team_id: string | null }>(
+  players: T[],
+  teamId: string | null | undefined,
+): T[] {
+  if (!teamId) return players
+  const inTeam: T[] = []
+  const others: T[] = []
+  for (const p of players) {
+    if (p.team_id === teamId) inTeam.push(p)
+    else others.push(p)
+  }
+  return [...inTeam, ...others]
+}
