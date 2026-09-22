@@ -27,3 +27,17 @@ export interface TeamRef {
   id: string
   name: string
 }
+
+/**
+ * What every team server action returns.
+ *
+ * Actions do not throw: Next.js redacts a thrown Server Action error in
+ * production into an opaque digest, so the reason never reaches the client and
+ * every failure collapses into a generic "Not saved". A returned error
+ * survives. Only requireStaffAction still throws — an unauthorised caller is
+ * not a user-correctable condition.
+ *
+ * If userActions.ts's identical ActionResult moves somewhere shared, collapse
+ * these two into one.
+ */
+export type ActionResult = { ok: boolean; error?: string }
