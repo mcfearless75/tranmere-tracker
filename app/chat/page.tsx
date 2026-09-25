@@ -7,6 +7,7 @@ import { NewDmPicker } from './NewDmPicker'
 import { NewGroupPicker } from './NewGroupPicker'
 import { AiCoachButton } from './AiCoachButton'
 import { ChatRoomActions } from './ChatRoomActions'
+import { PushOptIn } from '@/components/PushOptIn'
 
 export const dynamic = 'force-dynamic'
 
@@ -110,6 +111,8 @@ export default async function ChatHubPage() {
 
   return (
     <div className="w-full max-w-3xl mx-auto p-4 md:p-8 pb-24 md:pb-8 space-y-3">
+      {/* Chat is where missed alerts hurt most — prompt here, not just on the dashboard */}
+      <PushOptIn hideWhenEnabled />
       <div className="flex items-center justify-between">
         <h1 className="text-xl sm:text-2xl font-bold text-tranmere-blue flex items-center gap-1.5">
           <MessageSquare size={22} /> Chat

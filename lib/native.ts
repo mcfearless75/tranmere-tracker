@@ -31,3 +31,17 @@ export function isIos(): boolean {
 export function isAndroid(): boolean {
   return getPlatform() === 'android'
 }
+
+/**
+ * Version of the native shell, from the `TTNative/<n>` marker that
+ * capacitor.config.ts appends to the WebView user agent. 0 for installs that
+ * predate the marker (and for plain browsers).
+ */
+export function getNativeShellVersion(): number {
+  if (typeof navigator === 'undefined') return 0
+  const m = /TTNative\/(\d+)/.exec(navigator.userAgent)
+  return m ? Number(m[1]) : 0
+}
+
+/** First native shell version whose Android build ships google-services.json. */
+export const ANDROID_PUSH_MIN_SHELL = 2

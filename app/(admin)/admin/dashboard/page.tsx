@@ -5,6 +5,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Calendar, Clock, MessageSquare, ClipboardList, LayoutGrid, Users, GraduationCap } from 'lucide-react'
 import { PushOptIn } from '@/components/PushOptIn'
+import { PushCoverageCard } from '@/components/admin/PushCoverageCard'
+import { getPushCoverage } from '@/lib/notifications/pushCoverage'
 import { InstallAppButton } from '@/components/pwa/InstallGuide'
 import { MOODLE_TEACHER_URL } from '@/lib/config/moodle'
 import { formatEventTime } from '@/lib/calendar/calendarUtils'
@@ -60,9 +62,12 @@ const firstName = profile.name?.split(' ')[0] ?? 'Coach'
     totalStudents = (studentCount as any)?.length ?? 0
   }
 
+  const pushCoverage = await getPushCoverage(admin)
+
   return (
     <div className="space-y-5 pb-24 md:pb-6">
       <PushOptIn />
+      <PushCoverageCard coverage={pushCoverage} />
       {/* Header */}
       <div className="flex items-center gap-3 py-1">
         {profile.avatar_url ? (

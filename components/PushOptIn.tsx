@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { isNative, isAndroid, getPlatform } from '@/lib/native'
+import { isNative, isAndroid, getPlatform, getNativeShellVersion, ANDROID_PUSH_MIN_SHELL } from '@/lib/native'
 import { reportClientError } from '@/lib/reportClientError'
+import { InstallAppButton } from '@/components/pwa/InstallGuide'
 
-type State = 'idle' | 'loading' | 'installing' | 'subscribed' | 'denied' | 'unsupported' | 'error' | 'crashed' | 'ios-not-installed'
+type State = 'idle' | 'loading' | 'installing' | 'subscribed' | 'denied' | 'unsupported' | 'error' | 'crashed' | 'ios-not-installed' | 'update-app'
 
 // iOS Safari only supports web push from a Home Screen install (standalone
 // display mode) — calling subscribe() from a normal browser tab fails, and
@@ -60,25 +61,24 @@ function clearNativeRegisterPending(): void {
   }
 }
 
-export function PushOptIn() {
+/**
+ * @param hideWhenEnabled render nothing once subscribed — for pages like
+ *   /chat where a permanent green "enabled" banner is just noise.
+ */
+export function PushOptIn({ hideWhenEnabled = false }: { hideWhenEnabled?: boolean } = {}) {
   const [state, setState] = useState<State>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
     if (isNative()) {
-      if (isAndroid()) {
-        // 2026-09-11: PushNotifications.register() crashes the app on
-        // Android 100% of the time — confirmed on a fresh install, past the
-        // crash-loop guard, past adding the missing Firebase SHA
-        // fingerprints, and Crashlytics (added specifically to diagnose
-        // this) never received a single session ping, so there's still no
-        // stack trace to work from. Home is the page every student hits
-        // first, and it renders this component, so leaving native
-        // registration enabled means the app is unusable for every Android
-        // user. Disabling it here — not deleting the code — so this is a
-        // one-line revert once the underlying native crash is actually
-        // diagnosed and fixed. iOS is unaffected and unchanged.
-        setState('unsupported')
+      if (isAndroid() && getNativeShellVersion() < ANDROID_PUSH_MIN_SHELL) {
+        // 2026-09-11: PushNotifications.register() crashed every Android
+        // build — root cause (2026-09-25): Codemagic never wrote the
+        // gitignored google-services.json, so Firebase was never initialised.
+        // Fixed in native shell 2. Older installs would still crash, so never
+        // touch the native API there — tell them to update instead of hiding
+        // the prompt (hiding it is why nobody knew they were missing alerts).
+        setState('update-app')
         return
       }
       if (isNativeRegisterPending()) {
@@ -307,11 +307,11 @@ export function PushOptIn() {
   // ─── Click handler ───────────────────────────────────────────────────────────
 
   async function handleClick() {
-    // Defense in depth — the useEffect above already prevents this button
-    // from ever being shown on Android, but never call the crashing native
-    // path from here either, in case that changes.
-    if (isNative() && isAndroid()) {
-      setState('unsupported')
+    // Defense in depth — the useEffect above already hides this button on
+    // pre-fix Android shells, but never call the crashing native path from
+    // here either, in case that changes.
+    if (isNative() && isAndroid() && getNativeShellVersion() < ANDROID_PUSH_MIN_SHELL) {
+      setState('update-app')
       return
     }
 
@@ -341,15 +341,28 @@ export function PushOptIn() {
 
   if (state === 'unsupported' || state === 'denied') return null
 
+  if (state === 'update-app') {
+    return (
+      <div className="w-full text-sm bg-amber-50 border border-amber-200 text-amber-800 py-3 rounded-xl px-3 text-center">
+        🔔 Update Tranmere Tracker from the Play Store to get message notifications.
+      </div>
+    )
+  }
+
   if (state === 'ios-not-installed') {
     return (
-      <div className="w-full text-sm bg-blue-50 border border-blue-200 text-blue-700 py-3 rounded-xl px-3 text-center">
-        📲 On iPhone, add this app to your Home Screen first, then tap Enable notifications.
+      // Most unreachable users are here: iPhone in a normal Safari tab, where
+      // Apple blocks web push outright. The one-time install guide is easy to
+      // dismiss, so put the step-by-step one tap away every time they see this.
+      <div className="w-full text-sm bg-blue-50 border border-blue-200 text-blue-700 py-3 rounded-xl px-3 text-center space-y-2">
+        <p>📲 iPhones only allow notifications once this app is on your Home Screen. Add it, open it from the new icon, then tap Enable notifications.</p>
+        <InstallAppButton />
       </div>
     )
   }
 
   if (state === 'subscribed') {
+    if (hideWhenEnabled) return null
     return (
       <div className="w-full text-sm bg-green-50 border border-green-200 text-green-700 font-medium py-3 rounded-xl flex items-center justify-center gap-2">
         ✅ Notifications enabled

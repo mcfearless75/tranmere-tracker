@@ -18,6 +18,12 @@ const config: CapacitorConfig = {
     url: 'https://app.thesolarcampus.com',
     cleartext: false,
   },
+  // Lets the (remote, always-latest) web code tell which native shell it is
+  // running in. Bump the number whenever a native build changes something the
+  // web side needs to gate on. 2 = first build with working push on both
+  // platforms (google-services.json in the Android build, APNs entitlement +
+  // token forwarding on iOS). Old installs have no marker at all.
+  appendUserAgent: 'TTNative/2',
   plugins: {
     // 2026-09-11: a cold install has to download the full remote-URL bundle
     // before the WebView renders anything (the web-side SplashScreen.tsx
