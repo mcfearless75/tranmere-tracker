@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { isNative, isAndroid, getPlatform, getNativeShellVersion, ANDROID_PUSH_MIN_SHELL } from '@/lib/native'
 import { reportClientError } from '@/lib/reportClientError'
+import { InstallAppButton } from '@/components/pwa/InstallGuide'
 
 type State = 'idle' | 'loading' | 'installing' | 'subscribed' | 'denied' | 'unsupported' | 'error' | 'crashed' | 'ios-not-installed' | 'update-app'
 
@@ -350,8 +351,12 @@ export function PushOptIn({ hideWhenEnabled = false }: { hideWhenEnabled?: boole
 
   if (state === 'ios-not-installed') {
     return (
-      <div className="w-full text-sm bg-blue-50 border border-blue-200 text-blue-700 py-3 rounded-xl px-3 text-center">
-        📲 On iPhone, add this app to your Home Screen first, then tap Enable notifications.
+      // Most unreachable users are here: iPhone in a normal Safari tab, where
+      // Apple blocks web push outright. The one-time install guide is easy to
+      // dismiss, so put the step-by-step one tap away every time they see this.
+      <div className="w-full text-sm bg-blue-50 border border-blue-200 text-blue-700 py-3 rounded-xl px-3 text-center space-y-2">
+        <p>📲 iPhones only allow notifications once this app is on your Home Screen. Add it, open it from the new icon, then tap Enable notifications.</p>
+        <InstallAppButton />
       </div>
     )
   }

@@ -251,9 +251,19 @@ describe('PushOptIn — iOS Safari outside Home Screen install (web path)', () =
 
     render(<PushOptIn />)
 
-    expect(await screen.findByText(/add this app to your Home Screen/i)).toBeInTheDocument()
+    expect(await screen.findByText(/only allow notifications once this app is on your Home Screen/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /enable notifications/i })).not.toBeInTheDocument()
     expect(requestPermissionSpy).not.toHaveBeenCalled()
+  })
+
+  it('offers the step-by-step Home Screen guide right in the prompt', async () => {
+    setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1')
+    ;(window as unknown as { Notification: unknown }).Notification = { permission: 'default', requestPermission: jest.fn() }
+
+    render(<PushOptIn />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /install app/i }))
+    expect(await screen.findByText(/Add to Home Screen/)).toBeInTheDocument()
   })
 
   it('does not show the instruction for an iPhone that IS already installed to the Home Screen', async () => {
@@ -263,6 +273,6 @@ describe('PushOptIn — iOS Safari outside Home Screen install (web path)', () =
     render(<PushOptIn />)
     await new Promise(r => setTimeout(r, 0))
 
-    expect(screen.queryByText(/add this app to your Home Screen/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/only allow notifications once this app is on your Home Screen/i)).not.toBeInTheDocument()
   })
 })

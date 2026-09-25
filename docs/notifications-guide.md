@@ -3,6 +3,10 @@
 If notifications are off, you won't know when coaches message you, when a broadcast
 goes out, or when you need to check in. It takes about 30 seconds.
 
+> **iPhone + browser?** Apple does not allow notifications from a normal Safari tab. You **must** add
+> Tranmere Tracker to your Home Screen and open it from that icon. This is the most common reason
+> lads miss messages.
+
 **The test:** once it's done, you'll see a green **✅ Notifications enabled** box on your
 Home screen. If you don't see that box, it isn't switched on.
 
@@ -57,6 +61,8 @@ iPhones only allow website notifications once the site is added to your Home Scr
 ---
 
 ## Broadcast message (copy and paste)
+
+The browser steps work today. The app steps need the new app update, so send this once that's live, or send it now and remove the app line.
 
 > 🔔 **Turn on notifications — 30 seconds, please do it now**
 >
