@@ -80,6 +80,11 @@ SUPABASE_SERVICE_ROLE_KEY   # server-side only
 ANTHROPIC_API_KEY            # server-side only
 VAPID_PUBLIC_KEY             # web push
 VAPID_PRIVATE_KEY            # web push, server-side only
+FIREBASE_SERVICE_ACCOUNT     # Android native push (FCM), server-side only
+APNS_KEY_P8 / APNS_KEY_ID    # iOS native push (direct APNs, lib/apns.ts), server-side only
+```
+Codemagic `android_credentials` group must hold `GOOGLE_SERVICES_JSON` (base64). Without it the build fails on purpose, because a build with no google-services.json crashes on push registration.
+```
 ```
 
 ## Current State & Priorities

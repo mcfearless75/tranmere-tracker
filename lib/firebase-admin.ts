@@ -10,6 +10,7 @@
 
 import { initializeApp, getApps, cert, type App } from 'firebase-admin/app'
 import { getMessaging } from 'firebase-admin/messaging'
+import { isApnsToken, sendApnsBatch } from '@/lib/apns'
 
 let _app: App | null = null
 let _initialised = false
@@ -79,12 +80,19 @@ export async function sendFcmBatch(
 ): Promise<{ sent: number; failed: number }> {
   if (tokens.length === 0) return { sent: 0, failed: 0 }
 
-  const results = await Promise.allSettled(
-    tokens.map(t => sendFcmNotification(t, notification)),
-  )
+  // iOS tokens are raw APNs device tokens (no Firebase SDK in the iOS app) —
+  // FCM rejects them, so route those straight to APNs. Every native send in
+  // the app funnels through here, so no call site needs to know.
+  const apnsTokens = tokens.filter(isApnsToken)
+  const fcmTokens = tokens.filter(t => !isApnsToken(t))
+
+  const [apns, results] = await Promise.all([
+    sendApnsBatch(apnsTokens, notification),
+    Promise.allSettled(fcmTokens.map(t => sendFcmNotification(t, notification))),
+  ])
 
   return {
-    sent: results.filter(r => r.status === 'fulfilled').length,
-    failed: results.filter(r => r.status === 'rejected').length,
+    sent: apns.sent + results.filter(r => r.status === 'fulfilled').length,
+    failed: apns.failed + results.filter(r => r.status === 'rejected').length,
   }
 }

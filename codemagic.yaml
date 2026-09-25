@@ -136,6 +136,25 @@ workflows:
           mkdir -p android/app/src/main/assets
           npx cap sync android
 
+      - name: Write google-services.json
+        script: |
+          # Required for push. android/app/build.gradle only applies the
+          # google-services plugin when this file exists; without it Firebase
+          # never initialises and PushNotifications.register() hard-crashes the
+          # app ("Default FirebaseApp is not initialized"). That is what
+          # disabled Android push on 2026-09-11 — the file is gitignored and no
+          # build step ever wrote it. Fail the build rather than ship that again.
+          # Add GOOGLE_SERVICES_JSON (base64 of the file from Firebase Console →
+          # Project settings → Android app com.tranmererovers.tracker) to the
+          # android_credentials group.
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "ERROR: GOOGLE_SERVICES_JSON not set — push would crash the app"
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON" | base64 --decode > android/app/google-services.json
+          grep -q '"package_name": *"com.tranmererovers.tracker"' android/app/google-services.json \
+            || { echo "ERROR: google-services.json is not for com.tranmererovers.tracker"; exit 1; }
+
       - name: Decode keystore
         script: |
           # Decode and expose as CM_KEYSTORE_PATH so build.gradle reads it via

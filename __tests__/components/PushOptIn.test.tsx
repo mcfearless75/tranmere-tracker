@@ -5,10 +5,13 @@ const PENDING_KEY = 'tt-native-push-register-pending'
 
 let isNativeMock = true
 let isAndroidMock = true
+let shellVersionMock = 0
 jest.mock('@/lib/native', () => ({
   isNative: () => isNativeMock,
   isAndroid: () => isAndroidMock,
   getPlatform: () => 'android',
+  getNativeShellVersion: () => shellVersionMock,
+  ANDROID_PUSH_MIN_SHELL: 2,
 }))
 
 const createChannel = jest.fn().mockResolvedValue(undefined)
@@ -123,7 +126,7 @@ describe('PushOptIn — native crash-loop guard (iOS — Android registration is
   })
 })
 
-describe('PushOptIn — native registration disabled on Android', () => {
+describe('PushOptIn — native registration disabled on pre-fix Android shells', () => {
   // 2026-09-11: PushNotifications.register() crashes the app on Android
   // 100% of the time, with no diagnosis available yet (Crashlytics, added
   // specifically to get a stack trace, never received a single session
@@ -131,9 +134,12 @@ describe('PushOptIn — native registration disabled on Android', () => {
   // app for every Android user. Disabled at the isAndroid() check —
   // these tests are the regression guard for that: the crashing native
   // calls must never be reached on Android, not even via an explicit tap.
+  // 2026-09-25: root cause was the missing google-services.json; fixed in
+  // native shell 2. Shells without the TTNative/2 marker keep this guard.
   beforeEach(() => {
     isNativeMock = true
     isAndroidMock = true
+    shellVersionMock = 0
     localStorage.clear()
     createChannel.mockClear()
     checkPermissions.mockReset()
@@ -165,14 +171,52 @@ describe('PushOptIn — native registration disabled on Android', () => {
     expect(register).not.toHaveBeenCalled()
   })
 
-  it('renders nothing — no button for a student to tap', async () => {
+  it('tells the user to update the app instead of hiding silently — no button to tap', async () => {
     checkPermissions.mockResolvedValue({ receive: 'granted' })
 
-    const { container } = render(<PushOptIn />)
+    render(<PushOptIn />)
     await new Promise(r => setTimeout(r, 0))
 
-    expect(container).toBeEmptyDOMElement()
+    expect(screen.getByText(/Update Tranmere Tracker from the Play Store/i)).toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+})
+
+describe('PushOptIn — Android native shell 2+ (google-services.json shipped)', () => {
+  beforeEach(() => {
+    isNativeMock = true
+    isAndroidMock = true
+    shellVersionMock = 2
+    localStorage.clear()
+    createChannel.mockClear()
+    checkPermissions.mockReset()
+    requestPermissions.mockReset()
+    register.mockClear()
+    addListener.mockClear()
+    registrationListener = undefined
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) }) as unknown as typeof fetch
+  })
+
+  it('creates the channel, registers silently when already granted, and saves the token', async () => {
+    checkPermissions.mockResolvedValue({ receive: 'granted' })
+
+    render(<PushOptIn />)
+    await waitFor(() => expect(register).toHaveBeenCalled())
+    expect(createChannel).toHaveBeenCalledWith(expect.objectContaining({ id: 'messages' }))
+
+    registrationListener?.({ value: 'fcm-token' })
+    await waitFor(() => expect(screen.getByText(/Notifications enabled/i)).toBeInTheDocument())
+    expect(global.fetch).toHaveBeenCalledWith('/api/push/native-register', expect.anything())
+  })
+
+  it('shows the enable button when permission has not been asked yet', async () => {
+    checkPermissions.mockResolvedValue({ receive: 'prompt' })
+
+    render(<PushOptIn />)
+    await waitFor(() => expect(checkPermissions).toHaveBeenCalled())
+
+    expect(screen.getByRole('button', { name: /Enable notifications/i })).toBeInTheDocument()
+    expect(register).not.toHaveBeenCalled()
   })
 })
 
