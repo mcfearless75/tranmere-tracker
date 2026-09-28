@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
-import { decidePhase, type PhaseWindows } from '@/lib/attendance/phase'
+import { decidePhase, nextOpenPhase, type PhaseWindows } from '@/lib/attendance/phase'
+import { OutOfHoursNotice } from '@/components/attendance/OutOfHoursNotice'
 import { StudentPlanner } from './StudentPlanner'
 import { AutoCheckIn } from './AutoCheckIn'
 import { getStudentStreak } from '@/lib/attendance/streak'
@@ -51,17 +52,7 @@ export default async function StudentAttendancePage({
     }
 
     if (!phase) {
-      const t = (s: string) => s.substring(0, 5)
-      return (
-        <div className="flex flex-col items-center justify-center min-h-[70vh] gap-3 text-center px-4">
-          <h1 className="text-xl font-bold text-tranmere-blue">Out of hours</h1>
-          <p className="text-sm text-muted-foreground">
-            Morning check-in {t(windows.am.start)}–{t(windows.am.end)},
-            lunch check-in {t(windows.lunch.start)}–{t(windows.lunch.end)},
-            end of day check-out {t(windows.pm.start)}–{t(windows.pm.end)}.
-          </p>
-        </div>
-      )
+      return <OutOfHoursNotice next={nextOpenPhase(windows, now)} windows={windows} />
     }
 
     return <AutoCheckIn phase={phase} nfcToken={searchParams.tag} />

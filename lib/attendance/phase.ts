@@ -70,6 +70,20 @@ export function decidePhase(
 }
 
 /**
+ * The next phase to open later today, or null when all have closed. Used
+ * when decidePhase is null, so a sticker tap in a gap can say when to come
+ * back rather than a bare "Out of hours".
+ */
+export function nextOpenPhase(
+  windows: PhaseWindows,
+  now: Date = new Date(),
+): AttendancePhase | null {
+  const mins = londonMinutes(now)
+  const order: AttendancePhase[] = ['am', 'lunch', 'pm']
+  return order.find(p => toMinutes(windows[p].start) > mins) ?? null
+}
+
+/**
  * Offline fallback used by the background geofence watcher when it has no
  * access to academy_settings: partition the working day into am / lunch / pm.
  * am before 11:00, lunch 11:00–14:30, pm after 14:30 — bounded to 07:00–18:00
