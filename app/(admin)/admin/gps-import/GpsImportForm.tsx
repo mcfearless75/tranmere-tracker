@@ -6,11 +6,14 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Upload, CheckCircle, AlertCircle } from 'lucide-react'
 
-export function GpsImportForm() {
+export type ImportMatchOption = { id: string; match_date: string; opponent: string }
+
+export function GpsImportForm({ matches = [] }: { matches?: ImportMatchOption[] }) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [label, setLabel] = useState('')
+  const [matchId, setMatchId] = useState('')
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null)
 
@@ -27,6 +30,7 @@ export function GpsImportForm() {
     const form = new FormData()
     form.append('file', file)
     form.append('session_label', label || 'Training')
+    if (matchId) form.append('match_id', matchId)
     try {
       const res = await fetch('/api/admin/gps-import', { method: 'POST', body: form })
       const data = await res.json()
@@ -50,6 +54,26 @@ export function GpsImportForm() {
 
   return (
     <div className="bg-white rounded-xl border p-5 space-y-4 max-w-xl">
+      <div>
+        <label htmlFor="gps-import-match" className="text-xs font-medium text-muted-foreground">Match</label>
+        <select
+          id="gps-import-match"
+          value={matchId}
+          onChange={e => setMatchId(e.target.value)}
+          className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+        >
+          <option value="">Find it from the CSV date</option>
+          {matches.map(m => (
+            <option key={m.id} value={m.id}>
+              {new Date(m.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} v {m.opponent}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground mt-1">
+          Pods (&ldquo;Tranmere P13&rdquo;) are matched to the GPS pods entered on that match&rsquo;s page.
+        </p>
+      </div>
+
       <div>
         <label className="text-xs font-medium text-muted-foreground">Session label fallback (optional)</label>
         <Input
