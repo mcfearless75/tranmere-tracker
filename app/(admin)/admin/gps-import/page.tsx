@@ -6,13 +6,15 @@ export const dynamic = 'force-dynamic'
 
 export default async function GpsImportPage() {
   const supabase = createAdminClient()
-  const [{ data: sessions }, studentsRes] = await Promise.all([
+  const [{ data: sessions }, studentsRes, { data: matches }] = await Promise.all([
     supabase
       .from('gps_sessions')
       .select('id, session_date, session_label, source, total_distance_m, max_speed_kmh, sprint_count, users:player_id (name)')
       .order('session_date', { ascending: false })
       .limit(50),
     supabase.from('users').select('id, name, catapult_code').eq('role', 'student').order('name'),
+    supabase.from('match_events').select('id, match_date, opponent')
+      .neq('status', 'cancelled').order('match_date', { ascending: false }).limit(30),
   ])
 
   const students = studentsRes.data ?? []
@@ -22,14 +24,14 @@ export default async function GpsImportPage() {
       <div>
         <h1 className="text-2xl font-bold text-tranmere-blue">GPS Import</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Map each player to their Catapult code, then upload the session CSV.
+          Upload the Catapult CSV. Match pods come from the match page; the codes below are for sessions with no match.
         </p>
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm space-y-1">
-        <p className="font-semibold text-blue-800">Oldham file</p>
+        <p className="font-semibold text-blue-800">How to import</p>
         <ol className="list-decimal list-inside text-blue-700 space-y-0.5">
-          <li>Save codes below (clipboard P16–P30). Run 074 SQL if the column is missing.</li>
+          <li>Match day: give each player a shirt and GPS pod on the match page (Match Squads → the match).</li>
           <li>In Catapult One export <strong>CSV</strong> (xlsx will not parse yet).</li>
           <li>Upload here. Only <strong>Full Match</strong> rows are stored on the player.</li>
         </ol>
@@ -37,7 +39,7 @@ export default async function GpsImportPage() {
 
       <CatapultCodeRoster students={students} />
 
-      <GpsImportForm />
+      <GpsImportForm matches={matches ?? []} />
 
       {sessions && sessions.length > 0 && (
         <div>

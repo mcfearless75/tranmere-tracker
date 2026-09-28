@@ -8,6 +8,8 @@ import { ArrowLeft, LayoutGrid } from 'lucide-react'
 import { MatchReport } from './MatchReport'
 import { MatchEditForm } from './MatchEditForm'
 import { AddPlayersLater } from './AddPlayersLater'
+import { saveSquadNumbers } from './squadNumberActions'
+import { SquadNumbersPanel, type SquadNumberRow } from '@/components/matches/SquadNumbersPanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +45,7 @@ export default async function MatchDetailPage({ params }: { params: { id: string
   const [{ data: squad }, { data: students, error: studentsError }, { data: teams }] = await Promise.all([
     supabase
       .from('match_squads')
-      .select('id, player_id, status, position, coach_rating, coach_notes, goals, assists, minutes_played, yellow_card, red_card, users:player_id(name, avatar_url, year_group)')
+      .select('id, player_id, status, position, coach_rating, coach_notes, goals, assists, minutes_played, yellow_card, red_card, shirt_number, gps_number, users:player_id(name, avatar_url, year_group)')
       .eq('match_id', params.id),
     eligiblePlayers(supabase, 'id, name, year_group, role, team_id, teams(id, name)'),
     supabase.from('teams').select('id, name, sort_order, is_active')
@@ -52,6 +54,21 @@ export default async function MatchDetailPage({ params }: { params: { id: string
 
   const inSquad = new Set((squad ?? []).map((s: { player_id: string }) => s.player_id))
   const available = ((students ?? []) as unknown as EligiblePlayer[]).filter(s => !inSquad.has(s.id))
+
+  type NumberedSquadRow = {
+    id: string
+    status: string
+    shirt_number: number | null
+    gps_number: number | null
+    users: { name: string } | null
+  }
+  const numberRows: SquadNumberRow[] = ((squad ?? []) as unknown as NumberedSquadRow[]).map(s => ({
+    id: s.id,
+    name: s.users?.name ?? 'Unknown player',
+    status: s.status,
+    shirt_number: s.shirt_number,
+    gps_number: s.gps_number,
+  }))
 
   return (
     <div className="space-y-5">
@@ -73,6 +90,7 @@ export default async function MatchDetailPage({ params }: { params: { id: string
       ) : (
         <AddPlayersLater matchId={match.id} opponent={match.opponent} matchTeamId={match.team_id} available={available} />
       )}
+      <SquadNumbersPanel squad={numberRows} save={saveSquadNumbers.bind(null, match.id)} />
       <MatchReport match={match} squad={(squad ?? []) as any} />
     </div>
   )

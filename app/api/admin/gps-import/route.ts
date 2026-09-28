@@ -5,6 +5,7 @@ import {
   normalizeCatapultCode,
   parseCatapultCsv,
 } from '@/lib/gps/parseCatapultCsv'
+import { buildPodMap, pickMatchForSession, podNumber } from '@/lib/gps/matchPods'
 
 export const dynamic = 'force-dynamic'
 
@@ -94,6 +95,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Session label must be 60 characters or fewer' }, { status: 400 })
   }
 
+  // Optional: which fixture this export is from. Without it the match is
+  // found from the CSV's own date (and opponent, if two games share a date).
+  const matchIdOverride = ((form.get('match_id') as string | null) ?? '').trim()
+
   if (!file) return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
 
   const text = await file.text()
@@ -119,11 +124,56 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
+    // Pods are handed out per match, so when the session's match has pods
+    // allocated, "Tranmere P13" resolves ONLY through that squad. Falling back
+    // to the permanent catapult_code there is exactly how a pod used to land
+    // on the wrong player. No match, or none numbered → the permanent codes.
+    const podsByDate = new Map<string, { opponent: string; pods: Map<number, string> }>()
+    for (const date of [...new Set(parsed.map(r => r.sessionDate))]) {
+      const query = adminClient.from('match_events').select('id, opponent')
+      const { data: candidates, error: matchError } = matchIdOverride
+        ? await query.eq('id', matchIdOverride)
+        : await query.eq('match_date', date).neq('status', 'cancelled')
+      if (matchError) return NextResponse.json({ error: matchError.message }, { status: 500 })
+      if (matchIdOverride && !candidates?.length) {
+        return NextResponse.json({ error: 'The chosen match no longer exists — pick another.' }, { status: 400 })
+      }
+
+      const title = parsed.find(r => r.sessionDate === date)?.sessionLabel ?? ''
+      const pick = pickMatchForSession(candidates ?? [], title)
+      if (pick.kind === 'ambiguous') {
+        return NextResponse.json({
+          error: `There is more than one match on ${date} — choose the match above and import again.`,
+        }, { status: 400 })
+      }
+      if (pick.kind === 'none') continue
+
+      const { data: squad, error: squadError } = await adminClient
+        .from('match_squads')
+        .select('player_id, gps_number')
+        .eq('match_id', pick.match.id)
+      if (squadError) return NextResponse.json({ error: squadError.message }, { status: 500 })
+      const pods = buildPodMap(squad ?? [])
+      if (pods.size) podsByDate.set(date, { opponent: pick.match.opponent, pods })
+    }
+
+    const unallocated: string[] = []
     for (const row of parsed) {
-      const playerId = resolvePlayerId(row.playerName, maps)
-      if (!playerId) {
-        unmatched.push(row.playerName)
-        continue
+      const allocation = podsByDate.get(row.sessionDate)
+      let playerId: string | undefined
+      if (allocation) {
+        const pod = podNumber(row.playerName)
+        playerId = pod != null ? allocation.pods.get(pod) : undefined
+        if (!playerId) {
+          unallocated.push(`${row.playerName} (v ${allocation.opponent})`)
+          continue
+        }
+      } else {
+        playerId = resolvePlayerId(row.playerName, maps)
+        if (!playerId) {
+          unmatched.push(row.playerName)
+          continue
+        }
       }
 
       const label = row.sessionLabel || sessionLabel
@@ -170,8 +220,10 @@ export async function POST(request: Request) {
       success: true,
       imported: inserted.length,
       unmatched: unmatched.length ? unmatched : undefined,
+      unallocated: unallocated.length ? unallocated : undefined,
       skipped: skipped.length ? skipped : undefined,
       message: `Imported ${inserted.length} Catapult Full Match row(s).` +
+        (unallocated.length ? ` Pods with no player in the match: ${[...new Set(unallocated)].join(', ')} — give them a GPS pod on the match page, then import again.` : '') +
         (unmatched.length ? ` Unmapped codes: ${[...new Set(unmatched)].join(', ')} — set Catapult code on the roster.` : '') +
         (skipped.length ? ` ${skipped.length} row(s) failed to save.` : ''),
     })
