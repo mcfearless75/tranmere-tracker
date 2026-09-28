@@ -6,7 +6,8 @@ import { MessageSquare, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { getPlatform, isNative } from '@/lib/native'
 import type { UnreadLatest } from '@/lib/chat/unread'
-import { shouldShowBanner, viewingRoomFrom } from '@/lib/chat/bannerLogic'
+import { isChatListPath, shouldShowBanner, viewingRoomFrom } from '@/lib/chat/bannerLogic'
+import { playPing, unlockPing } from '@/lib/chat/ping'
 
 const UnreadContext = createContext<{ total: number }>({ total: 0 })
 
@@ -45,6 +46,8 @@ export function ChatUnreadProvider({ children }: { children: React.ReactNode }) 
 
   const viewing = viewingRoomFrom(pathname)
   viewingRef.current = viewing
+  const pathnameRef = useRef(pathname)
+  pathnameRef.current = pathname
 
   const refresh = useCallback(async (fromArrival: boolean) => {
     const seq = ++requestSeq.current
@@ -64,6 +67,7 @@ export function ChatUnreadProvider({ children }: { children: React.ReactNode }) 
       })) {
         lastShownId.current = json.latest!.id
         setBanner(json.latest)
+        playPing()
       }
     } catch {
       // Offline or mid-deploy: keep the last count, try again on the next trigger.
@@ -102,7 +106,11 @@ export function ChatUnreadProvider({ children }: { children: React.ReactNode }) 
       .channel(`chat-unread:${userId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, payload => {
         const row = payload.new as { sender_id?: string }
-        if (row.sender_id && row.sender_id !== userId) refresh(true)
+        if (!row.sender_id || row.sender_id === userId) return
+        refresh(true)
+        // The chat list is server-rendered: re-fetch it so the room that
+        // just got a message jumps to the top while you're looking at it.
+        if (isChatListPath(pathnameRef.current)) router.refresh()
       })
       .subscribe()
 
@@ -113,7 +121,14 @@ export function ChatUnreadProvider({ children }: { children: React.ReactNode }) 
       document.removeEventListener('visibilitychange', onVisible)
       supabase.removeChannel(channel)
     }
-  }, [userId, refresh])
+  }, [userId, refresh, router])
+
+  // Audio can only start after a user gesture; unlock on the first tap.
+  useEffect(() => {
+    const unlock = () => unlockPing()
+    window.addEventListener('pointerdown', unlock, { once: true })
+    return () => window.removeEventListener('pointerdown', unlock)
+  }, [])
 
   // Recount on every navigation: opening a room marks it read.
   useEffect(() => {
