@@ -6,6 +6,8 @@ import { CheckCircle, AlertCircle, Loader2, Sun, Moon, Utensils, type LucideIcon
 import type { AttendancePhase } from '@/lib/attendance/phase'
 import { getGeoFix, type GeoDiagnostic } from '@/lib/attendance/getGeoFix'
 import { reportClientError } from '@/lib/reportClientError'
+import { StreakCard } from '@/components/attendance/StreakCard'
+import type { Streak } from '@/lib/attendance/streak'
 
 type State = 'working' | 'success' | 'already' | 'error'
 
@@ -13,6 +15,9 @@ interface Props {
   phase: AttendancePhase
   nfcToken: string
 }
+
+// Long enough to read the streak card before landing on /attendance.
+const REDIRECT_MS = 4000
 
 const PHASE_UI: Record<AttendancePhase, { icon: LucideIcon; working: string; success: string }> = {
   am:    { icon: Sun,      working: 'Checking you in…',        success: 'Morning sorted ✓' },
@@ -65,10 +70,20 @@ export function AutoCheckIn({ phase, nfcToken }: Props) {
   // find out and every tap for the rest of term is flagged the same way.
   const [locationDenied, setLocationDenied] = useState(false)
   const firedRef = useRef(false)
+  // Best-effort: the streak is the reward for scanning, but the check-in has
+  // already succeeded by the time it loads, so a failure just shows no card.
+  const [streak, setStreak] = useState<Streak | null>(null)
 
   useEffect(() => {
     if (firedRef.current) return
     firedRef.current = true
+
+    function loadStreak() {
+      fetch('/api/attendance/streak')
+        .then(r => r.json())
+        .then(j => { if (j.ok) setStreak(j.streak) })
+        .catch(() => {})
+    }
 
     async function run() {
       // Best-effort GPS (audit only — NFC tap is the proof). Never blocks the
@@ -122,6 +137,7 @@ export function AutoCheckIn({ phase, nfcToken }: Props) {
         // Duplicate tap — not an error, just reassure and send them on.
         if (json.alreadyCheckedIn) {
           setState('already')
+          loadStreak()
           // Single replace(), not push()+refresh(): firing refresh() in the
           // same tick as a navigation refetches the OLD tree while the new
           // one is being swapped in — a documented way to hit Next 14's
@@ -131,15 +147,16 @@ export function AutoCheckIn({ phase, nfcToken }: Props) {
           // navigation already fetches fresh data.
           // When location was denied, stay on the success screen so the
           // student can read how to fix it — they leave via the button.
-          if (!geoPermissionDenied) setTimeout(() => router.replace('/attendance'), 2500)
+          if (!geoPermissionDenied) setTimeout(() => router.replace('/attendance'), REDIRECT_MS)
           return
         }
         if (!json.ok) { setError(json.error ?? 'Check-in failed'); setState('error'); return }
         setState('success')
+        loadStreak()
         // Same as the already-checked-in branch above: one replace(), and
         // hold the screen when location was denied so the fix-it notice
         // is actually readable.
-        if (!geoPermissionDenied) setTimeout(() => router.replace('/attendance'), 2500)
+        if (!geoPermissionDenied) setTimeout(() => router.replace('/attendance'), REDIRECT_MS)
       } catch {
         setError('Network error — try again')
         setState('error')
@@ -160,6 +177,7 @@ export function AutoCheckIn({ phase, nfcToken }: Props) {
         <p className="text-sm text-muted-foreground">
           Checked in at {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
         </p>
+        {streak && <div className="w-full max-w-sm mt-2 text-left"><StreakCard streak={streak} /></div>}
         {locationDenied && <LocationDeniedNotice onDone={() => router.replace('/attendance')} />}
       </div>
     )
@@ -173,6 +191,7 @@ export function AutoCheckIn({ phase, nfcToken }: Props) {
         <p className="text-sm text-muted-foreground">
           You&apos;re already checked in for this session — nothing else to do.
         </p>
+        {streak && <div className="w-full max-w-sm mt-2 text-left"><StreakCard streak={streak} /></div>}
         {locationDenied && <LocationDeniedNotice onDone={() => router.replace('/attendance')} />}
       </div>
     )

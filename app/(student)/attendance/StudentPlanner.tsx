@@ -4,6 +4,8 @@ import { CalendarDays, CalendarOff, CheckCircle2, Clock } from 'lucide-react'
 import type { PhaseWindows } from '@/lib/attendance/phase'
 import { EXCUSAL_LABELS, type ExcusalReason } from '@/lib/attendance/excusal'
 import { PhaseDayCard } from '@/components/attendance/PhaseDayCard'
+import { StreakCard } from '@/components/attendance/StreakCard'
+import type { Streak } from '@/lib/attendance/streak'
 
 export type PlannerSession = {
   id: string
@@ -39,6 +41,8 @@ type Props = {
   now: Date
   /** Today's excusal for this student, if staff have logged one. Null when none. */
   excusal: PlannerExcusal
+  /** Null when the lookup failed; the card is then just left out. */
+  streak?: Streak | null
 }
 
 const TYPE_CHIP: Record<string, string> = {
@@ -51,7 +55,7 @@ function fmt(iso: string) {
   return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })
 }
 
-export function StudentPlanner({ sessions, daily, today, windows, now, excusal }: Props) {
+export function StudentPlanner({ sessions, daily, today, windows, now, excusal, streak }: Props) {
   const dayLabel = new Date(today + 'T12:00:00').toLocaleDateString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long',
   })
@@ -85,6 +89,8 @@ export function StudentPlanner({ sessions, daily, today, windows, now, excusal }
 
       {/* Tri-phase status + check-in — the same component used on the dashboard */}
       <PhaseDayCard windows={windows} daily={daily} excusal={excusal} now={now} />
+
+      {streak && <StreakCard streak={streak} />}
 
       {/* Today's lessons */}
       {sessions.length > 0 && (

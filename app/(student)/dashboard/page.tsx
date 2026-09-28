@@ -16,6 +16,9 @@ import { CompleteProfilePromptCard } from '@/components/account/CompleteProfileP
 import { isProfileIncomplete } from '@/lib/profile/profileCompleteness'
 import { formatEventTime } from '@/lib/calendar/calendarUtils'
 import { PhaseDayCard } from '@/components/attendance/PhaseDayCard'
+import { StreakCard } from '@/components/attendance/StreakCard'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getStudentStreak } from '@/lib/attendance/streak'
 import type { PhaseWindows } from '@/lib/attendance/phase'
 import { buildNextUpRows } from '@/lib/dashboard/nextUp'
 
@@ -71,6 +74,15 @@ export default async function DashboardPage() {
   const tomorrow = londonDateISO(tomorrowDate)
   const ago30 = londonDateISO(new Date(Date.now() - 30 * 86400000))
   const ago56 = londonDateISO(new Date(Date.now() - 56 * 86400000))
+
+  // Started before the batch below so it runs alongside it. A streak failure
+  // must never take the dashboard down, so it degrades to no card. Async
+  // wrapper so a synchronous throw (createAdminClient on missing env) is
+  // caught too, not just a rejected query.
+  const streakPromise = (async () => getStudentStreak(createAdminClient(), user!.id, today))().catch(err => {
+    console.error('streak lookup failed:', err)
+    return null
+  })
 
   // Run all independent queries in parallel — ~4x faster than sequential
   const [
@@ -187,6 +199,8 @@ export default async function DashboardPage() {
       .eq('excused_date', today)
       .maybeSingle(),
   ])
+
+  const streak = await streakPromise
 
   const attendanceWindows: PhaseWindows = {
     am:    { start: academySettings?.am_window_start    ?? '07:30', end: academySettings?.am_window_end    ?? '10:30' },
@@ -313,6 +327,7 @@ export default async function DashboardPage() {
         excusal={todayExcusal ?? null}
         now={now}
       />
+      {streak && <StreakCard streak={streak} />}
 
       {/* ═══════════ NEXT UP ═══════════
           At most one compact row per category (session/wellbeing/fixture),
