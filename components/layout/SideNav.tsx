@@ -5,6 +5,7 @@ import { LogOut } from 'lucide-react'
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
 import { resolveStudentNavAll } from '@/lib/nav/studentNav'
+import { UnreadBadge } from '@/components/chat/UnreadBadge'
 
 type Props = {
   userName: string
@@ -73,6 +74,7 @@ export function SideNav({ userName, avatarUrl, role, showTimetable = false, show
             <Link key={href} href={href} className={className}>
               <Icon size={18} strokeWidth={active ? 2.5 : 1.5} />
               {label}
+              {href === '/chat' && <UnreadBadge className="ml-auto" />}
             </Link>
           )
         })}

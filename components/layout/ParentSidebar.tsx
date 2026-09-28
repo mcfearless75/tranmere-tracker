@@ -6,6 +6,7 @@ import { Home, ClipboardList, GraduationCap, Calendar, CalendarDays, MessageSqua
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
 import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
+import { UnreadBadge } from '@/components/chat/UnreadBadge'
 
 const nav = [
   { href: '/parent/dashboard', label: 'Overview', icon: Home },
@@ -57,6 +58,7 @@ export function ParentSidebar({ userName, avatarUrl }: Props) {
             <Link key={href} href={href} className={className}>
               <Icon size={16} />
               {label}
+              {href === '/parent/messages' && <UnreadBadge className="ml-auto" />}
             </Link>
           )
         })}

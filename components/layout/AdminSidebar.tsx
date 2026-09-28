@@ -6,6 +6,7 @@ import { Users, Bell, BarChart2, GraduationCap, LogOut, Calendar, CalendarDays, 
 import Image from 'next/image'
 import { signOut } from '@/app/(auth)/login/actions'
 import { MOODLE_TEACHER_URL } from '@/lib/config/moodle'
+import { UnreadBadge } from '@/components/chat/UnreadBadge'
 
 const nav = [
   { href: '/admin/home', label: 'Home', icon: Home },
@@ -74,6 +75,7 @@ export function AdminSidebar({ userName, avatarUrl, role }: Props) {
             <Link key={href} href={href} className={className}>
               <Icon size={16} />
               {label}
+              {href === '/chat' && <UnreadBadge className="ml-auto" />}
             </Link>
           )
         })}

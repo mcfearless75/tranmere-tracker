@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, ClipboardList, GraduationCap, Calendar, CalendarDays, MessageSquare, Megaphone, FolderOpen, ClipboardCheck } from 'lucide-react'
 import { MOODLE_STUDENT_URL } from '@/lib/config/moodle'
+import { UnreadBadge } from '@/components/chat/UnreadBadge'
 
 const nav = [
   { href: '/parent/dashboard', label: 'Overview', icon: Home },
@@ -31,7 +32,10 @@ export function MobileParentBar() {
           </a>
         ) : (
           <Link key={href} href={href} className={className}>
-            <Icon size={20} strokeWidth={active ? 2.5 : 1.5} />
+            <span className="relative">
+              <Icon size={20} strokeWidth={active ? 2.5 : 1.5} />
+              {href === '/parent/messages' && <UnreadBadge className="absolute -top-1.5 -right-2.5" />}
+            </span>
             <span className="text-[10px] font-medium">{label}</span>
           </Link>
         )
