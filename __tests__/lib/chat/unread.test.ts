@@ -1,5 +1,5 @@
 import { getUnreadSummary, messagePreview, roomsWithActivity, PREVIEW_MAX } from '@/lib/chat/unread'
-import { badgeLabel, shouldShowBanner, viewingRoomFrom } from '@/lib/chat/bannerLogic'
+import { badgeLabel, isChatListPath, shouldShowBanner, viewingRoomFrom } from '@/lib/chat/bannerLogic'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 const ROOM_A = '11111111-1111-4111-8111-111111111111'
@@ -57,6 +57,15 @@ describe('shouldShowBanner', () => {
     expect(shouldShowBanner({ ...base, viewingRoomId: ROOM_A })).toBe(false)
     expect(shouldShowBanner({ ...base, suppressed: true })).toBe(false)
     expect(shouldShowBanner({ ...base, latest: null })).toBe(false)
+  })
+})
+
+describe('isChatListPath', () => {
+  it('matches only the two chat list pages', () => {
+    expect(isChatListPath('/chat')).toBe(true)
+    expect(isChatListPath('/parent/messages')).toBe(true)
+    expect(isChatListPath(`/chat/${ROOM_A}`)).toBe(false)
+    expect(isChatListPath('/dashboard')).toBe(false)
   })
 })
 

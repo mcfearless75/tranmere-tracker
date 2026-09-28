@@ -20,6 +20,8 @@ export default async function ParentMessagesPage() {
   const rooms = (memberships ?? [])
     .map((m: any) => m.chat_rooms)
     .filter((r: any) => r && ['parent', 'dm'].includes(r.kind))
+    // Newest conversation first, same as /chat.
+    .sort((a: any, b: any) => (b.last_message_at ?? '').localeCompare(a.last_message_at ?? ''))
 
   return (
     <div className="space-y-4">

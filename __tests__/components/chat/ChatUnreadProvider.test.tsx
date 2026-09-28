@@ -4,10 +4,14 @@ const ROOM_A = '11111111-1111-4111-8111-111111111111'
 
 let mockPathname = '/dashboard'
 const mockPush = jest.fn()
+const mockRefresh = jest.fn()
 jest.mock('next/navigation', () => ({
   usePathname: () => mockPathname,
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
 }))
+
+const mockPlayPing = jest.fn()
+jest.mock('@/lib/chat/ping', () => ({ playPing: () => mockPlayPing(), unlockPing: jest.fn() }))
 
 // Realtime: capture the INSERT handler so tests can "deliver" a message.
 let insertHandler: ((p: { new: Record<string, unknown> }) => void) | null = null
@@ -124,5 +128,44 @@ describe('ChatUnreadProvider', () => {
     await mount()
     await deliver('coach')
     expect(screen.queryByTestId('chat-unread-badge')).not.toBeInTheDocument()
+  })
+
+  it('pings once when the banner shows, never for own messages or the open room', async () => {
+    await mount()
+    await deliver('me')
+    expect(mockPlayPing).not.toHaveBeenCalled()
+    await deliver('coach')
+    expect(mockPlayPing).toHaveBeenCalledTimes(1)
+    await deliver('coach') // same latest message id: no repeat
+    expect(mockPlayPing).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not ping for the room already on screen', async () => {
+    mockPathname = `/chat/${ROOM_A}`
+    await mount()
+    await deliver('coach')
+    expect(mockPlayPing).not.toHaveBeenCalled()
+  })
+
+  it('re-fetches the chat list when a message arrives while it is open, so the room jumps to the top', async () => {
+    mockPathname = '/chat'
+    await mount()
+    await deliver('coach')
+    expect(mockRefresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('also re-fetches the parent messages list', async () => {
+    mockPathname = '/parent/messages'
+    await mount()
+    await deliver('coach')
+    expect(mockRefresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not refresh other pages, or for own messages', async () => {
+    await mount()
+    await deliver('coach')
+    mockPathname = '/chat'
+    await deliver('me')
+    expect(mockRefresh).not.toHaveBeenCalled()
   })
 })

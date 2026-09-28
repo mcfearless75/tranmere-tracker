@@ -29,3 +29,8 @@ export function badgeLabel(total: number): string | null {
   if (total <= 0) return null
   return total > 99 ? '99+' : String(total)
 }
+
+/** The chat list pages (staff/student and parent), which reorder on a new message. */
+export function isChatListPath(pathname: string | null): boolean {
+  return pathname === '/chat' || pathname === '/parent/messages'
+}
