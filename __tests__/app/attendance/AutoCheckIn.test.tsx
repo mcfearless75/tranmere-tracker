@@ -35,7 +35,7 @@ const fetchMock = jest.fn()
 
 beforeEach(() => {
   jest.clearAllMocks()
-  // Fake timers so the 2.5s auto-return is asserted, not skipped. Async
+  // Fake timers so the 4s auto-return is asserted, not skipped. Async
   // mocks still resolve because microtasks are unaffected.
   jest.useFakeTimers()
   global.fetch = fetchMock as unknown as typeof fetch
@@ -88,8 +88,9 @@ describe('AutoCheckIn', () => {
     // Auto-return after the tick has been shown — via a single replace().
     // push()+refresh() in the same tick is a known trigger of the Next 14
     // router crash recorded on this exact URL in production.
+    await act(async () => { jest.advanceTimersByTime(3_900) })
     expect(mockReplace).not.toHaveBeenCalled()
-    await act(async () => { jest.advanceTimersByTime(2_600) })
+    await act(async () => { jest.advanceTimersByTime(200) })
     expect(mockReplace).toHaveBeenCalledWith('/attendance')
     expect(mockRefresh).not.toHaveBeenCalled()
     expect(mockPush).not.toHaveBeenCalled()
@@ -102,5 +103,30 @@ describe('AutoCheckIn', () => {
 
     await waitFor(() => expect(screen.getByText('Check-in failed')).toBeInTheDocument())
     expect(screen.getByText('Outside morning check-in window')).toBeInTheDocument()
+  })
+
+  it('shows the student their streak after a successful scan', async () => {
+    geoOk()
+    fetchMock.mockImplementation(async (url: string) => url === '/api/attendance/streak'
+      ? { json: async () => ({ ok: true, streak: { current: 6, best: 6, todayDone: true } }) }
+      : { json: async () => ({ ok: true, success: true, id: 'row-1' }) })
+    render(<AutoCheckIn phase="pm" nfcToken="tok" />)
+
+    const card = await screen.findByTestId('streak-card')
+    expect(card).toHaveTextContent('6-day streak')
+    expect(fetchMock).toHaveBeenCalledWith('/api/attendance/streak')
+  })
+
+  it('still shows the tick when the streak lookup fails', async () => {
+    geoOk()
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/attendance/streak') throw new Error('offline')
+      return { json: async () => ({ ok: true, success: true, id: 'row-1' }) }
+    })
+    render(<AutoCheckIn phase="pm" nfcToken="tok" />)
+
+    expect(await screen.findByText('End of day sorted ✓')).toBeInTheDocument()
+    await act(async () => {})
+    expect(screen.queryByTestId('streak-card')).not.toBeInTheDocument()
   })
 })

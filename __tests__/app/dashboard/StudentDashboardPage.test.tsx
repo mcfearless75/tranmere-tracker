@@ -62,6 +62,14 @@ jest.mock('@/components/PushOptIn', () => ({
   PushOptIn: () => <div data-testid="push-opt-in-stub" />,
 }))
 
+// The streak reads the whole cohort through the service-role client; its
+// rules have their own coverage in __tests__/lib/attendance/streak.test.ts.
+const mockGetStudentStreak = jest.fn()
+jest.mock('@/lib/attendance/streak', () => ({
+  getStudentStreak: (...args: unknown[]) => mockGetStudentStreak(...args),
+}))
+jest.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => ({}) }))
+
 import DashboardPage from '@/app/(student)/dashboard/page'
 
 function resetMockFixtures() {
@@ -101,6 +109,8 @@ async function renderDashboard() {
 
 beforeEach(() => {
   resetMockFixtures()
+  mockGetStudentStreak.mockReset()
+  mockGetStudentStreak.mockResolvedValue({ current: 0, best: 0, todayDone: false })
 })
 
 describe('Student dashboard — slimmed layout (Task B)', () => {
@@ -151,5 +161,21 @@ describe('Student dashboard — slimmed layout (Task B)', () => {
 
     expect(screen.getByText('Wellbeing check-in ready')).toBeInTheDocument()
     expect(screen.queryByText('Nothing due right now')).not.toBeInTheDocument()
+  })
+
+  it('shows the check-in streak card under the attendance card', async () => {
+    mockGetStudentStreak.mockResolvedValue({ current: 5, best: 8, todayDone: false })
+    await renderDashboard()
+    expect(mockGetStudentStreak).toHaveBeenCalledWith(expect.anything(), 'student-1', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/))
+    expect(screen.getByTestId('streak-card')).toHaveTextContent('5-day streak')
+  })
+
+  it('still renders the dashboard, without the card, when the streak lookup fails', async () => {
+    const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    mockGetStudentStreak.mockRejectedValue(new Error('db down'))
+    await renderDashboard()
+    expect(screen.getByTestId('phase-day-card-stub')).toBeInTheDocument()
+    expect(screen.queryByTestId('streak-card')).not.toBeInTheDocument()
+    errSpy.mockRestore()
   })
 })

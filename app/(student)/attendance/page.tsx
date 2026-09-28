@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 import { decidePhase, type PhaseWindows } from '@/lib/attendance/phase'
 import { StudentPlanner } from './StudentPlanner'
 import { AutoCheckIn } from './AutoCheckIn'
+import { getStudentStreak } from '@/lib/attendance/streak'
+import { londonDateISO } from '@/lib/dates'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,7 +70,7 @@ export default async function StudentAttendancePage({
   // ── Default: planner view ─────────────────────────────────────────────────
   const today = now.toISOString().split('T')[0]
 
-  const [{ data: sessions }, { data: daily }, { data: excusal }] = await Promise.all([
+  const [{ data: sessions }, { data: daily }, { data: excusal }, streak] = await Promise.all([
     admin
       .from('attendance_sessions')
       .select('id, session_label, session_type, opens_at, closes_at')
@@ -86,6 +88,10 @@ export default async function StudentAttendancePage({
       .eq('student_id', user.id)
       .eq('excused_date', today)
       .maybeSingle(),
+    getStudentStreak(admin, user.id, londonDateISO(now)).catch(err => {
+      console.error('streak lookup failed:', err)
+      return null
+    }),
   ])
 
   return (
@@ -96,6 +102,7 @@ export default async function StudentAttendancePage({
       windows={windows}
       now={now}
       excusal={excusal ?? null}
+      streak={streak}
     />
   )
 }
