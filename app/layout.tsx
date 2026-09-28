@@ -5,6 +5,7 @@ import { SplashScreen } from '@/components/SplashScreen'
 import { PushNavigationListener } from '@/components/PushNavigationListener'
 import { ServiceWorkerUpdateReload } from '@/components/ServiceWorkerUpdateReload'
 import { PullToRefresh } from '@/components/layout/PullToRefresh'
+import { ChatUnreadProvider } from '@/components/chat/ChatUnreadProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -34,7 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <PushNavigationListener />
         <ServiceWorkerUpdateReload />
         <PullToRefresh />
-        {children}
+        <ChatUnreadProvider>{children}</ChatUnreadProvider>
       </body>
     </html>
   )

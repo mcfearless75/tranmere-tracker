@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { MoreHorizontal, X } from 'lucide-react'
 import { STUDENT_NAV_PRIMARY, resolveStudentNavExtra } from '@/lib/nav/studentNav'
+import { UnreadBadge } from '@/components/chat/UnreadBadge'
 
 type Props = { showTimetable?: boolean; showCoursework?: boolean }
 
@@ -74,7 +75,10 @@ export function BottomNav({ showTimetable = false, showCoursework = false }: Pro
               href={href}
               className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${active ? 'text-tranmere-blue' : 'text-gray-400'}`}
             >
-              <Icon size={20} strokeWidth={active ? 2.5 : 1.5} />
+              <span className="relative">
+                <Icon size={20} strokeWidth={active ? 2.5 : 1.5} />
+                {href === '/chat' && <UnreadBadge className="absolute -top-1.5 -right-2.5" />}
+              </span>
               <span className="text-[10px] font-medium leading-tight">{label}</span>
             </Link>
           )

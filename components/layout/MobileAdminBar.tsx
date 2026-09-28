@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { X, Users, Bell, BarChart2, GraduationCap, LogOut, Calendar, CalendarDays, CalendarClock, LayoutGrid, Plug, MessageSquare, Megaphone, Home, Satellite, MoreHorizontal, ClipboardList, ClipboardCheck, ShieldAlert, Network, UserPlus, Users2, Banknote, FolderOpen, Heart, UsersRound, Shirt } from 'lucide-react'
 import { signOut } from '@/app/(auth)/login/actions'
 import { MOODLE_TEACHER_URL } from '@/lib/config/moodle'
+import { UnreadBadge } from '@/components/chat/UnreadBadge'
 
 const nav = [
   { href: '/admin/home', label: 'Home', icon: Home },
@@ -97,7 +98,7 @@ export function MobileAdminBar({ userName, avatarUrl, role }: Props) {
               </a>
             ) : (
               <Link key={href} href={href} className={className}>
-                <Icon size={18} />{label}
+                <Icon size={18} />{label}{href === '/chat' && <UnreadBadge className="ml-auto" />}
               </Link>
             )
           })}
@@ -121,7 +122,10 @@ export function MobileAdminBar({ userName, avatarUrl, role }: Props) {
         </Link>
         <Link href="/chat"
           className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full ${pathname.startsWith('/chat') ? 'text-white' : 'text-blue-300'}`}>
-          <MessageSquare size={20} strokeWidth={pathname.startsWith('/chat') ? 2.5 : 1.5} />
+          <span className="relative">
+            <MessageSquare size={20} strokeWidth={pathname.startsWith('/chat') ? 2.5 : 1.5} />
+            <UnreadBadge className="absolute -top-1.5 -right-2.5" />
+          </span>
           <span className="text-[10px] font-medium">Chat</span>
         </Link>
         <a href={MOODLE_TEACHER_URL} target="_blank" rel="noopener noreferrer"
