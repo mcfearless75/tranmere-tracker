@@ -3,6 +3,7 @@ import {
   londonMinutes,
   inWindow,
   decidePhase,
+  nextOpenPhase,
   fallbackPartitionPhase,
   PHASE_LABELS,
   type PhaseWindows,
@@ -116,5 +117,21 @@ describe('PHASE_LABELS', () => {
       lunch: 'Lunch check-in',
       pm: 'End of day check-out',
     })
+  })
+})
+
+describe('nextOpenPhase', () => {
+  it('points the lunch-to-pm gap at scan-out, the only real gap on the sticker page', () => {
+    expect(nextOpenPhase(WINDOWS, bst('13:45'))).toBe('pm')
+    expect(nextOpenPhase(WINDOWS, bst('14:29'))).toBe('pm')
+  })
+  it('points the am-to-lunch gap at lunch', () => {
+    expect(nextOpenPhase(WINDOWS, bst('11:00'))).toBe('lunch')
+  })
+  it('points early morning at am', () => {
+    expect(nextOpenPhase(WINDOWS, gmt('06:00'))).toBe('am')
+  })
+  it('returns null once everything has closed for the day', () => {
+    expect(nextOpenPhase(WINDOWS, bst('18:00'))).toBeNull()
   })
 })
