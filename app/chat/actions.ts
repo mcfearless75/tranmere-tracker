@@ -284,14 +284,18 @@ export async function getOrCreateBotRoom(): Promise<string | { error: string }> 
   return room.id
 }
 
-/** Mark the room as read for the current user */
-export async function markRead(roomId: string) {
+/** Mark the room as read for the current user. Returns the server timestamp
+ *  written, so the client can broadcast it for live read receipts (server
+ *  time, not the phone's clock, or a skewed clock would fake/hide receipts). */
+export async function markRead(roomId: string): Promise<string | null> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return
+  if (!user) return null
   const admin = createAdminClient()
-  await admin.from('chat_members').update({ last_read_at: new Date().toISOString() })
+  const at = new Date().toISOString()
+  const { error } = await admin.from('chat_members').update({ last_read_at: at })
     .eq('room_id', roomId).eq('user_id', user.id)
+  return error ? null : at
 }
 
 /** Fire a push notification to other room members when a new message arrives */
