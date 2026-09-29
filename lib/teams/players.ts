@@ -15,6 +15,26 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export const ELIGIBLE_PLAYER_FILTER = 'role.eq.student,team_id.not.is.null'
 
 /**
+ * Team columns for a users select. The FK hint on `teams` is required since
+ * 089: team_members joins users to teams, so a bare `teams(...)` embed is
+ * ambiguous to PostgREST (PGRST201) and the whole query fails.
+ * `teams` is the player's MAIN team (badge); `team_members` is every team.
+ */
+export const PLAYER_TEAM_COLUMNS = 'team_id, teams!users_team_id_fkey(id, name), team_members(team_id)'
+
+type HasTeams = { team_id: string | null; team_members?: { team_id: string }[] | null }
+
+/** Every team a player is in. Falls back to the main team for rows loaded without team_members. */
+export function teamIdsOf(p: HasTeams): string[] {
+  if (p.team_members) return p.team_members.map(m => m.team_id)
+  return p.team_id ? [p.team_id] : []
+}
+
+export function isInTeam(p: HasTeams, teamId: string | null | undefined): boolean {
+  return !!teamId && teamIdsOf(p).includes(teamId)
+}
+
+/**
  * `columns` is passed through to .select() so each caller can ask for only
  * what it renders. Always filters is_active — one of the three original
  * queries did not, so deactivated students still appeared in the "Add players
@@ -41,7 +61,7 @@ export function eligiblePlayers(supabase: SupabaseClient, columns: string) {
  * on the match, or no match selected yet), the input order passes through
  * unchanged.
  */
-export function sortByTeamFirst<T extends { team_id: string | null }>(
+export function sortByTeamFirst<T extends HasTeams>(
   players: T[],
   teamId: string | null | undefined,
 ): T[] {
@@ -49,7 +69,7 @@ export function sortByTeamFirst<T extends { team_id: string | null }>(
   const inTeam: T[] = []
   const others: T[] = []
   for (const p of players) {
-    if (p.team_id === teamId) inTeam.push(p)
+    if (isInTeam(p, teamId)) inTeam.push(p)
     else others.push(p)
   }
   return [...inTeam, ...others]

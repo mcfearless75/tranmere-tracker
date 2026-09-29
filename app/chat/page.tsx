@@ -21,7 +21,7 @@ export default async function ChatHubPage() {
   let migrationNeeded = false
   const { data: myMemberships, error } = await admin
     .from('chat_members')
-    .select('room_id, last_read_at, chat_rooms(id, kind, name, match_id, last_message_at, created_by, sync_year_group)')
+    .select('room_id, last_read_at, chat_rooms(id, kind, name, match_id, last_message_at, created_by, sync_year_group, sync_team_id)')
     .eq('user_id', user.id)
     .order('chat_rooms(last_message_at)', { ascending: false } as any)
 
@@ -95,6 +95,7 @@ export default async function ChatHubPage() {
         unread: unreadByRoom[room.id] ?? 0,
         isOwner: room.created_by === user.id,
         syncYearGroup: room.sync_year_group ?? null,
+        syncTeamId: room.sync_team_id ?? null,
       }
     })
     .filter(Boolean) as any[]

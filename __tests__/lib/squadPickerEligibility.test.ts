@@ -37,7 +37,7 @@ describe('squad picker eligibility — no hand-rolled role filter survives', () 
 
   it.each(PAGES)('%s imports eligiblePlayers from lib/teams/players', relPath => {
     const source = readPage(relPath)
-    expect(source).toMatch(/import\s*\{\s*eligiblePlayers\s*\}\s*from\s*['"]@\/lib\/teams\/players['"]/)
+    expect(source).toMatch(/import\s*\{[^}]*\beligiblePlayers\b[^}]*\}\s*from\s*['"]@\/lib\/teams\/players['"]/)
   })
 
   it.each(PAGES)('%s actually calls eligiblePlayers(...)', relPath => {

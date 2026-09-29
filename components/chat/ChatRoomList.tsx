@@ -19,6 +19,7 @@ export type ChatListRoom = {
   unread: number
   isOwner: boolean
   syncYearGroup: number | null
+  syncTeamId?: string | null
 }
 
 export type ChatListPerson = { id: string; name: string | null; role: string; avatar_url: string | null }
@@ -103,7 +104,7 @@ export function ChatRoomList({ rooms, directory }: { rooms: ChatListRoom[]; dire
                     </span>
                   )}
                 </Link>
-                <ChatRoomActions roomId={r.id} isOwner={r.isOwner} isDmOrBot={isDmOrBot} canLeave={!r.syncYearGroup} />
+                <ChatRoomActions roomId={r.id} isOwner={r.isOwner} isDmOrBot={isDmOrBot} canLeave={!r.syncYearGroup && !r.syncTeamId} />
               </div>
             )
           })}

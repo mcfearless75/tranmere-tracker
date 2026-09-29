@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { eligiblePlayers } from '@/lib/teams/players'
+import { eligiblePlayers, PLAYER_TEAM_COLUMNS } from '@/lib/teams/players'
 import type { Team, TeamRef } from '@/lib/teams/types'
 import { PlayerLoadError } from '@/components/PlayerLoadError'
 import { notFound } from 'next/navigation'
@@ -26,6 +26,7 @@ type EligiblePlayer = {
   role: string
   team_id: string | null
   teams: TeamRef | null
+  team_members: { team_id: string }[] | null
 }
 
 export default async function MatchDetailPage({ params }: { params: { id: string } }) {
@@ -47,7 +48,7 @@ export default async function MatchDetailPage({ params }: { params: { id: string
       .from('match_squads')
       .select('id, player_id, status, position, coach_rating, coach_notes, goals, assists, minutes_played, yellow_card, red_card, shirt_number, gps_number, users:player_id(name, avatar_url, year_group)')
       .eq('match_id', params.id),
-    eligiblePlayers(supabase, 'id, name, year_group, role, team_id, teams(id, name)'),
+    eligiblePlayers(supabase, `id, name, year_group, role, ${PLAYER_TEAM_COLUMNS}`),
     supabase.from('teams').select('id, name, sort_order, is_active')
       .eq('is_active', true).order('sort_order'),
   ])

@@ -571,11 +571,13 @@ export async function leaveOrDeleteRoom(roomId: string): Promise<{ ok: boolean; 
   // Caller must belong to the room before any destructive action.
   if (!await isRoomMember(admin, roomId, user.id)) return { ok: false, error: 'Not a member of this room' }
 
-  const { data: room } = await admin.from('chat_rooms').select('kind, created_by, sync_year_group').eq('id', roomId).single()
+  const { data: room } = await admin.from('chat_rooms').select('kind, created_by, sync_year_group, sync_team_id').eq('id', roomId).single()
   const { data: members } = await admin.from('chat_members').select('user_id').eq('room_id', roomId)
 
   if (!room) return { ok: false, error: 'Room not found' }
-  if (room.sync_year_group) return { ok: false, error: "You can't leave this — ask a coach if this looks wrong" }
+  // Squad chats (089) follow the team roster the same way year-group rooms
+  // follow year_group — leaving would just be undone by the next roster edit.
+  if (room.sync_year_group || room.sync_team_id) return { ok: false, error: "You can't leave this — ask a coach if this looks wrong" }
 
   const isOwner = room.created_by === user.id
   const memberCount = members?.length ?? 0
