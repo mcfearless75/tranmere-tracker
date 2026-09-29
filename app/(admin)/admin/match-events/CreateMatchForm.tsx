@@ -2,6 +2,7 @@
 import { YearBadge } from '@/components/YearBadge'
 import { TeamBadge } from '@/components/TeamBadge'
 import type { Team, TeamRef } from '@/lib/teams/types'
+import { isInTeam } from '@/lib/teams/players'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -18,6 +19,7 @@ type Student = {
   role: string
   team_id: string | null
   teams: TeamRef | null
+  team_members?: { team_id: string }[] | null
 }
 type Props = { students: Student[]; teams: Team[]; coachId: string }
 
@@ -92,7 +94,7 @@ export function CreateMatchForm({ students, teams, coachId }: Props) {
 
   /** The set the given team id would pre-fill — empty for '' (no team). */
   function prefillFor(id: string): Set<string> {
-    return id ? new Set(students.filter(s => s.team_id === id).map(s => s.id)) : new Set()
+    return id ? new Set(students.filter(s => isInTeam(s, id)).map(s => s.id)) : new Set()
   }
 
   function pickTeam(next: string) {
@@ -179,8 +181,8 @@ export function CreateMatchForm({ students, teams, coachId }: Props) {
     setSaving(false)
   }
 
-  const teamPlayers = teamId ? students.filter(s => s.team_id === teamId) : []
-  const otherPlayers = teamId ? students.filter(s => s.team_id !== teamId) : students
+  const teamPlayers = teamId ? students.filter(s => isInTeam(s, teamId)) : []
+  const otherPlayers = teamId ? students.filter(s => !isInTeam(s, teamId)) : students
 
   return (
     <div className="bg-white rounded-xl border p-5 space-y-4 max-w-2xl">

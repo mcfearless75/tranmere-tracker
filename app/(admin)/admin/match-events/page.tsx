@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { eligiblePlayers } from '@/lib/teams/players'
+import { eligiblePlayers, PLAYER_TEAM_COLUMNS } from '@/lib/teams/players'
 import type { Team, TeamRef } from '@/lib/teams/types'
 import { CreateMatchForm } from './CreateMatchForm'
 import { MatchEventList } from './MatchEventList'
@@ -26,6 +26,7 @@ type EligiblePlayer = {
   role: string
   team_id: string | null
   teams: TeamRef | null
+  team_members: { team_id: string }[] | null
 }
 
 export default async function MatchEventsPage() {
@@ -34,7 +35,7 @@ export default async function MatchEventsPage() {
   const supabase = createAdminClient()
 
   const [{ data: students, error: studentsError }, { data: matches }, { data: teams }] = await Promise.all([
-    eligiblePlayers(supabase, 'id, name, year_group, role, team_id, teams(id, name)'),
+    eligiblePlayers(supabase, `id, name, year_group, role, ${PLAYER_TEAM_COLUMNS}`),
     supabase
       .from('match_events')
       .select(`

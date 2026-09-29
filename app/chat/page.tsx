@@ -1,12 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import { MessageSquare, Users, Crown, Trophy, Plus } from 'lucide-react'
+import { MessageSquare, Plus } from 'lucide-react'
 import { NewDmPicker } from './NewDmPicker'
 import { NewGroupPicker } from './NewGroupPicker'
 import { AiCoachButton } from './AiCoachButton'
-import { ChatRoomActions } from './ChatRoomActions'
+import { ChatRoomList, type ChatListRoom } from '@/components/chat/ChatRoomList'
 import { PushOptIn } from '@/components/PushOptIn'
 
 export const dynamic = 'force-dynamic'
@@ -22,7 +21,7 @@ export default async function ChatHubPage() {
   let migrationNeeded = false
   const { data: myMemberships, error } = await admin
     .from('chat_members')
-    .select('room_id, last_read_at, chat_rooms(id, kind, name, match_id, last_message_at, created_by, sync_year_group)')
+    .select('room_id, last_read_at, chat_rooms(id, kind, name, match_id, last_message_at, created_by, sync_year_group, sync_team_id)')
     .eq('user_id', user.id)
     .order('chat_rooms(last_message_at)', { ascending: false } as any)
 
@@ -84,13 +83,19 @@ export default async function ChatHubPage() {
         id: room.id,
         kind: room.kind,
         label,
-        other,
-        memberCount: members.length,
+        otherUserId: otherMemberId ?? null,
+        avatarUrl: other?.avatar_url ?? null,
+        // Group rooms only — lets search find "the squad chats Lewis is in".
+        memberNames: room.kind === 'dm' ? [] : members
+          .filter(am => am.user_id !== user.id)
+          .map(am => usersById[am.user_id]?.name)
+          .filter((n: string | null | undefined): n is string => !!n),
         lastMessage: last?.body ?? null,
         lastAt: room.last_message_at,
         unread: unreadByRoom[room.id] ?? 0,
         isOwner: room.created_by === user.id,
         syncYearGroup: room.sync_year_group ?? null,
+        syncTeamId: room.sync_team_id ?? null,
       }
     })
     .filter(Boolean) as any[]
@@ -129,45 +134,7 @@ export default async function ChatHubPage() {
         </div>
       )}
 
-      <div className="rounded-2xl border bg-white divide-y">
-        {rooms.map(r => {
-          const initials = (r.label ?? '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
-          const kindIcon = r.kind === 'squad' ? <Users size={12} /> : r.kind === 'match' ? <Trophy size={12} /> : r.kind === 'broadcast' ? <Crown size={12} /> : null
-          const isDmOrBot = ['dm', 'bot'].includes(r.kind)
-          return (
-            <div key={r.id} className="flex items-center hover:bg-gray-50 active:bg-gray-100 pr-2">
-              <Link
-                href={`/chat/${r.id}`}
-                className="flex flex-1 items-center gap-3 p-3 min-w-0"
-              >
-                {r.other?.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={r.other.avatar_url} alt="" className="w-11 h-11 rounded-full object-cover shrink-0" />
-                ) : (
-                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-tranmere-blue to-blue-900 flex items-center justify-center text-white text-sm font-bold shrink-0">
-                    {initials}
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start gap-1.5">
-                    <p className="font-semibold line-clamp-2 break-words">{r.label}</p>
-                    {kindIcon && <span className="text-muted-foreground shrink-0 mt-0.5">{kindIcon}</span>}
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {r.lastMessage ?? <span className="italic">No messages yet</span>}
-                  </p>
-                </div>
-                {r.unread > 0 && (
-                  <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 rounded-full bg-tranmere-blue text-white text-[11px] font-bold px-1.5">
-                    {r.unread}
-                  </span>
-                )}
-              </Link>
-              <ChatRoomActions roomId={r.id} isOwner={r.isOwner} isDmOrBot={isDmOrBot} canLeave={!r.syncYearGroup} />
-            </div>
-          )
-        })}
-      </div>
+      <ChatRoomList rooms={rooms as ChatListRoom[]} directory={directory ?? []} />
     </div>
   )
 }

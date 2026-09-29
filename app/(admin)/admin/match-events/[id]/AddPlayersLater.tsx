@@ -17,7 +17,7 @@ export function AddPlayersLater({
   matchId: string
   opponent: string
   matchTeamId: string | null
-  available: { id: string; name: string; team_id: string | null; teams: TeamRef | null }[]
+  available: { id: string; name: string; team_id: string | null; teams: TeamRef | null; team_members?: { team_id: string }[] | null }[]
 }) {
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
