@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { Send, Paperclip, X, Bot, BarChart3 } from 'lucide-react'
+import { Send, Paperclip, X, Bot, BarChart3, Crop } from 'lucide-react'
 import { MessageReactionSheet } from '@/components/chat/MessageReactionSheet'
 import { MessageBubble } from '@/components/chat/MessageBubble'
 import { ReplyQuote } from '@/components/chat/ReplyQuote'
@@ -13,6 +13,8 @@ import { markRead, notifyRoomMembers, createPoll, closePoll } from '../actions'
 import type { ChatMessage, Poll, PollOption, PollVote, ReplyParent } from '@/lib/chat/types'
 import type { PollVoter } from '@/components/chat/PollCard'
 import { DmReceipt, GroupReceipt } from '@/components/chat/ReadReceipt'
+import { ImageEditSheet } from '@/components/chat/ImageEditSheet'
+import { isEditableImage } from '@/lib/chat/cropImage'
 import { dayLabel, needsDayDivider } from '@/lib/chat/dates'
 import { advanceLastRead, hasRead, summariseReceipt, type LastReadMap, type ReceiptMode } from '@/lib/chat/receipts'
 
@@ -82,6 +84,8 @@ export function ChatThread({
   const [aiTimedOut, setAiTimedOut] = useState(false)
   const [typingUsers, setTypingUsers] = useState<string[]>([])
   const [attachment, setAttachment] = useState<{ file: File; preview: string | null } | null>(null)
+  // Photos open straight into the crop/rotate sheet, like WhatsApp.
+  const [editingImage, setEditingImage] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
   const [reactions, setReactions] = useState<ChatReaction[]>(initialReactions)
@@ -538,7 +542,16 @@ export function ChatThread({
     if (!file) return
     const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : null
     setAttachment({ file, preview })
+    setEditingImage(isEditableImage(file))
     e.target.value = ''
+  }
+
+  function applyImageEdit(edited: File) {
+    setAttachment(prev => {
+      if (prev?.preview) URL.revokeObjectURL(prev.preview)
+      return { file: edited, preview: URL.createObjectURL(edited) }
+    })
+    setEditingImage(false)
   }
 
   async function uploadAttachment(file: File): Promise<{ url: string; kind: string } | null> {
@@ -718,7 +731,13 @@ export function ChatThread({
           ) : (
             <span className="text-sm text-muted-foreground truncate">{attachment.file.name}</span>
           )}
-          <button onClick={() => setAttachment(null)} className="ml-auto text-gray-400 hover:text-gray-600 shrink-0"><X size={16} /></button>
+          {attachment.preview && isEditableImage(attachment.file) && (
+            <button type="button" onClick={() => setEditingImage(true)} aria-label="Edit photo"
+              className="flex items-center gap-1 text-xs font-semibold text-tranmere-blue px-2 py-1 rounded-lg hover:bg-blue-50">
+              <Crop size={14} /> Edit
+            </button>
+          )}
+          <button onClick={() => { setAttachment(null); setEditingImage(false) }} className="ml-auto text-gray-400 hover:text-gray-600 shrink-0"><X size={16} /></button>
         </div>
       )}
       {replyingTo && (
@@ -759,6 +778,14 @@ export function ChatThread({
             </button>
           )}
         </div>
+      )}
+      {editingImage && attachment?.preview && (
+        <ImageEditSheet
+          file={attachment.file}
+          src={attachment.preview}
+          onDone={applyImageEdit}
+          onCancel={() => setEditingImage(false)}
+        />
       )}
       {creatingPoll && (
         <CreatePollSheet
