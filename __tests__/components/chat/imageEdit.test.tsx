@@ -63,21 +63,31 @@ function pick(file: File) {
   fireEvent.change(input, { target: { files: [file] } })
 }
 
-it('opens the editor for a photo and swaps in the edited image on Done', async () => {
+it('attaches a photo ready to send without forcing the editor open', async () => {
+  await act(async () => { renderThread() })
+  await act(async () => { pick(new File(['p'], 'IMG_0.jpg', { type: 'image/jpeg' })) })
+  expect(screen.queryByRole('dialog', { name: 'Edit photo' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled()
+})
+
+it('opens the editor from the Edit button and swaps in the edited image on Done', async () => {
   await act(async () => { renderThread() })
   await act(async () => { pick(new File(['p'], 'IMG_1.png', { type: 'image/png' })) })
+  const pickedPreview = (URL.createObjectURL as jest.Mock).mock.results.at(-1)!.value as string
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Edit photo' })) })
   expect(screen.getByRole('dialog', { name: 'Edit photo' })).toBeInTheDocument()
 
   await act(async () => { fireEvent.click(screen.getByTestId('cropper')) })
   await act(async () => { fireEvent.click(screen.getByLabelText('Done editing')) })
   expect(screen.queryByRole('dialog', { name: 'Edit photo' })).toBeNull()
-  expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:1')
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith(pickedPreview)
   expect(screen.getByLabelText('Edit photo')).toBeInTheDocument()
 })
 
 it('Cancel keeps the original photo attached', async () => {
   await act(async () => { renderThread() })
   await act(async () => { pick(new File(['p'], 'IMG_2.jpg', { type: 'image/jpeg' })) })
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Edit photo' })) })
   await act(async () => { fireEvent.click(screen.getByLabelText('Cancel editing')) })
   expect(screen.queryByRole('dialog', { name: 'Edit photo' })).toBeNull()
   expect(screen.getByLabelText('Edit photo')).toBeInTheDocument()

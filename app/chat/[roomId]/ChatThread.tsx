@@ -3,14 +3,16 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { Send, Paperclip, X, Bot, BarChart3, Crop } from 'lucide-react'
+import { Send, Paperclip, X, Bot, BarChart3, Check, Pencil, Crop } from 'lucide-react'
 import { MessageReactionSheet } from '@/components/chat/MessageReactionSheet'
 import { MessageBubble } from '@/components/chat/MessageBubble'
 import { ReplyQuote } from '@/components/chat/ReplyQuote'
 import { PollCard } from '@/components/chat/PollCard'
 import { CreatePollSheet } from '@/components/chat/CreatePollSheet'
 import { markRead, notifyRoomMembers, createPoll, closePoll } from '../actions'
+import { CHAT_EDIT_WINDOW_MS } from '@/lib/chat/types'
 import type { ChatMessage, Poll, PollOption, PollVote, ReplyParent } from '@/lib/chat/types'
+import { compressChatImage } from '@/lib/chat/compressImage'
 import type { PollVoter } from '@/components/chat/PollCard'
 import { DmReceipt, GroupReceipt } from '@/components/chat/ReadReceipt'
 import { ImageEditSheet } from '@/components/chat/ImageEditSheet'
@@ -87,6 +89,7 @@ export function ChatThread({
   // Photos open straight into the crop/rotate sheet, like WhatsApp.
   const [editingImage, setEditingImage] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editing, setEditing] = useState<ChatMessage | null>(null)
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
   const [reactions, setReactions] = useState<ChatReaction[]>(initialReactions)
   const [reactingTo, setReactingTo] = useState<string | null>(null)
@@ -177,6 +180,7 @@ export function ChatThread({
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}` }, payload => {
         const updated = payload.new as ChatMessage & { deleted_at: string | null }
         if (updated.deleted_at) setMessages(prev => prev.filter(m => m.id !== updated.id))
+        else setMessages(prev => prev.map(m => (m.id === updated.id ? { ...m, body: updated.body, edited_at: updated.edited_at } : m)))
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_message_reactions' }, payload => {
         const row = payload.new as ChatReaction
@@ -542,7 +546,11 @@ export function ChatThread({
     if (!file) return
     const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : null
     setAttachment({ file, preview })
-    setEditingImage(isEditableImage(file))
+    // The crop editor used to open automatically for every photo. On iPhone
+    // that trapped people: the sheet covers the send arrow, and its
+    // close/done controls sat up by the status bar. Photos now attach ready
+    // to send; cropping is opt-in via the Edit button on the attachment strip.
+    setEditingImage(false)
     e.target.value = ''
   }
 
@@ -554,33 +562,82 @@ export function ChatThread({
     setEditingImage(false)
   }
 
-  async function uploadAttachment(file: File): Promise<{ url: string; kind: string } | null> {
-    const ext = file.name.split('.').pop()
+  async function uploadAttachment(original: File): Promise<{ url: string; kind: string } | { error: string }> {
+    const isImage = original.type.startsWith('image/')
+    const file = isImage ? await compressChatImage(original) : original
+    const ext = file.name.includes('.') ? file.name.split('.').pop() : (isImage ? 'jpg' : 'bin')
     const path = `${currentUserId}/${Date.now()}.${ext}`
-    const { data, error } = await supabase.storage.from('chat-attachments').upload(path, file)
-    if (error || !data) return null
-    return { url: data.path, kind: file.type.startsWith('image/') ? 'image' : 'file' }
+    const { data, error } = await supabase.storage.from('chat-attachments').upload(path, file, { contentType: file.type || undefined })
+    if (error || !data) return { error: error?.message ?? 'Upload failed' }
+    return { url: data.path, kind: isImage ? 'image' : 'file' }
+  }
+
+  function startEdit(message: ChatMessage) {
+    setReplyingTo(null)
+    setAttachment(null)
+    setEditingImage(false)
+    setEditing(message)
+    setDraft(message.body ?? '')
+    window.setTimeout(() => textareaRef.current?.focus(), 0)
+  }
+
+  function cancelEdit() {
+    setEditing(null)
+    setDraft('')
+  }
+
+  async function saveEdit(target: ChatMessage, body: string) {
+    if (!body) return
+    if (body === (target.body ?? '').trim()) { cancelEdit(); return }
+    setSending(true)
+    try {
+      const { data, error } = await supabase.from('chat_messages').update({ body }).eq('id', target.id).select('id, body, edited_at').single()
+      if (error) { alert(`Could not edit: ${error.message}`); return }
+      if (data) setMessages(prev => prev.map(m => (m.id === data.id ? { ...m, body: data.body, edited_at: data.edited_at } : m)))
+      cancelEdit()
+    } catch {
+      alert('Could not edit the message — you may be offline. Try again.')
+    } finally {
+      setSending(false)
+    }
   }
 
   async function send() {
     const body = draft.trim()
+    if (editing) { await saveEdit(editing, body); return }
     if (!body && !attachment) return
     setSending(true)
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
     channelRef.current?.track({ userId: currentUserId, name: myName, typing: false })
     let attachmentUrl: string | null = null
     let attachmentKind: string | null = null
-    if (attachment) {
-      const result = await uploadAttachment(attachment.file)
-      if (result) { attachmentUrl = result.url; attachmentKind = result.kind }
-      setAttachment(null)
+    let inserted: ChatMessage | null = null
+    // Everything that can fail sits inside try/finally: before this, a
+    // rejected or stalled upload left `sending` stuck true, so the send arrow
+    // stayed greyed out with nothing on screen to say why. A failed upload
+    // also used to be dropped silently — the photo vanished and the message
+    // went without it. Now the photo and draft stay put so the user can retry.
+    try {
+      if (attachment) {
+        const result = await uploadAttachment(attachment.file)
+        if ('error' in result) { alert(`Could not send the attachment: ${result.error}`); return }
+        attachmentUrl = result.url
+        attachmentKind = result.kind
+      }
+      const { data, error } = await supabase.from('chat_messages').insert({ room_id: roomId, sender_id: currentUserId, body: body || null, attachment_url: attachmentUrl, attachment_kind: attachmentKind, reply_to_id: replyingTo?.id ?? null }).select('*').single()
+      if (error) { alert(`Send failed: ${error.message}`); return }
+      inserted = data as ChatMessage
+    } catch {
+      alert('Send failed — you may be offline. Try again.')
+      return
+    } finally {
+      setSending(false)
     }
-    const { data: inserted, error } = await supabase.from('chat_messages').insert({ room_id: roomId, sender_id: currentUserId, body: body || null, attachment_url: attachmentUrl, attachment_kind: attachmentKind, reply_to_id: replyingTo?.id ?? null }).select('*').single()
-    setSending(false)
-    if (error) { alert(`Send failed: ${error.message}`); return }
+    setAttachment(null)
     setDraft('')
     setReplyingTo(null)
-    if (inserted) setMessages(prev => prev.find(p => p.id === inserted.id) ? prev : [...prev, inserted as ChatMessage])
+    const sent = inserted
+    if (sent) setMessages(prev => prev.find(p => p.id === sent.id) ? prev : [...prev, sent])
     if (roomKind !== 'bot') notifyRoomMembers(
       roomId,
       myName ?? 'Someone',
@@ -740,6 +797,16 @@ export function ChatThread({
           <button onClick={() => { setAttachment(null); setEditingImage(false) }} className="ml-auto text-gray-400 hover:text-gray-600 shrink-0"><X size={16} /></button>
         </div>
       )}
+      {editing && (
+        <div className="bg-white border-t px-3 py-2 flex items-center gap-2 shrink-0">
+          <Pencil size={14} className="text-tranmere-blue shrink-0" />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-tranmere-blue">Editing message</p>
+            <p className="text-xs text-muted-foreground truncate">{editing.body}</p>
+          </div>
+          <button onClick={cancelEdit} className="ml-auto text-gray-400 hover:text-gray-600 shrink-0" type="button" aria-label="Cancel edit"><X size={16} /></button>
+        </div>
+      )}
       {replyingTo && (
         <ReplyQuote
           parent={{
@@ -761,13 +828,17 @@ export function ChatThread({
           {canUsePolls && (
             <button onClick={() => setCreatingPoll(true)} className="p-2 text-gray-400 hover:text-tranmere-blue shrink-0" type="button" aria-label="New poll"><BarChart3 size={18} /></button>
           )}
-          <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-400 hover:text-tranmere-blue shrink-0" type="button" aria-label="Attach file"><Paperclip size={18} /></button>
+          {!editing && (
+            <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-400 hover:text-tranmere-blue shrink-0" type="button" aria-label="Attach file"><Paperclip size={18} /></button>
+          )}
           <textarea ref={textareaRef} value={draft} onChange={e => handleDraftChange(e.target.value)} onKeyDown={e => {
             if (e.key !== 'Enter' || e.shiftKey) return
             if (typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches) return
             e.preventDefault(); send()
           }} placeholder="Message…" rows={1} className="flex-1 text-sm border rounded-2xl px-3 py-2 resize-none focus:ring-2 focus:ring-tranmere-blue outline-none max-h-32 overflow-y-auto" />
-          <button onClick={send} disabled={(!draft.trim() && !attachment) || sending} aria-label="Send message" className="rounded-full bg-tranmere-blue text-white w-10 h-10 flex items-center justify-center shrink-0 disabled:opacity-50"><Send size={16} /></button>
+          <button onClick={send} disabled={(!draft.trim() && !attachment) || sending} aria-label={editing ? 'Save edit' : 'Send message'} aria-busy={sending} className="rounded-full bg-tranmere-blue text-white w-10 h-10 flex items-center justify-center shrink-0 disabled:opacity-50">
+            {sending ? <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" /> : editing ? <Check size={16} /> : <Send size={16} />}
+          </button>
         </div>
       ) : (
         <div className="bg-gray-50 border-t p-3 flex items-center justify-center gap-3 text-xs text-muted-foreground safe-bottom">
@@ -799,7 +870,17 @@ export function ChatThread({
           deleting={deletingId === reactingTo}
           canReply={canReply}
           onPick={emoji => { toggleReaction(reactingTo, emoji); setReactingTo(null) }}
-          onReply={() => { setReplyingTo(messages.find(m => m.id === reactingTo) ?? null); setReactingTo(null) }}
+          onReply={() => { if (editing) cancelEdit(); setReplyingTo(messages.find(m => m.id === reactingTo) ?? null); setReactingTo(null) }}
+          canEdit={(() => {
+            const m = messages.find(msg => msg.id === reactingTo)
+            return !!m && m.sender_id === currentUserId && !!m.body && !m.poll_id
+              && Date.now() - new Date(m.created_at).getTime() < CHAT_EDIT_WINDOW_MS
+          })()}
+          onEdit={() => {
+            const m = messages.find(msg => msg.id === reactingTo)
+            if (m) startEdit(m)
+            setReactingTo(null)
+          }}
           onDelete={() => { deleteMessage(reactingTo); setReactingTo(null) }}
           onClose={() => setReactingTo(null)}
         />

@@ -130,6 +130,7 @@ export function MessageBubble({
         )}
         {pollSlot ? pollSlot : (m.body && <MessageBody body={m.body} mine={mine} />)}
         <div className={`flex items-center justify-end gap-1 text-[10px] mt-0.5 ${mine ? 'text-blue-200' : 'text-gray-400'}`}>
+          {m.edited_at && <span className="italic">edited</span>}
           <span>{formatClock(m.created_at)}</span>
           {receipt}
         </div>

@@ -63,11 +63,11 @@ export function ImageEditSheet({
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col" role="dialog" aria-label="Edit photo">
-      <div className="flex items-center justify-between px-3 py-2 text-white safe-top">
-        <button type="button" onClick={onCancel} className="p-2" aria-label="Cancel editing"><X size={22} /></button>
+      {/* Title only up here. On iPhone the top of the screen can sit under
+          the status bar / Dynamic Island, where taps don't land — so the
+          Cancel and Done controls live in the bottom bar instead. */}
+      <div className="px-3 pt-3 pb-2 text-center text-white safe-top">
         <span className="text-sm font-semibold">Edit photo</span>
-        <button type="button" onClick={done} disabled={!area || saving} aria-label="Done editing"
-          className="p-2 text-sky-300 disabled:opacity-50"><Check size={22} /></button>
       </div>
 
       <div className="relative flex-1">
@@ -94,13 +94,23 @@ export function ImageEditSheet({
           <button type="button" onClick={() => setRotation(r => (r + 90) % 360)} aria-label="Rotate"
             className="p-2 rounded-full bg-white/10"><RotateCw size={18} /></button>
         </div>
-        <div className="flex justify-center gap-2">
+        <div className="flex justify-center gap-2 flex-wrap">
           {ASPECTS.map(a => (
             <button key={a.key} type="button" onClick={() => setAspectKey(a.key)}
               className={`px-3 py-1 rounded-full text-xs border ${aspectKey === a.key ? 'bg-white text-black border-white' : 'border-white/40'}`}>
               {a.label}
             </button>
           ))}
+        </div>
+        <div className="flex gap-3 pt-1">
+          <button type="button" onClick={onCancel} aria-label="Cancel editing"
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-white/10 py-3 text-sm font-semibold">
+            <X size={18} /> Cancel
+          </button>
+          <button type="button" onClick={done} disabled={!area || saving} aria-label="Done editing"
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-sky-500 py-3 text-sm font-semibold text-white disabled:opacity-50">
+            <Check size={18} /> {saving ? 'Saving…' : 'Done'}
+          </button>
         </div>
       </div>
     </div>
