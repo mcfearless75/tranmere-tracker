@@ -6,8 +6,10 @@ export function MessageReactionSheet({
   mine,
   deleting,
   canReply = true,
+  canEdit = false,
   onPick,
   onReply,
+  onEdit,
   onDelete,
   onClose,
 }: {
@@ -16,8 +18,11 @@ export function MessageReactionSheet({
   /** False in the AI Coach bot room — spec §2 puts replies out of scope
    *  there. Defaults to true so every other room is unaffected. */
   canReply?: boolean
+  /** Own text message still inside the edit window (CHAT_EDIT_WINDOW_MS). */
+  canEdit?: boolean
   onPick: (emoji: string) => void
   onReply: () => void
+  onEdit?: () => void
   onDelete: () => void
   onClose: () => void
 }) {
@@ -45,6 +50,15 @@ export function MessageReactionSheet({
             className="w-full border-t border-white/10 px-4 py-3 text-left text-sm font-medium"
           >
             Reply
+          </button>
+        )}
+        {mine && canEdit && onEdit && (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="w-full border-t border-white/10 px-4 py-3 text-left text-sm font-medium"
+          >
+            Edit
           </button>
         )}
         {mine && (

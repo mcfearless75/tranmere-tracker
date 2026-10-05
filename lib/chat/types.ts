@@ -14,7 +14,13 @@ export type ChatMessage = {
   created_at: string
   reply_to_id: string | null
   poll_id: string | null
+  /** Stamped by the database (migration 089) when the sender edits the body. */
+  edited_at?: string | null
 }
+
+/** How long after sending a message its sender may edit it. Mirrors the
+ *  check in the guard_chat_message_update trigger (migration 089). */
+export const CHAT_EDIT_WINDOW_MS = 15 * 60 * 1000
 
 /** A message quoted by a reply. Kept deliberately narrow — a quote shows a
  *  name and one line, never the full message.

@@ -127,6 +127,7 @@ export function MessageBubble({
         {pollSlot ? pollSlot : (m.body && <MessageBody body={m.body} mine={mine} />)}
         <p className={`text-[10px] mt-0.5 ${mine ? 'text-blue-200' : 'text-gray-400'}`}>
           {new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
+          {m.edited_at && <span className="ml-1 italic">edited</span>}
         </p>
         {chips.length > 0 && (
           <div className={`flex flex-wrap gap-1 mt-1 ${mine ? 'justify-end' : 'justify-start'}`}>
