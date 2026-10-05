@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { eligiblePlayers } from '@/lib/teams/players'
+import { eligiblePlayers, PLAYER_TEAM_COLUMNS } from '@/lib/teams/players'
 import type { TeamRef } from '@/lib/teams/types'
 import { FormationBuilder } from './FormationBuilder'
 import { PlayerLoadError } from '@/components/PlayerLoadError'
@@ -20,13 +20,14 @@ type EligiblePlayer = {
   role: string
   team_id: string | null
   teams: TeamRef | null
+  team_members: { team_id: string }[] | null
 }
 
 export default async function FormationPage({ searchParams }: { searchParams: { match?: string } }) {
   const supabase = createAdminClient()
 
   const [{ data: students, error: studentsError }, { data: matches }] = await Promise.all([
-    eligiblePlayers(supabase, 'id, name, avatar_url, year_group, role, team_id, teams(id, name)'),
+    eligiblePlayers(supabase, `id, name, avatar_url, year_group, role, ${PLAYER_TEAM_COLUMNS}`),
     supabase.from('match_events').select('id, match_date, kick_off_time, opponent, status, team_id').order('match_date', { ascending: false }).limit(20),
   ])
 

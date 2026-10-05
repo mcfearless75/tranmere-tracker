@@ -204,3 +204,89 @@ export async function setTeamActive(teamId: string, active: boolean): Promise<Ac
   revalidate()
   return { ok: true }
 }
+
+/**
+ * Adds players to a team WITHOUT taking them out of any other team (089).
+ * Their main team (users.team_id) is only set if they had none — the
+ * team_members trigger handles that and adds them to the team's squad chat.
+ */
+export async function addUsersToTeam(userIds: string[], teamId: string): Promise<ActionResult> {
+  const auth = await staffContext()
+  if (!auth.ok) return auth
+  const { admin } = auth.ctx
+
+  if (userIds.length === 0) return { ok: true }
+  const { error } = await admin
+    .from('team_members')
+    .upsert(userIds.map(user_id => ({ team_id: teamId, user_id })), { onConflict: 'team_id,user_id', ignoreDuplicates: true })
+  if (error) return { ok: false, error: error.message }
+  revalidate()
+  revalidatePath('/chat')
+  return { ok: true }
+}
+
+/**
+ * Takes a player out of one team, leaving their other teams alone. If it was
+ * their main team, the trigger promotes their oldest remaining team (or
+ * clears it). Players (not staff) also leave that team's squad chat.
+ */
+export async function removeUserFromTeam(userId: string, teamId: string): Promise<ActionResult> {
+  const auth = await staffContext()
+  if (!auth.ok) return auth
+  const { admin } = auth.ctx
+
+  const { error } = await admin.from('team_members').delete().eq('team_id', teamId).eq('user_id', userId)
+  if (error) return { ok: false, error: error.message }
+  revalidate()
+  revalidatePath('/chat')
+  return { ok: true }
+}
+
+/**
+ * Creates the team's squad chat (one per team), seeded with every active
+ * member of the team plus every active staff member. System-owned
+ * (created_by null) like the year-group rooms, so no one coach "owns" it. From then on the
+ * database keeps its players in step with the roster (089 triggers).
+ * Returns the room id so the page can link straight to it.
+ */
+export async function createTeamChat(teamId: string): Promise<ActionResult & { roomId?: string }> {
+  const auth = await staffContext()
+  if (!auth.ok) return auth
+  const { admin } = auth.ctx
+
+  const { data: existing, error: existingError } = await admin
+    .from('chat_rooms').select('id').eq('sync_team_id', teamId).maybeSingle()
+  if (existingError) return { ok: false, error: existingError.message }
+  if (existing) return { ok: true, roomId: (existing as { id: string }).id }
+
+  const { data: team, error: teamError } = await admin.from('teams').select('name').eq('id', teamId).maybeSingle()
+  if (teamError) return { ok: false, error: teamError.message }
+  if (!team) return { ok: false, error: 'Team not found' }
+
+  const { data: room, error: roomError } = await admin
+    .from('chat_rooms')
+    .insert({ kind: 'custom', name: `${(team as { name: string }).name} Squad`, sync_team_id: teamId, created_by: null })
+    .select('id')
+    .single()
+  if (roomError || !room) return { ok: false, error: roomError?.message ?? 'Could not create chat' }
+  const roomId = (room as { id: string }).id
+
+  const [{ data: players, error: playersError }, { data: staff, error: staffError }] = await Promise.all([
+    admin.from('team_members').select('user_id, users!inner(is_active)').eq('team_id', teamId).eq('users.is_active', true),
+    admin.from('users').select('id').in('role', ['admin', 'coach', 'teacher']).eq('is_active', true),
+  ])
+  if (playersError || staffError) return { ok: false, error: (playersError ?? staffError)!.message }
+
+  const ids = new Set<string>([
+    ...((players ?? []) as { user_id: string }[]).map(p => p.user_id),
+    ...((staff ?? []) as { id: string }[]).map(s => s.id),
+  ])
+  const { error: memberError } = await admin
+    .from('chat_members')
+    .upsert(Array.from(ids).map(user_id => ({ room_id: roomId, user_id, role: 'member' })), { onConflict: 'room_id,user_id', ignoreDuplicates: true })
+  if (memberError) return { ok: false, error: memberError.message }
+
+  revalidate()
+  revalidatePath('/chat')
+  return { ok: true, roomId }
+}

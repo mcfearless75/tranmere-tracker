@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { Send, Paperclip, X, Bot, BarChart3, Check, Pencil } from 'lucide-react'
+import { Send, Paperclip, X, Bot, BarChart3, Check, Pencil, Crop } from 'lucide-react'
 import { MessageReactionSheet } from '@/components/chat/MessageReactionSheet'
 import { MessageBubble } from '@/components/chat/MessageBubble'
 import { ReplyQuote } from '@/components/chat/ReplyQuote'
@@ -14,6 +14,11 @@ import { CHAT_EDIT_WINDOW_MS } from '@/lib/chat/types'
 import type { ChatMessage, Poll, PollOption, PollVote, ReplyParent } from '@/lib/chat/types'
 import { compressChatImage } from '@/lib/chat/compressImage'
 import type { PollVoter } from '@/components/chat/PollCard'
+import { DmReceipt, GroupReceipt } from '@/components/chat/ReadReceipt'
+import { ImageEditSheet } from '@/components/chat/ImageEditSheet'
+import { isEditableImage } from '@/lib/chat/cropImage'
+import { dayLabel, needsDayDivider } from '@/lib/chat/dates'
+import { advanceLastRead, hasRead, summariseReceipt, type LastReadMap, type ReceiptMode } from '@/lib/chat/receipts'
 
 type Member = { user_id: string; users: { id: string; name: string | null; avatar_url: string | null } | null }
 export type ChatReaction = { id: string; message_id: string; user_id: string; emoji: string }
@@ -55,6 +60,8 @@ export function ChatThread({
   initialPollOptions = [],
   initialMyVotes = [],
   isChatStaff = false,
+  receiptMode = 'none',
+  initialLastRead = {},
 }: {
   roomId: string
   roomKind: string
@@ -68,6 +75,8 @@ export function ChatThread({
   initialPollOptions?: PollOption[]
   initialMyVotes?: PollVote[]
   isChatStaff?: boolean
+  receiptMode?: ReceiptMode
+  initialLastRead?: LastReadMap
 }) {
   const supabase = createClient()
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
@@ -77,6 +86,8 @@ export function ChatThread({
   const [aiTimedOut, setAiTimedOut] = useState(false)
   const [typingUsers, setTypingUsers] = useState<string[]>([])
   const [attachment, setAttachment] = useState<{ file: File; preview: string | null } | null>(null)
+  // Photos open straight into the crop/rotate sheet, like WhatsApp.
+  const [editingImage, setEditingImage] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editing, setEditing] = useState<ChatMessage | null>(null)
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
@@ -97,6 +108,11 @@ export function ChatThread({
   // Not in the brief's state block verbatim — a defect in Step 4, which uses
   // votersByPoll in loadVoters and pollSlot without ever declaring it.
   const [votersByPoll, setVotersByPoll] = useState<Record<string, PollVoter[]>>({})
+  const [lastRead, setLastRead] = useState<LastReadMap>(initialLastRead)
+  // The most recent read time we've written, re-broadcast once the channel
+  // is SUBSCRIBED — the mount-time markRead usually resolves before then.
+  const myLastReadRef = useRef<string | null>(null)
+  const subscribedRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -117,9 +133,25 @@ export function ChatThread({
   const memberById: Record<string, Member> = {}
   for (const m of members) memberById[m.user_id] = m
   const myName = memberById[currentUserId]?.users?.name ?? 'Someone'
+  const memberIds = members.map(m => m.user_id)
+
+  // Tell everyone else in the room we've read up to `at`. Broadcast rather
+  // than a postgres_changes feed on chat_members, so no RLS or publication
+  // change is needed; the receiving side decides whether to show it.
+  function announceRead(at: string | null | undefined) {
+    if (!at || roomKind === 'bot') return
+    myLastReadRef.current = at
+    if (subscribedRef.current) {
+      channelRef.current?.send?.({ type: 'broadcast', event: 'read', payload: { userId: currentUserId, at } })
+    }
+  }
+
+  function readNow() {
+    Promise.resolve(markRead(roomId)).then(announceRead).catch(() => {})
+  }
 
   useEffect(() => {
-    markRead(roomId)
+    readNow()
     const channel = supabase
       .channel(`room:${roomId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}` }, payload => {
@@ -128,8 +160,13 @@ export function ChatThread({
           if (prev.find(p => p.id === m.id)) return prev
           return [...prev, m]
         })
-        if ((payload.new as ChatMessage).sender_id !== currentUserId) {
-          markRead(roomId)
+        const sender = (payload.new as ChatMessage).sender_id
+        // Sending a message implies they've read everything before it.
+        if (sender !== currentUserId && sender !== BOT_USER_ID) {
+          setLastRead(prev => advanceLastRead(prev, sender, (payload.new as ChatMessage).created_at))
+        }
+        if (sender !== currentUserId) {
+          readNow()
           if ((payload.new as ChatMessage).sender_id === BOT_USER_ID) {
             setAiTyping(false)
             setAiTimedOut(false)
@@ -171,15 +208,24 @@ export function ChatThread({
         const row = payload.new as Poll
         setPolls(prev => prev.map(p => (p.id === row.id ? row : p)))
       })
+      .on('broadcast', { event: 'read' }, ({ payload }: { payload?: { userId?: string; at?: string } }) => {
+        const { userId, at } = payload ?? {}
+        if (!userId || !at || userId === currentUserId) return
+        setLastRead(prev => advanceLastRead(prev, userId, at))
+      })
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState<{ userId: string; name: string; typing: boolean }>()
         setTypingUsers(Object.values(state).flat().filter(p => p.typing && p.userId !== currentUserId).map(p => p.name))
       })
       .subscribe(async status => {
-        if (status === 'SUBSCRIBED') await channel.track({ userId: currentUserId, name: myName, typing: false })
+        if (status !== 'SUBSCRIBED') return
+        subscribedRef.current = true
+        announceRead(myLastReadRef.current)
+        await channel.track({ userId: currentUserId, name: myName, typing: false })
       })
     channelRef.current = channel
     return () => {
+      subscribedRef.current = false
       supabase.removeChannel(channel)
       if (aiReplyTimeoutRef.current) clearTimeout(aiReplyTimeoutRef.current)
     }
@@ -500,7 +546,20 @@ export function ChatThread({
     if (!file) return
     const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : null
     setAttachment({ file, preview })
+    // The crop editor used to open automatically for every photo. On iPhone
+    // that trapped people: the sheet covers the send arrow, and its
+    // close/done controls sat up by the status bar. Photos now attach ready
+    // to send; cropping is opt-in via the Edit button on the attachment strip.
+    setEditingImage(false)
     e.target.value = ''
+  }
+
+  function applyImageEdit(edited: File) {
+    setAttachment(prev => {
+      if (prev?.preview) URL.revokeObjectURL(prev.preview)
+      return { file: edited, preview: URL.createObjectURL(edited) }
+    })
+    setEditingImage(false)
   }
 
   async function uploadAttachment(original: File): Promise<{ url: string; kind: string } | { error: string }> {
@@ -516,6 +575,7 @@ export function ChatThread({
   function startEdit(message: ChatMessage) {
     setReplyingTo(null)
     setAttachment(null)
+    setEditingImage(false)
     setEditing(message)
     setDraft(message.body ?? '')
     window.setTimeout(() => textareaRef.current?.focus(), 0)
@@ -663,9 +723,27 @@ export function ChatThread({
               />
             )
           })() : undefined
+          const mineMsg = m.sender_id === currentUserId
+          let receipt: React.ReactNode = undefined
+          if (mineMsg && receiptMode === 'dm') {
+            const otherId = members.find(mem => mem.user_id !== currentUserId)?.user_id
+            receipt = <DmReceipt read={hasRead(otherId ? lastRead[otherId] : null, m.created_at)} />
+          } else if (mineMsg && receiptMode === 'group') {
+            const { readBy, unreadBy } = summariseReceipt(m.created_at, m.sender_id, memberIds, lastRead, [BOT_USER_ID])
+            const nameOf = (id: string) => memberById[id]?.users?.name ?? 'Unknown'
+            receipt = <GroupReceipt readBy={readBy.map(nameOf)} unreadBy={unreadBy.map(nameOf)} />
+          }
+          const divider = needsDayDivider(prev?.created_at, m.created_at) ? (
+            <div className="flex justify-center py-1" data-testid="day-divider">
+              <span className="text-[11px] font-medium text-gray-600 bg-white border rounded-full px-3 py-0.5 shadow-sm">
+                {dayLabel(m.created_at)}
+              </span>
+            </div>
+          ) : null
           return (
+            <Fragment key={m.id}>
+            {divider}
             <MessageBubble
-              key={m.id}
               message={m}
               mine={m.sender_id === currentUserId}
               isBot={isBot}
@@ -680,7 +758,9 @@ export function ChatThread({
               replyParentName={replyParentName}
               onJumpToMessage={canJumpToParent ? jumpToMessage : undefined}
               pollSlot={pollSlot ?? undefined}
+              receipt={receipt}
             />
+            </Fragment>
           )
         })}
         {aiTyping && (
@@ -708,7 +788,13 @@ export function ChatThread({
           ) : (
             <span className="text-sm text-muted-foreground truncate">{attachment.file.name}</span>
           )}
-          <button onClick={() => setAttachment(null)} className="ml-auto text-gray-400 hover:text-gray-600 shrink-0"><X size={16} /></button>
+          {attachment.preview && isEditableImage(attachment.file) && (
+            <button type="button" onClick={() => setEditingImage(true)} aria-label="Edit photo"
+              className="flex items-center gap-1 text-xs font-semibold text-tranmere-blue px-2 py-1 rounded-lg hover:bg-blue-50">
+              <Crop size={14} /> Edit
+            </button>
+          )}
+          <button onClick={() => { setAttachment(null); setEditingImage(false) }} className="ml-auto text-gray-400 hover:text-gray-600 shrink-0"><X size={16} /></button>
         </div>
       )}
       {editing && (
@@ -763,6 +849,14 @@ export function ChatThread({
             </button>
           )}
         </div>
+      )}
+      {editingImage && attachment?.preview && (
+        <ImageEditSheet
+          file={attachment.file}
+          src={attachment.preview}
+          onDone={applyImageEdit}
+          onCancel={() => setEditingImage(false)}
+        />
       )}
       {creatingPoll && (
         <CreatePollSheet

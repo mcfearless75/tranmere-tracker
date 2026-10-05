@@ -5,6 +5,7 @@ import { Bot, SmilePlus } from 'lucide-react'
 import { ChatImage } from '@/components/chat/ChatImage'
 import { MessageBody } from '@/components/chat/MessageBody'
 import { ReplyQuote } from '@/components/chat/ReplyQuote'
+import { formatClock } from '@/lib/chat/dates'
 import type { ChatMessage, ReplyParent } from '@/lib/chat/types'
 
 export type ReactionChip = { emoji: string; count: number; mine: boolean }
@@ -24,6 +25,8 @@ export type MessageBubbleProps = {
   replyParentName?: string
   onJumpToMessage?: (messageId: string) => void
   pollSlot?: React.ReactNode
+  /** Read receipt shown beside the time (ticks in DMs, "Seen by" for staff in groups). */
+  receipt?: React.ReactNode
 }
 
 export function MessageBubble({
@@ -41,6 +44,7 @@ export function MessageBubble({
   replyParentName = '',
   onJumpToMessage,
   pollSlot,
+  receipt,
 }: MessageBubbleProps) {
   const holdTimer = useRef<number | null>(null)
   const holdStart = useRef<{ x: number; y: number } | null>(null)
@@ -125,10 +129,11 @@ export function MessageBubble({
           </a>
         )}
         {pollSlot ? pollSlot : (m.body && <MessageBody body={m.body} mine={mine} />)}
-        <p className={`text-[10px] mt-0.5 ${mine ? 'text-blue-200' : 'text-gray-400'}`}>
-          {new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' })}
-          {m.edited_at && <span className="ml-1 italic">edited</span>}
-        </p>
+        <div className={`flex items-center justify-end gap-1 text-[10px] mt-0.5 ${mine ? 'text-blue-200' : 'text-gray-400'}`}>
+          {m.edited_at && <span className="italic">edited</span>}
+          <span>{formatClock(m.created_at)}</span>
+          {receipt}
+        </div>
         {chips.length > 0 && (
           <div className={`flex flex-wrap gap-1 mt-1 ${mine ? 'justify-end' : 'justify-start'}`}>
             {chips.map(chip => (

@@ -7,6 +7,7 @@ import { ChatThread } from './ChatThread'
 import { GroupMembers } from './GroupMembers'
 import { AddGroupMembers } from './AddGroupMembers'
 import type { Poll, PollOption, PollVote, ReplyParent } from '@/lib/chat/types'
+import { receiptMode, type LastReadMap } from '@/lib/chat/receipts'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +23,7 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
 
   const { data: members } = await admin
     .from('chat_members')
-    .select('user_id, role, users:user_id(id, name, avatar_url, role, is_active)')
+    .select('user_id, role, last_read_at, users:user_id(id, name, avatar_url, role, is_active)')
     .eq('room_id', params.roomId)
 
   const me = (members ?? []).find((m: any) => m.user_id === user.id)
@@ -142,6 +143,20 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
     }
   }
 
+  // Read receipts. Only sent to the client when this viewer is allowed to
+  // see them (see lib/chat/receipts.ts) — a player in a group room never
+  // gets anyone's last_read_at in the page payload.
+  const receipts = receiptMode(room.kind, !!isStaff)
+  const initialLastRead: LastReadMap = {}
+  if (receipts !== 'none') {
+    for (const m of (members ?? []) as { user_id: string; last_read_at: string | null }[]) {
+      if (m.user_id !== user.id && m.last_read_at) initialLastRead[m.user_id] = m.last_read_at
+    }
+  }
+  // Strip last_read_at from the member list handed to the client either way;
+  // receipts travel only through initialLastRead above.
+  const clientMembers = (members ?? []).map(({ last_read_at: _lr, ...rest }: any) => rest)
+
   let title = room.name
   if (room.kind === 'dm') {
     const other = (members ?? []).find((m: any) => m.user_id !== user.id)
@@ -167,7 +182,7 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
       {isGroupRoom && (
         <GroupMembers
           roomId={params.roomId}
-          members={(members ?? []) as any}
+          members={clientMembers as any}
           currentUserId={user.id}
           isStaff={!!isStaff}
           syncYearGroup={room.sync_year_group ?? null}
@@ -190,8 +205,10 @@ export default async function ChatRoomPage({ params }: { params: { roomId: strin
         initialPollOptions={pollOptions}
         initialMyVotes={myVotes}
         isChatStaff={!!isStaff}
-        members={(members ?? []) as any}
+        members={clientMembers as any}
         canSend={canSend}
+        receiptMode={receipts}
+        initialLastRead={initialLastRead}
       />
     </div>
   )

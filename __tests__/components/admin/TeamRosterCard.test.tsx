@@ -7,26 +7,38 @@ import { TeamRosterCard } from '@/app/(admin)/admin/teams/TeamRosterCard'
  * server actions are mocked — never let the real ones run in a unit test.
  */
 const setUserTeamMock = jest.fn()
-const setUsersTeamMock = jest.fn()
+const addUsersToTeamMock = jest.fn()
+const removeUserFromTeamMock = jest.fn()
+const createTeamChatMock = jest.fn()
+const pushMock = jest.fn()
 jest.mock('@/app/(admin)/admin/teams/teamActions', () => ({
   setUserTeam: (...a: unknown[]) => setUserTeamMock(...a),
-  setUsersTeam: (...a: unknown[]) => setUsersTeamMock(...a),
+  addUsersToTeam: (...a: unknown[]) => addUsersToTeamMock(...a),
+  removeUserFromTeam: (...a: unknown[]) => removeUserFromTeamMock(...a),
+  createTeamChat: (...a: unknown[]) => createTeamChatMock(...a),
 }))
+jest.mock('next/navigation', () => ({ useRouter: () => ({ push: pushMock }) }))
 
 const prem = { id: 't1', name: 'Prem', sort_order: 0, is_active: true }
 const white = { id: 't2', name: 'White', sort_order: 1, is_active: true }
 const teams = [prem, white]
 
-function member(over: Record<string, unknown> = {}) {
+function member(over: { id?: string; name?: string; team_id?: string | null; team_ids?: string[] } = {}) {
+  const team_id = over.team_id ?? null
   return {
-    id: 'p1', name: 'Alfie Casey', role: 'student', year_group: 1, team_id: null,
+    id: 'p1', name: 'Alfie Casey', role: 'student', year_group: 1,
     ...over,
+    team_id,
+    team_ids: over.team_ids ?? (team_id ? [team_id] : []),
   }
 }
 
 beforeEach(() => {
   setUserTeamMock.mockReset().mockResolvedValue({ ok: true })
-  setUsersTeamMock.mockReset().mockResolvedValue({ ok: true })
+  addUsersToTeamMock.mockReset().mockResolvedValue({ ok: true })
+  removeUserFromTeamMock.mockReset().mockResolvedValue({ ok: true })
+  createTeamChatMock.mockReset().mockResolvedValue({ ok: true, roomId: 'room-9' })
+  pushMock.mockReset()
 })
 
 describe('the Unassigned bucket (team=null)', () => {
@@ -82,11 +94,11 @@ describe('a team roster', () => {
     const remove = screen.getByLabelText('Remove Alfie Casey from Prem')
     fireEvent.click(remove)
 
-    await waitFor(() => expect(setUserTeamMock).toHaveBeenCalledWith('p1', null))
+    await waitFor(() => expect(removeUserFromTeamMock).toHaveBeenCalledWith('p1', 't1'))
   })
 
   it('shows the exact refusal reason the action returns, not a generic message', async () => {
-    setUserTeamMock.mockResolvedValue({ ok: false, error: 'You do not have permission to make that change — try signing in again' })
+    removeUserFromTeamMock.mockResolvedValue({ ok: false, error: 'You do not have permission to make that change — try signing in again' })
     render(
       <TeamRosterCard
         team={prem}
@@ -109,34 +121,57 @@ describe('Add players', () => {
     member({ id: 'p3', name: 'Ben Tollitt', team_id: null }),
   ]
 
-  it("shows a candidate's CURRENT team, so a coach can see they are moving them, not copying them", () => {
+  it("shows a candidate's current teams, which they keep", () => {
     render(<TeamRosterCard team={prem} roster={[]} teams={teams} candidates={candidates} />)
 
     fireEvent.click(screen.getByText('Add players'))
 
-    // Troy is currently on White — that must be visible in the picker for the
-    // move to be an informed one, not a guess.
     expect(screen.getByText('White')).toBeInTheDocument()
+    expect(screen.getByText(/they stay in their other teams too/)).toBeInTheDocument()
   })
 
-  it('moves exactly the picked players, and only them, to this team', async () => {
+  it('adds exactly the picked players, and only them, to this team', async () => {
     render(<TeamRosterCard team={prem} roster={[]} teams={teams} candidates={candidates} />)
 
     fireEvent.click(screen.getByText('Add players'))
     fireEvent.click(screen.getByText('Troy Lockyer'))
     fireEvent.click(screen.getByText('Ben Tollitt'))
-    fireEvent.click(screen.getByText('Move 2 to Prem'))
+    fireEvent.click(screen.getByText('Add 2 to Prem'))
 
-    await waitFor(() => expect(setUsersTeamMock).toHaveBeenCalledWith(['p2', 'p3'], 't1'))
+    await waitFor(() => expect(addUsersToTeamMock).toHaveBeenCalledWith(['p2', 'p3'], 't1'))
   })
 
-  it('does not include an unpicked candidate in the move', async () => {
+  it('does not include an unpicked candidate', async () => {
     render(<TeamRosterCard team={prem} roster={[]} teams={teams} candidates={candidates} />)
 
     fireEvent.click(screen.getByText('Add players'))
     fireEvent.click(screen.getByText('Troy Lockyer'))
-    fireEvent.click(screen.getByText('Move 1 to Prem'))
+    fireEvent.click(screen.getByText('Add 1 to Prem'))
 
-    await waitFor(() => expect(setUsersTeamMock).toHaveBeenCalledWith(['p2'], 't1'))
+    await waitFor(() => expect(addUsersToTeamMock).toHaveBeenCalledWith(['p2'], 't1'))
+  })
+})
+
+describe('multiple teams', () => {
+  it("shows a roster player's other teams", () => {
+    render(
+      <TeamRosterCard team={prem} teams={teams} candidates={[]}
+        roster={[member({ id: 'p1', name: 'Alfie Casey', team_id: 't1', team_ids: ['t1', 't2'] })]} />
+    )
+    expect(screen.getByText('White')).toBeInTheDocument()
+  })
+})
+
+describe('squad chat', () => {
+  it('links to an existing squad chat', () => {
+    render(<TeamRosterCard team={prem} roster={[]} teams={teams} candidates={[]} chatRoomId="room-1" />)
+    expect(screen.getByText('Squad chat').closest('a')).toHaveAttribute('href', '/chat/room-1')
+  })
+
+  it('creates the chat and opens it', async () => {
+    render(<TeamRosterCard team={prem} roster={[]} teams={teams} candidates={[]} />)
+    fireEvent.click(screen.getByText('Create chat'))
+    await waitFor(() => expect(createTeamChatMock).toHaveBeenCalledWith('t1'))
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/chat/room-9'))
   })
 })

@@ -20,6 +20,7 @@ type Student = {
   role: string
   team_id: string | null
   teams: TeamRef | null
+  team_members?: { team_id: string }[] | null
 }
 type Match = { id: string; match_date: string; kick_off_time?: string | null; opponent: string; status: string; team_id: string | null }
 type Placement = { slotId: string; playerId: string; playerName: string; avatarUrl?: string | null }
